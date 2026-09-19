@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CKS Kubernetes セキュリティスペシャリスト — CNCF 認定メモ</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<nav class="nav"><div class="nav-inner"><a class="nav-brand" href="../index.html">CNCF 認定メモ</a><div class="nav-links"><a href="../index.html">概要</a><a href="../kubestronaut.html">Kubestronaut</a><a href="../golden-kubestronaut.html">Golden Kubestronaut</a><a href="../index.html#certs" aria-current="page">資格一覧</a></div></div></nav>
+<main class="wrap">
+<div class="crumbs"><a href="../index.html">概要</a> / <a href="../kubestronaut.html">Kubestronaut</a> / CKS</div>
+
+<div class="cert-hero">
+  <span class="abbr">CKS</span>
+  <div class="titles">
+    <h1>Kubernetes セキュリティスペシャリスト</h1>
+    <div class="name">Certified Kubernetes Security Specialist <span class="muted">— Kubernetes / CNCF</span></div>
+    <div class="chips"><span class="chip perf">実技</span><span class="chip k8s">Kubestronaut 必須</span><span class="chip none">EN / JA / zh</span></div>
+  </div>
+</div>
+
+<div class="spec">
+  <div class="stat"><div class="label">形式</div><div class="value sm">実技</div><div class="sub">ターミナル操作</div></div>
+  <div class="stat"><div class="label">タスク数</div><div class="value sm">15–20</div><div class="sub">1 タスク 約 6–8 分</div></div>
+  <div class="stat"><div class="label">時間</div><div class="value sm">120 分</div></div>
+  <div class="stat"><div class="label">合格ライン</div><div class="value sm">67%</div></div>
+  <div class="stat"><div class="label">有効期間</div><div class="value sm">2 年</div></div>
+  <div class="stat"><div class="label">定価</div><div class="value sm">$445</div><div class="sub">再受験 1 回込み</div></div>
+</div>
+
+<section class="section">
+  <div class="two">
+    <div class="fig">
+      <h3>試験の画面イメージ</h3>
+      <div class="cap">PSI Secure Browser 経由で Linux リモートデスクトップに接続し、ターミナルで実際に操作する試験。各タスクで指定ノードに ssh し、設定変更やリソース作成を行う。部分点あり。結果は 24 時間以内にメール。</div>
+      <svg viewBox="0 0 640 330" role="img" aria-label="実技試験の画面イメージ">
+<rect x="10" y="10" width="620" height="310" rx="12" class="box"/>
+<rect x="10" y="10" width="620" height="34" rx="12" class="box-s"/>
+<rect x="10" y="30" width="620" height="14" class="box-s" stroke="none"/>
+<circle cx="30" cy="27" r="5" class="muted-fill"/><circle cx="48" cy="27" r="5" class="muted-fill"/><circle cx="66" cy="27" r="5" class="muted-fill"/>
+<text x="320" y="31" class="mut mono" text-anchor="middle">PSI Secure Browser → Linux リモートデスクトップ (画面共有・カメラ監視)</text>
+<rect x="30" y="60" width="440" height="160" rx="8" class="term"/>
+<text x="46" y="80" class="term-t">candidate@base:~$  ← ここから各タスクのノードへ ssh</text>
+<text x="46" y="100" class="term-g">$ ssh node01</text><text x="46" y="118" class="term-t">$ kube-bench run --targets master</text><text x="46" y="136" class="term-b">$ kubectl apply -f networkpolicy.yaml</text><text x="46" y="154" class="term-t">$ trivy image nginx:1.27</text><text x="46" y="172" class="term-g">$ falco -r /etc/falco/rules.yaml</text><text x="46" y="190" class="term-t">$ vim /etc/kubernetes/manifests/kube-apiserver.yaml</text>
+<rect x="30" y="230" width="440" height="74" rx="8" class="box-s"/><text x="46" y="252" class="mut">参照可: kubernetes.io / falco.org / etcd.io ほか</text><rect x="46" y="264" width="300" height="8" rx="4" class="track"/><rect x="46" y="280" width="240" height="8" rx="4" class="track"/>
+<rect x="490" y="60" width="120" height="70" rx="10" class="box-s"/>
+<text x="550" y="82" text-anchor="middle" class="mut">残り時間</text>
+<text x="550" y="112" text-anchor="middle" class="b mono" font-size="22">79:37</text>
+<rect x="490" y="142" width="120" height="162" rx="10" class="box-s"/>
+<text x="550" y="162" text-anchor="middle" class="mut">15–20 タスク / 120 分</text>
+<rect x="500" y="170" width="70" height="8" rx="4" class="perf"/><rect x="500" y="186" width="96" height="8" rx="4" class="perf"/><rect x="500" y="202" width="96" height="8" rx="4" class="perf"/><rect x="500" y="218" width="70" height="8" rx="4" class="perf"/><rect x="500" y="234" width="96" height="8" rx="4" class="perf"/><rect x="500" y="250" width="96" height="8" rx="4" class="perf"/><rect x="500" y="266" width="70" height="8" rx="4" class="track"/><rect x="500" y="282" width="96" height="8" rx="4" class="track"/>
+<text x="550" y="292" text-anchor="middle" class="mut" font-size="11">合格ライン 67% (部分点あり)</text>
+<text x="320" y="316" text-anchor="middle" class="mut" font-size="11">killer.sh シミュレータ 2 回分付属 ・ 環境: Kubernetes v1.35</text>
+</svg>
+    </div>
+    <div class="fig">
+      <h3>出題ドメインと配点</h3>
+      <div class="cap">公式カリキュラム (cncf/curriculum) の配分</div>
+      <svg viewBox="0 0 640 318" role="img" aria-label="CKS のドメイン配分"><text x="8" y="19" class="b">クラスタセットアップ</text><text x="10" y="19" class="mut" text-anchor="start" opacity="0" aria-hidden="true">Cluster Setup</text><rect x="8" y="24" width="588" height="22" rx="4" class="track"/><rect x="8" y="24" width="441.0" height="22" rx="4" class="perf"/><text x="457.0" y="40" class="b">15%</text><text x="8" y="71" class="b">クラスタの堅牢化</text><text x="10" y="71" class="mut" text-anchor="start" opacity="0" aria-hidden="true">Cluster Hardening</text><rect x="8" y="76" width="588" height="22" rx="4" class="track"/><rect x="8" y="76" width="441.0" height="22" rx="4" class="perf"/><text x="457.0" y="92" class="b">15%</text><text x="8" y="123" class="b">システムの堅牢化</text><text x="10" y="123" class="mut" text-anchor="start" opacity="0" aria-hidden="true">System Hardening</text><rect x="8" y="128" width="588" height="22" rx="4" class="track"/><rect x="8" y="128" width="294.0" height="22" rx="4" class="perf"/><text x="310.0" y="144" class="b">10%</text><text x="8" y="175" class="b">マイクロサービスの脆弱性最小化</text><text x="10" y="175" class="mut" text-anchor="start" opacity="0" aria-hidden="true">Minimize Microservice Vulnerabilities</text><rect x="8" y="180" width="588" height="22" rx="4" class="track"/><rect x="8" y="180" width="588.0" height="22" rx="4" class="perf"/><text x="604.0" y="196" class="b">20%</text><text x="8" y="227" class="b">サプライチェーンセキュリティ</text><text x="10" y="227" class="mut" text-anchor="start" opacity="0" aria-hidden="true">Supply Chain Security</text><rect x="8" y="232" width="588" height="22" rx="4" class="track"/><rect x="8" y="232" width="588.0" height="22" rx="4" class="perf"/><text x="604.0" y="248" class="b">20%</text><text x="8" y="279" class="b">監視・ログ・ランタイム防御</text><text x="10" y="279" class="mut" text-anchor="start" opacity="0" aria-hidden="true">Monitoring, Logging and Runtime Security</text><rect x="8" y="284" width="588" height="22" rx="4" class="track"/><rect x="8" y="284" width="588.0" height="22" rx="4" class="perf"/><text x="604.0" y="300" class="b">20%</text></svg>
+      <details class="small" style="margin-top:8px"><summary class="muted">表で見る</summary>
+        <div class="table-wrap" style="margin-top:6px"><table><thead><tr><th>ドメイン</th><th>英語名</th><th>配点</th></tr></thead><tbody><tr><td>クラスタセットアップ</td><td class="small ink2">Cluster Setup</td><td class="num">15%</td></tr><tr><td>クラスタの堅牢化</td><td class="small ink2">Cluster Hardening</td><td class="num">15%</td></tr><tr><td>システムの堅牢化</td><td class="small ink2">System Hardening</td><td class="num">10%</td></tr><tr><td>マイクロサービスの脆弱性最小化</td><td class="small ink2">Minimize Microservice Vulnerabilities</td><td class="num">20%</td></tr><tr><td>サプライチェーンセキュリティ</td><td class="small ink2">Supply Chain Security</td><td class="num">20%</td></tr><tr><td>監視・ログ・ランタイム防御</td><td class="small ink2">Monitoring, Logging and Runtime Security</td><td class="num">20%</td></tr></tbody></table></div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="grid-2">
+    <div class="panel">
+      <h3>何が問われるか</h3>
+      <ul class="small"><li>CIS Benchmark (kube-bench)、NetworkPolicy、Ingress TLS、API server 堅牢化</li><li>RBAC 最小権限、kubelet 設定、AppArmor / seccomp、Pod Security Admission</li><li>Secret の暗号化、mTLS (Istio / Cilium)、イメージスキャン (Trivy)、SBOM</li><li>Falco によるランタイム検知、監査ログ、イミュータブルコンテナ</li></ul>
+    </div>
+    <div class="panel">
+      <h3>受験情報</h3>
+      <dl class="kv">
+        <dt>前提条件</dt><dd>有効な CKA</dd>
+        <dt>対象バージョン</dt><dd>Kubernetes v1.35</dd>
+        <dt>参照可能な資料</dt><dd>kubernetes.io、falco.org、etcd.io、ingress-nginx、docs.cilium.io、istio.io、bom</dd>
+        <dt>シミュレータ</dt><dd>killer.sh 2 セッション (各 36 時間) 付属</dd>
+        <dt>位置づけ</dt><dd>Kubestronaut の必須 5 資格の 1 つ (Golden でも必要)</dd>
+        <dt>提供開始</dt><dd>2020-11</dd>
+        <dt>公式ページ</dt><dd><a href="https://training.linuxfoundation.org/certification/certified-kubernetes-security-specialist/">training.linuxfoundation.org</a> / <a href="https://github.com/cncf/curriculum">curriculum</a></dd>
+      </dl>
+    </div>
+  </div>
+  <div class="callout blue" style="margin-top:14px"><strong>CARE 自動更新:</strong> 合格すると KCSA (2026-01-01〜) と CKA (2026-06-18〜) が自動更新。CKA 経由で KCNA も更新</div>
+  <div class="panel" style="margin-top:14px"><h3>メモ</h3><ul class="small"><li>受験には有効 (未失効) な CKA が必要</li><li>1 回の合格で KCSA + CKA + KCNA が更新される「要」の試験</li></ul></div>
+</section>
+<div class="pager"><a href="ckad.html">← CKAD <span class="muted small">Kubernetes アプリケーション開発者</span></a><a href="pca.html"><span class="muted small">Prometheus の基礎</span> PCA →</a></div>
+
+<footer class="foot">2026-09 時点の公式情報 (CNCF / Linux Foundation / cncf/curriculum) をもとに作成。価格は US ドルの定価。要件・配点は変わるので受験前に公式ページで再確認すること。<ul><li><a href="https://www.cncf.io/training/kubestronaut/">CNCF Kubestronaut Program</a></li><li><a href="https://www.cncf.io/training/kubestronaut/kubestronaut-faq/">Kubestronaut FAQ</a></li><li><a href="https://www.cncf.io/training/kubestronaut/standards-of-excellence/">Standards of Excellence</a></li><li><a href="https://training.linuxfoundation.org/resources/kubestronaut-program/">LF Training: Kubestronaut Program</a></li><li><a href="https://www.cncf.io/blog/2026/03/23/cncf-introduces-a-new-recertification-program-as-kubestronaut-community-surpasses-3500/">CNCF Blog 2026-03-23: CARE / 3,500 Kubestronauts</a></li><li><a href="https://training.linuxfoundation.org/care-program/">CARE Program</a></li><li><a href="https://docs.linuxfoundation.org/tc-docs/certification/faq-cka-ckad-cks">LF Docs: CKA/CKAD/CKS FAQ</a></li><li><a href="https://docs.linuxfoundation.org/tc-docs/certification/faq-mc">LF Docs: Multiple Choice FAQ</a></li><li><a href="https://github.com/cncf/curriculum">cncf/curriculum</a></li></ul></footer>
+</main>
+</body>
+</html>

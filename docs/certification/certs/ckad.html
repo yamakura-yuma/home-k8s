@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CKAD Kubernetes アプリケーション開発者 — CNCF 認定メモ</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<nav class="nav"><div class="nav-inner"><a class="nav-brand" href="../index.html">CNCF 認定メモ</a><div class="nav-links"><a href="../index.html">概要</a><a href="../kubestronaut.html">Kubestronaut</a><a href="../golden-kubestronaut.html">Golden Kubestronaut</a><a href="../index.html#certs" aria-current="page">資格一覧</a></div></div></nav>
+<main class="wrap">
+<div class="crumbs"><a href="../index.html">概要</a> / <a href="../kubestronaut.html">Kubestronaut</a> / CKAD</div>
+
+<div class="cert-hero">
+  <span class="abbr">CKAD</span>
+  <div class="titles">
+    <h1>Kubernetes アプリケーション開発者</h1>
+    <div class="name">Certified Kubernetes Application Developer <span class="muted">— Kubernetes / CNCF</span></div>
+    <div class="chips"><span class="chip perf">実技</span><span class="chip k8s">Kubestronaut 必須</span><span class="chip none">EN / JA / zh</span></div>
+  </div>
+</div>
+
+<div class="spec">
+  <div class="stat"><div class="label">形式</div><div class="value sm">実技</div><div class="sub">ターミナル操作</div></div>
+  <div class="stat"><div class="label">タスク数</div><div class="value sm">15–20</div><div class="sub">1 タスク 約 6–8 分</div></div>
+  <div class="stat"><div class="label">時間</div><div class="value sm">120 分</div></div>
+  <div class="stat"><div class="label">合格ライン</div><div class="value sm">66%</div></div>
+  <div class="stat"><div class="label">有効期間</div><div class="value sm">2 年</div></div>
+  <div class="stat"><div class="label">定価</div><div class="value sm">$445</div><div class="sub">再受験 1 回込み</div></div>
+</div>
+
+<section class="section">
+  <div class="two">
+    <div class="fig">
+      <h3>試験の画面イメージ</h3>
+      <div class="cap">PSI Secure Browser 経由で Linux リモートデスクトップに接続し、ターミナルで実際に操作する試験。各タスクで指定ノードに ssh し、設定変更やリソース作成を行う。部分点あり。結果は 24 時間以内にメール。</div>
+      <svg viewBox="0 0 640 330" role="img" aria-label="実技試験の画面イメージ">
+<rect x="10" y="10" width="620" height="310" rx="12" class="box"/>
+<rect x="10" y="10" width="620" height="34" rx="12" class="box-s"/>
+<rect x="10" y="30" width="620" height="14" class="box-s" stroke="none"/>
+<circle cx="30" cy="27" r="5" class="muted-fill"/><circle cx="48" cy="27" r="5" class="muted-fill"/><circle cx="66" cy="27" r="5" class="muted-fill"/>
+<text x="320" y="31" class="mut mono" text-anchor="middle">PSI Secure Browser → Linux リモートデスクトップ (画面共有・カメラ監視)</text>
+<rect x="30" y="60" width="440" height="160" rx="8" class="term"/>
+<text x="46" y="80" class="term-t">candidate@base:~$  ← ここから各タスクのノードへ ssh</text>
+<text x="46" y="100" class="term-g">$ ssh node01</text><text x="46" y="118" class="term-t">$ k create deploy web --image=nginx:1.27 --replicas=3</text><text x="46" y="136" class="term-b">$ k set env deploy/web LOG_LEVEL=debug</text><text x="46" y="154" class="term-t">$ k rollout undo deploy/web</text><text x="46" y="172" class="term-g">$ k create cronjob backup --schedule=&#x27;0 * * * *&#x27; --image=busybox</text><text x="46" y="190" class="term-t">$ helm upgrade --install app ./chart</text>
+<rect x="30" y="230" width="440" height="74" rx="8" class="box-s"/><text x="46" y="252" class="mut">参照可: kubernetes.io / helm.sh</text><rect x="46" y="264" width="300" height="8" rx="4" class="track"/><rect x="46" y="280" width="240" height="8" rx="4" class="track"/>
+<rect x="490" y="60" width="120" height="70" rx="10" class="box-s"/>
+<text x="550" y="82" text-anchor="middle" class="mut">残り時間</text>
+<text x="550" y="112" text-anchor="middle" class="b mono" font-size="22">79:37</text>
+<rect x="490" y="142" width="120" height="162" rx="10" class="box-s"/>
+<text x="550" y="162" text-anchor="middle" class="mut">15–20 タスク / 120 分</text>
+<rect x="500" y="170" width="70" height="8" rx="4" class="perf"/><rect x="500" y="186" width="96" height="8" rx="4" class="perf"/><rect x="500" y="202" width="96" height="8" rx="4" class="perf"/><rect x="500" y="218" width="70" height="8" rx="4" class="perf"/><rect x="500" y="234" width="96" height="8" rx="4" class="perf"/><rect x="500" y="250" width="96" height="8" rx="4" class="perf"/><rect x="500" y="266" width="70" height="8" rx="4" class="track"/><rect x="500" y="282" width="96" height="8" rx="4" class="track"/>
+<text x="550" y="292" text-anchor="middle" class="mut" font-size="11">合格ライン 66% (部分点あり)</text>
+<text x="320" y="316" text-anchor="middle" class="mut" font-size="11">killer.sh シミュレータ 2 回分付属 ・ 環境: Kubernetes v1.35</text>
+</svg>
+    </div>
+    <div class="fig">
+      <h3>出題ドメインと配点</h3>
+      <div class="cap">公式カリキュラム (cncf/curriculum) の配分</div>
+      <svg viewBox="0 0 640 266" role="img" aria-label="CKAD のドメイン配分"><text x="8" y="19" class="b">アプリ環境・設定・セキュリティ</text><text x="10" y="19" class="mut" text-anchor="start" opacity="0" aria-hidden="true">Application Environment, Configuration and Security</text><rect x="8" y="24" width="588" height="22" rx="4" class="track"/><rect x="8" y="24" width="588.0" height="22" rx="4" class="perf"/><text x="604.0" y="40" class="b">25%</text><text x="8" y="71" class="b">アプリの設計とビルド</text><text x="10" y="71" class="mut" text-anchor="start" opacity="0" aria-hidden="true">Application Design and Build</text><rect x="8" y="76" width="588" height="22" rx="4" class="track"/><rect x="8" y="76" width="470.4" height="22" rx="4" class="perf"/><text x="486.4" y="92" class="b">20%</text><text x="8" y="123" class="b">アプリのデプロイ</text><text x="10" y="123" class="mut" text-anchor="start" opacity="0" aria-hidden="true">Application Deployment</text><rect x="8" y="128" width="588" height="22" rx="4" class="track"/><rect x="8" y="128" width="470.4" height="22" rx="4" class="perf"/><text x="486.4" y="144" class="b">20%</text><text x="8" y="175" class="b">Service とネットワーク</text><text x="10" y="175" class="mut" text-anchor="start" opacity="0" aria-hidden="true">Services and Networking</text><rect x="8" y="180" width="588" height="22" rx="4" class="track"/><rect x="8" y="180" width="470.4" height="22" rx="4" class="perf"/><text x="486.4" y="196" class="b">20%</text><text x="8" y="227" class="b">可観測性と保守</text><text x="10" y="227" class="mut" text-anchor="start" opacity="0" aria-hidden="true">Application Observability and Maintenance</text><rect x="8" y="232" width="588" height="22" rx="4" class="track"/><rect x="8" y="232" width="352.8" height="22" rx="4" class="perf"/><text x="368.8" y="248" class="b">15%</text></svg>
+      <details class="small" style="margin-top:8px"><summary class="muted">表で見る</summary>
+        <div class="table-wrap" style="margin-top:6px"><table><thead><tr><th>ドメイン</th><th>英語名</th><th>配点</th></tr></thead><tbody><tr><td>アプリ環境・設定・セキュリティ</td><td class="small ink2">Application Environment, Configuration and Security</td><td class="num">25%</td></tr><tr><td>アプリの設計とビルド</td><td class="small ink2">Application Design and Build</td><td class="num">20%</td></tr><tr><td>アプリのデプロイ</td><td class="small ink2">Application Deployment</td><td class="num">20%</td></tr><tr><td>Service とネットワーク</td><td class="small ink2">Services and Networking</td><td class="num">20%</td></tr><tr><td>可観測性と保守</td><td class="small ink2">Application Observability and Maintenance</td><td class="num">15%</td></tr></tbody></table></div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="grid-2">
+    <div class="panel">
+      <h3>何が問われるか</h3>
+      <ul class="small"><li>マルチコンテナパターン (init / sidecar)、Job / CronJob、Volume</li><li>Deployment のローリングアップデート / ロールバック、Helm / Kustomize</li><li>ConfigMap / Secret、SecurityContext、ServiceAccount、Resource / Quota</li><li>Probe、ログとデバッグ、Service / Ingress / NetworkPolicy</li></ul>
+    </div>
+    <div class="panel">
+      <h3>受験情報</h3>
+      <dl class="kv">
+        <dt>前提条件</dt><dd>なし</dd>
+        <dt>対象バージョン</dt><dd>Kubernetes v1.35</dd>
+        <dt>参照可能な資料</dt><dd>kubernetes.io/docs・blog、helm.sh/docs</dd>
+        <dt>シミュレータ</dt><dd>killer.sh 2 セッション (各 36 時間) 付属</dd>
+        <dt>位置づけ</dt><dd>Kubestronaut の必須 5 資格の 1 つ (Golden でも必要)</dd>
+        <dt>提供開始</dt><dd>2018</dd>
+        <dt>公式ページ</dt><dd><a href="https://training.linuxfoundation.org/certification/certified-kubernetes-application-developer-ckad/">training.linuxfoundation.org</a> / <a href="https://github.com/cncf/curriculum">curriculum</a></dd>
+      </dl>
+    </div>
+  </div>
+  <div class="callout blue" style="margin-top:14px"><strong>CARE 自動更新:</strong> 合格すると KCNA が自動更新 (2026-01-01〜)</div>
+  <div class="panel" style="margin-top:14px"><h3>メモ</h3><ul class="small"><li>CKA と同じ環境・同じ形式。CKA より「開発者が触るリソース」に寄った出題</li></ul></div>
+</section>
+<div class="pager"><a href="cka.html">← CKA <span class="muted small">Kubernetes 管理者</span></a><a href="cks.html"><span class="muted small">Kubernetes セキュリティスペシャリスト</span> CKS →</a></div>
+
+<footer class="foot">2026-09 時点の公式情報 (CNCF / Linux Foundation / cncf/curriculum) をもとに作成。価格は US ドルの定価。要件・配点は変わるので受験前に公式ページで再確認すること。<ul><li><a href="https://www.cncf.io/training/kubestronaut/">CNCF Kubestronaut Program</a></li><li><a href="https://www.cncf.io/training/kubestronaut/kubestronaut-faq/">Kubestronaut FAQ</a></li><li><a href="https://www.cncf.io/training/kubestronaut/standards-of-excellence/">Standards of Excellence</a></li><li><a href="https://training.linuxfoundation.org/resources/kubestronaut-program/">LF Training: Kubestronaut Program</a></li><li><a href="https://www.cncf.io/blog/2026/03/23/cncf-introduces-a-new-recertification-program-as-kubestronaut-community-surpasses-3500/">CNCF Blog 2026-03-23: CARE / 3,500 Kubestronauts</a></li><li><a href="https://training.linuxfoundation.org/care-program/">CARE Program</a></li><li><a href="https://docs.linuxfoundation.org/tc-docs/certification/faq-cka-ckad-cks">LF Docs: CKA/CKAD/CKS FAQ</a></li><li><a href="https://docs.linuxfoundation.org/tc-docs/certification/faq-mc">LF Docs: Multiple Choice FAQ</a></li><li><a href="https://github.com/cncf/curriculum">cncf/curriculum</a></li></ul></footer>
+</main>
+</body>
+</html>
