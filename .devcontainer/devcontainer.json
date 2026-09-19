@@ -1,0 +1,17 @@
+{
+  "name": "home-k8s",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
+    "ghcr.io/devcontainers/features/nix:1": {
+      "extraNixConfig": "experimental-features = nix-command flakes"
+    }
+  },
+  "runArgs": ["--network=host"],
+  "initializeCommand": "mkdir -p ${localEnv:HOME}/.kube",
+  "mounts": [
+    "source=${localEnv:HOME}/.kube,target=/home/vscode/.kube,type=bind,consistency=cached"
+  ],
+  "remoteUser": "vscode",
+  "postCreateCommand": "nix profile install . && just --version && kubectl version --client && kind --version"
+}
