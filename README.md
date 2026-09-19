@@ -11,26 +11,26 @@ Kubernetes資格 (KCNA → KCSA → CKA → CKAD → CKS → Kubestronaut/Golden
 
 ## 前提
 
-- このリポジトリは **devcontainer で開く**こと (VS Code Dev Containers 拡張、
-  または `devcontainer` CLI)。WSL2 本体には何もインストールしない。
-- Nix 自体のブートストラップは devcontainer feature
-  (`ghcr.io/devcontainers/features/nix`) が担う。`just`, `kubectl`, `kind`
-  といったプロジェクト固有のツール一式は `flake.nix` / `flake.lock` で
-  宣言・バージョン固定されており、コンテナ作成時に `postCreateCommand`
-  (`nix profile install .`) で導入する。
-- devcontainer は `--network=host` で起動するため、クラスタのAPIサーバーは
-  WSL2ホストの `127.0.0.1` にそのままbindされ、devcontainerの外
+- ホスト(WSL2)には **`docker` のみ**あればよい。それ以外のツール
+  (`just`, `kubectl`, `kind` 等) はすべて `Dockerfile` で構築する開発用コンテナの中に
+  閉じ込め、WSL2 本体には何もインストールしない。
+- `just` は開発用コンテナの起動/停止という「外側」の操作でしか使わないため、
+  ホストにも `just` 自体は必要 (単一の静的バイナリなので導入コストは小さい)。
+- プロジェクト固有のツール一式 (`just`, `kubectl`, `kind`) は `flake.nix` /
+  `flake.lock` で宣言・バージョン固定されており、コンテナ内のNixから導入する。
+- 開発用コンテナは `--network=host` で起動するため、クラスタのAPIサーバーは
+  WSL2ホストの `127.0.0.1` にそのままbindされ、コンテナの外
   (他リポジトリや通常のWSL2シェル) からも `~/.kube/config` を使ってアクセスできる。
 
 ## クイックスタート
 
-devcontainerを開くと `postCreateCommand` が自動的に `nix profile install .` を実行し、
-`just`, `kubectl`, `kind` が使えるようになる (手動セットアップ不要)。
-
 ```sh
-just kind-up      # kubeadmベースのマルチノードクラスタを起動 (control-plane x1 + worker x2)
+just devcontainer up      # イメージをbuildし、開発用コンテナを起動 (nix profile install も実行)
+just devcontainer shell   # コンテナにシェルで入る
+just kind-up              # (コンテナ内で) kubeadmベースのマルチノードクラスタを起動
 kubectl --context kind-study-kind get nodes -o wide   # ノード状態を確認
-just kind-down    # クラスタを削除
+just kind-down             # クラスタを削除
+just devcontainer down    # 開発用コンテナを削除
 ```
 
 kind自体は試験で問われないためクラスタの起動/削除は just で自動化しているが、

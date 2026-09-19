@@ -22,7 +22,7 @@ k3d/minikube も検討したが、複数方式を並行維持するコストが�
 |---|---|---|
 | `name` | `study-kind` | クラスタ名。kubecontext名は `kind-study-kind` になる |
 | `nodes` | control-plane x1, worker x2 | CKAで頻出する「control-planeとworkerの役割分担」「複数worker間のスケジューリング」を練習できる最小構成 |
-| `networking.apiServerAddress` | `127.0.0.1` | devcontainerを `--network=host` で起動しているため、WSL2ホストの `127.0.0.1` にそのままbindされ、他リポジトリ/別プロセスからも到達可能 (`README.md` 参照) |
+| `networking.apiServerAddress` | `127.0.0.1` | 開発用コンテナ (`just devcontainer up`) を `--network=host` で起動しているため、WSL2ホストの `127.0.0.1` にそのままbindされ、他リポジトリ/別プロセスからも到達可能 (`README.md` 参照) |
 
 ## kind自体とkubectlの扱いの違い
 
