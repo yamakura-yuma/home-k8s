@@ -1,0 +1,1680 @@
+lockfile_version: '1'
+apm_version: 0.31.0
+dependencies:
+- repo_url: yamakura-yuma/dotfiles
+  name: core-principal
+  host: github.com
+  resolved_commit: 18e35fe9ca1c7347b7e737a67305f0e067e79f3c
+  resolved_ref: 18e35fe9ca1c7347b7e737a67305f0e067e79f3c
+  version: 1.1.0
+  virtual_path: core-principal
+  is_virtual: true
+  package_type: apm_package
+  deployed_files:
+  - .claude/commands/retro.md
+  - .claude/commands/workers.md
+  - .claude/commands/worktree.md
+  - .claude/hooks/core-principal/.apm/hooks/scripts/dispatch-in-coordinator.sh
+  - .claude/hooks/core-principal/.apm/hooks/scripts/guard-coordinator-edit.sh
+  - .claude/hooks/core-principal/.apm/hooks/scripts/guard-default-branch.sh
+  - .claude/hooks/core-principal/.apm/hooks/scripts/guard-destructive-git.sh
+  - .claude/hooks/core-principal/.apm/hooks/scripts/lib/coordinator-workspace.sh
+  - .claude/rules/core-principal.md
+  - .claude/skills/core-communication
+  - .claude/skills/core-communication/SKILL.md
+  - .claude/skills/core-dispatch
+  - .claude/skills/core-dispatch/SKILL.md
+  - .claude/skills/core-dispatch/references/orca.md
+  - .claude/skills/core-harness
+  - .claude/skills/core-harness/SKILL.md
+  - .claude/skills/core-retro
+  - .claude/skills/core-retro/SKILL.md
+  - .claude/skills/core-tools
+  - .claude/skills/core-tools/SKILL.md
+  deployed_file_hashes:
+    .claude/commands/retro.md: sha256:cb7b04b93dfd16970f5cbc260dd590cb5ead870bf0bee6e488277bfc46452890
+    .claude/commands/workers.md: sha256:b1aa5193c4e9b409bb4952c1988563d2f22791a90ef6b4b5c6efea3dfd4b5dc8
+    .claude/commands/worktree.md: sha256:c6fae8cf3ed708b9db3ea1dd6aa40ff2c90d551efab5cda98917bda39f300145
+    .claude/hooks/core-principal/.apm/hooks/scripts/dispatch-in-coordinator.sh: sha256:ec7cccdb823aeceee1efdd58f35c7056457c8fe4cc1b47f3e909989c5e4a6c24
+    .claude/hooks/core-principal/.apm/hooks/scripts/guard-coordinator-edit.sh: sha256:dc5c0c5528f781330ef7f0d5009febfb28d54bb9bb8b002bd0d8beb0d45f7354
+    .claude/hooks/core-principal/.apm/hooks/scripts/guard-default-branch.sh: sha256:e7ff3eb2e67e6c8d50ed599f97df08e122014109808b1dec3855b061acd3d9cd
+    .claude/hooks/core-principal/.apm/hooks/scripts/guard-destructive-git.sh: sha256:ee57fb415c9acbf409715032196a7186fa0f161a5b1187143a40ca6f054b4d35
+    .claude/hooks/core-principal/.apm/hooks/scripts/lib/coordinator-workspace.sh: sha256:24e243938ef392c76ed238bbf16a42eb489ee0447c45916af1f57ccd43308f1e
+    .claude/rules/core-principal.md: sha256:2713980ffbde09797ae2a27f046e31255aada776cf505cde181def10463191ff
+    .claude/skills/core-communication/SKILL.md: sha256:290c4cfbd8095fd64035de93e5fae4c3ab5e80fbd110f0317d272231e5060750
+    .claude/skills/core-dispatch/SKILL.md: sha256:d8620f9153226fb4a481f15acd5384cd05a6c835448bf9719cc9881d7ee1d8b7
+    .claude/skills/core-dispatch/references/orca.md: sha256:fa93678a6282a25227ff29d70afc188c2ce1d7ddf59dfef2007ab34a57c8db3a
+    .claude/skills/core-harness/SKILL.md: sha256:99c045d95e8dc280ded6ea6b097a2be74250332c29ed88d4f234484f2cfc88f0
+    .claude/skills/core-retro/SKILL.md: sha256:eb696797ce02014584b939277d35552c9f02844402d480fb97f152bf56969c09
+    .claude/skills/core-tools/SKILL.md: sha256:14ae4206d3a5b10d5d68c8720f7357f5a218d3b509e59bcb2e00ad8a88fb8fe2
+  content_hash: sha256:e9705541a955771f225d0429e8531c16476d0515daf00c3e20570db6cd86274d
+  target_subset:
+  - claude
+- repo_url: dietrichgebert/ponytail
+  name: ponytail
+  host: github.com
+  resolved_commit: e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156
+  resolved_ref: e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156
+  version: unknown
+  virtual_path: skills/ponytail
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/ponytail
+  - .claude/skills/ponytail/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/ponytail/SKILL.md: sha256:1316a2f3f95741d2300b116fe0c2d81ce4a9568656ed0a62643f54aaf09957f2
+  content_hash: sha256:210fa0831f649ce9f8a305f7b7c8cf2a0dd09ac4dd53067109941b96e7811d4e
+  target_subset:
+  - claude
+- repo_url: dietrichgebert/ponytail
+  name: ponytail-audit
+  host: github.com
+  resolved_commit: e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156
+  resolved_ref: e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156
+  version: unknown
+  virtual_path: skills/ponytail-audit
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/ponytail-audit
+  - .claude/skills/ponytail-audit/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/ponytail-audit/SKILL.md: sha256:5560b8e383dbe2ddfddc873a1e2bf2e586e23e0cd7d995537482b2315331f6d1
+  content_hash: sha256:8b8d72e6ff70b65b6c9518d470fcf29dc696eea93d28f3efa10fdcc60cbd696d
+  target_subset:
+  - claude
+- repo_url: dietrichgebert/ponytail
+  name: ponytail-debt
+  host: github.com
+  resolved_commit: e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156
+  resolved_ref: e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156
+  version: unknown
+  virtual_path: skills/ponytail-debt
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/ponytail-debt
+  - .claude/skills/ponytail-debt/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/ponytail-debt/SKILL.md: sha256:c84fba75f0ca12bfe83f9a78ea02fd125c5dd3f1fbb18124105a489937f284e6
+  content_hash: sha256:0099b82174e3a4261828b4ec04d2c068b1b294fdab14f76701c2acd1f7c99539
+  target_subset:
+  - claude
+- repo_url: dietrichgebert/ponytail
+  name: ponytail-gain
+  host: github.com
+  resolved_commit: e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156
+  resolved_ref: e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156
+  version: unknown
+  virtual_path: skills/ponytail-gain
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/ponytail-gain
+  - .claude/skills/ponytail-gain/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/ponytail-gain/SKILL.md: sha256:24e01d1c9715cb136ba1c4f1e52a95940c0193558b876828e537736480d6408b
+  content_hash: sha256:c45ecba7906960eea904218b623abf097ebff84ecbacca6d68da1d0687435f75
+  target_subset:
+  - claude
+- repo_url: dietrichgebert/ponytail
+  name: ponytail-help
+  host: github.com
+  resolved_commit: e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156
+  resolved_ref: e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156
+  version: unknown
+  virtual_path: skills/ponytail-help
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/ponytail-help
+  - .claude/skills/ponytail-help/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/ponytail-help/SKILL.md: sha256:2264d1615117b02b0fd5a69ec84cd2757006471a78e4d6c22eed6d581c1d37a4
+  content_hash: sha256:10e8382b1033c9a0fec0073de6d3de3846b4f5dca7d78b6df2d476a1f4cd43c6
+  target_subset:
+  - claude
+- repo_url: dietrichgebert/ponytail
+  name: ponytail-review
+  host: github.com
+  resolved_commit: e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156
+  resolved_ref: e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156
+  version: unknown
+  virtual_path: skills/ponytail-review
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/ponytail-review
+  - .claude/skills/ponytail-review/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/ponytail-review/SKILL.md: sha256:40df33b58fc6ef889b93585733feb9566b76e9586efa7f376785c1e995197ac0
+  content_hash: sha256:4646594fcd75455533f7ff1425f4f1c5ba0fa65f88241bf262b1c4fc275f049a
+  target_subset:
+  - claude
+- repo_url: gonta223/humanizer-ja
+  name: humanizer-ja
+  host: github.com
+  resolved_commit: a1e343696e43aa50e7218891f3319ab22cde3464
+  resolved_ref: a1e343696e43aa50e7218891f3319ab22cde3464
+  version: unknown
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/humanizer-ja
+  - .claude/skills/humanizer-ja/LICENSE
+  - .claude/skills/humanizer-ja/README.md
+  - .claude/skills/humanizer-ja/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/humanizer-ja/LICENSE: sha256:f75eb14ec27966cd36603902343e942aa1d125e7ef78cfb786ba71b29938b7dc
+    .claude/skills/humanizer-ja/README.md: sha256:657ca8e0e1750c2eb025e6e61fe229bc9eafcea3ac53694a12f69399a1a29872
+    .claude/skills/humanizer-ja/SKILL.md: sha256:3fe07f06a179801d7445eff19ed40f1681ef9860665c50c1e9a032f6dffead89
+  content_hash: sha256:b6da4ef92a941ab364ab1ddf259d9e511e098a0719f7ee2202847351c34a8194
+  target_subset:
+  - claude
+- repo_url: humanlayer/skills
+  name: show-me
+  host: github.com
+  resolved_commit: ca7c8088db69e315a8b2deea43820270457f8f3c
+  resolved_ref: ca7c8088db69e315a8b2deea43820270457f8f3c
+  version: 1.0.1
+  virtual_path: plugins/show-me
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: marketplace_plugin
+  deployed_files:
+  - .claude/skills/show-me
+  - .claude/skills/show-me/SKILL.md
+  - .claude/skills/show-me/agents/openai.yaml
+  deployed_file_hashes:
+    .claude/skills/show-me/SKILL.md: sha256:434a2346cc95e313b0d367d477dda2e23ba642dd2181757415a09500664af100
+    .claude/skills/show-me/agents/openai.yaml: sha256:a1499d95abd8447558c535fe5554adcc3c9b988a0a39264a6283d430effe1e94
+  content_hash: sha256:de758a556e8d6d87730641d2c5a6a1107d65f64173e486a08575e3e8720f74a5
+  target_subset:
+  - claude
+  declared_license: MIT
+- repo_url: interfacex-co-jp/genshijin
+  name: genshijin
+  host: github.com
+  resolved_commit: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
+  resolved_ref: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
+  version: unknown
+  virtual_path: skills/genshijin
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/genshijin
+  - .claude/skills/genshijin/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/genshijin/SKILL.md: sha256:b83954d2e16150c65a535b548cd51e4e2a2344a9cf09e9e616cdee10aea56f73
+  content_hash: sha256:905fc789552518db9405ddbc767aca68794fab0af686af73d73999f39bffda91
+  target_subset:
+  - claude
+- repo_url: interfacex-co-jp/genshijin
+  name: genshijin-commit
+  host: github.com
+  resolved_commit: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
+  resolved_ref: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
+  version: unknown
+  virtual_path: skills/genshijin-commit
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/genshijin-commit
+  - .claude/skills/genshijin-commit/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/genshijin-commit/SKILL.md: sha256:1b06477dbd4032743c369b97fde3f5576a0bbd88d16be67bbf49b18cd7619553
+  content_hash: sha256:db1561cf6b0cad2e60dbe4f089c0ebfa38b35feef8f9cec0e3a4afaadc9271ba
+  target_subset:
+  - claude
+- repo_url: interfacex-co-jp/genshijin
+  name: genshijin-compress
+  host: github.com
+  resolved_commit: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
+  resolved_ref: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
+  version: unknown
+  virtual_path: skills/genshijin-compress
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/genshijin-compress
+  - .claude/skills/genshijin-compress/SKILL.md
+  - .claude/skills/genshijin-compress/scripts/__init__.py
+  - .claude/skills/genshijin-compress/scripts/__main__.py
+  - .claude/skills/genshijin-compress/scripts/cli.py
+  - .claude/skills/genshijin-compress/scripts/compress.py
+  - .claude/skills/genshijin-compress/scripts/detect.py
+  - .claude/skills/genshijin-compress/scripts/validate.py
+  deployed_file_hashes:
+    .claude/skills/genshijin-compress/SKILL.md: sha256:bf949bbd4fa7ddd5fa230fb7e30a6d514863d8fd261a29bdb36e368994e20b68
+    .claude/skills/genshijin-compress/scripts/__init__.py: sha256:453c1dabbebbf1565a87f8ddfe865f04dc26ca64316c4950f91cb4f7478d5322
+    .claude/skills/genshijin-compress/scripts/__main__.py: sha256:6d8b7d7846a845059d7a3107143f11131f63c5511d669b44085b15ec5e3d2279
+    .claude/skills/genshijin-compress/scripts/cli.py: sha256:4468ddbe75d1eca39f7575cf582efc249556615f335f887950fdec8cdfe22497
+    .claude/skills/genshijin-compress/scripts/compress.py: sha256:4837a81cf6bc44c48c3af80cd2de4b544cacf140235f676097b0e9d8efa57863
+    .claude/skills/genshijin-compress/scripts/detect.py: sha256:3a5c8944a3428e135627e43ae6e0a590b991e41b2097fc8dcb65f9716c9c7918
+    .claude/skills/genshijin-compress/scripts/validate.py: sha256:0f19b437d471d24eff57274d256a8f3b9efaf481e6d3e8dbde00646c44cae25f
+  content_hash: sha256:033b241eacf092868768a68aba06bc4d397b0a8d343ccd7311ed30561841538c
+  target_subset:
+  - claude
+- repo_url: interfacex-co-jp/genshijin
+  name: genshijin-crew
+  host: github.com
+  resolved_commit: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
+  resolved_ref: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
+  version: unknown
+  virtual_path: skills/genshijin-crew
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/genshijin-crew
+  - .claude/skills/genshijin-crew/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/genshijin-crew/SKILL.md: sha256:e1881d3edcc65f84f9f2e07c69fdccd6f7237e71f81478485b4b18ce318e97a2
+  content_hash: sha256:aa3720f57a1a1ddd0a85cd6ad4f762499cd72905389f9064421fd3c633fa9008
+  target_subset:
+  - claude
+- repo_url: interfacex-co-jp/genshijin
+  name: genshijin-help
+  host: github.com
+  resolved_commit: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
+  resolved_ref: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
+  version: unknown
+  virtual_path: skills/genshijin-help
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/genshijin-help
+  - .claude/skills/genshijin-help/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/genshijin-help/SKILL.md: sha256:a2ae8ad6733dda31e5a2e2580df61a885584c003289970eb5cc07bb6c56c5b1d
+  content_hash: sha256:46efb7fbfc640cf9b867df9924e6046d7ed83795a4fd809180bb43684f81a601
+  target_subset:
+  - claude
+- repo_url: interfacex-co-jp/genshijin
+  name: genshijin-review
+  host: github.com
+  resolved_commit: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
+  resolved_ref: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
+  version: unknown
+  virtual_path: skills/genshijin-review
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/genshijin-review
+  - .claude/skills/genshijin-review/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/genshijin-review/SKILL.md: sha256:fa82bbf45747e3bb19d4afe636645db47a426999ca463d5c333be6d74d8b12dc
+  content_hash: sha256:f6fa3c56f88f788c1516eee862434b06c8f86c91a925689a78b114a5a8cee2e0
+  target_subset:
+  - claude
+- repo_url: interfacex-co-jp/genshijin
+  name: genshijin-stats
+  host: github.com
+  resolved_commit: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
+  resolved_ref: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
+  version: unknown
+  virtual_path: skills/genshijin-stats
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/genshijin-stats
+  - .claude/skills/genshijin-stats/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/genshijin-stats/SKILL.md: sha256:c689b23b38352111502527ed7785f9b9d4529200f38eece80340eb16213ac9ab
+  content_hash: sha256:33b9878352ea6a4003376cd44639fe0002e674d2eb12dcdc6ab0c90648fdb41f
+  target_subset:
+  - claude
+- repo_url: k16shikano/eb2929f13ed19c97188393d297be8432
+  name: cognitive-rhythm-writing
+  host: gist.github.com
+  resolved_commit: a3b1e26beced71d582e13314fb6f5b179b023c76
+  resolved_ref: a3b1e26beced71d582e13314fb6f5b179b023c76
+  version: unknown
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/cognitive-rhythm-writing
+  - .claude/skills/cognitive-rhythm-writing/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/cognitive-rhythm-writing/SKILL.md: sha256:65486e64f33ce2ab03c5db198b1f92e2838e71abfb1a80085d1b405340c11437
+  content_hash: sha256:c9bc3d89d327689176561ef4d73135685c73d90eca03f70403e4e21af3c68a3b
+  target_subset:
+  - claude
+- repo_url: k16shikano/fd287c3133457c4fd8f5601d34aa817d
+  name: japanese-tech-writing
+  host: gist.github.com
+  resolved_commit: 8f2d57610a73efc97d743c9b0b0ecb1002e09fa4
+  resolved_ref: 8f2d57610a73efc97d743c9b0b0ecb1002e09fa4
+  version: unknown
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/japanese-tech-writing
+  - .claude/skills/japanese-tech-writing/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/japanese-tech-writing/SKILL.md: sha256:ad350e0e6f5630fd94d8ab98a6aee194053b0096fdc944c23e271d6dfa09ee68
+  content_hash: sha256:9ddea7db32f38a243da9ff3c08f19fa1f4eb39f9cc27f3a966842cfb323376f3
+  target_subset:
+  - claude
+- repo_url: mattpocock/skills
+  name: grill-me
+  host: github.com
+  resolved_commit: c55ee46073ed923f86ce59a5eb3b6d895095d1b7
+  resolved_ref: c55ee46073ed923f86ce59a5eb3b6d895095d1b7
+  version: unknown
+  virtual_path: skills/productivity/grill-me
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/grill-me
+  - .claude/skills/grill-me/SKILL.md
+  - .claude/skills/grill-me/agents/openai.yaml
+  deployed_file_hashes:
+    .claude/skills/grill-me/SKILL.md: sha256:caaf8b8de1684f96e26b28f3c29189db5c89cce4b73e1c93d86164f66ef88637
+    .claude/skills/grill-me/agents/openai.yaml: sha256:c061e39c3e0f9d865fb1b97556d485704af2a8a58f4b8221a8917a5c2074a32b
+  content_hash: sha256:fe33aaa8e8dcd606107b1bfe3109f257b4a7e0f4907afd6506b62ccfb73cd1d3
+  target_subset:
+  - claude
+- repo_url: mattpocock/skills
+  name: grilling
+  host: github.com
+  resolved_commit: c55ee46073ed923f86ce59a5eb3b6d895095d1b7
+  resolved_ref: c55ee46073ed923f86ce59a5eb3b6d895095d1b7
+  version: unknown
+  virtual_path: skills/productivity/grilling
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/grilling
+  - .claude/skills/grilling/SKILL.md
+  - .claude/skills/grilling/agents/openai.yaml
+  deployed_file_hashes:
+    .claude/skills/grilling/SKILL.md: sha256:10ff989e7498b23b5acb49d5048f11dcd906757d2f79c5cdf8a00001381296f2
+    .claude/skills/grilling/agents/openai.yaml: sha256:1411d7df7d99b7e621a1ff8283c8133cc2464be63d064e52d8ce169c6800ee9b
+  content_hash: sha256:e98f109bca3d8889f673d9f32bf84086f85a70ff9e241f8a34a4560a07ab5a39
+  target_subset:
+  - claude
+- repo_url: mattpocock/skills
+  name: handoff
+  host: github.com
+  resolved_commit: c55ee46073ed923f86ce59a5eb3b6d895095d1b7
+  resolved_ref: c55ee46073ed923f86ce59a5eb3b6d895095d1b7
+  version: unknown
+  virtual_path: skills/productivity/handoff
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/handoff
+  - .claude/skills/handoff/SKILL.md
+  - .claude/skills/handoff/agents/openai.yaml
+  deployed_file_hashes:
+    .claude/skills/handoff/SKILL.md: sha256:7c62de979fdc7ac32fb5ddb2146156c917f80ee070d30fadc9d40343c4b6ed25
+    .claude/skills/handoff/agents/openai.yaml: sha256:5c479fd562c691851690e8b18c8501045bef0943c10743d636b2fae26add1d28
+  content_hash: sha256:57c3a6244da589bab282fdd546421b081d767f2e76b061cd756f1b4fdbd574c2
+  target_subset:
+  - claude
+- repo_url: mattpocock/skills
+  name: teach
+  host: github.com
+  resolved_commit: c55ee46073ed923f86ce59a5eb3b6d895095d1b7
+  resolved_ref: c55ee46073ed923f86ce59a5eb3b6d895095d1b7
+  version: unknown
+  virtual_path: skills/productivity/teach
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/teach
+  - .claude/skills/teach/GLOSSARY-FORMAT.md
+  - .claude/skills/teach/LEARNING-RECORD-FORMAT.md
+  - .claude/skills/teach/MISSION-FORMAT.md
+  - .claude/skills/teach/RESOURCES-FORMAT.md
+  - .claude/skills/teach/SKILL.md
+  - .claude/skills/teach/agents/openai.yaml
+  deployed_file_hashes:
+    .claude/skills/teach/GLOSSARY-FORMAT.md: sha256:9b99859ec28437668130d8f2ce5a342938970f8a1ed4fd38c3eab4f4b5fff210
+    .claude/skills/teach/LEARNING-RECORD-FORMAT.md: sha256:701fa34b6748aa89e6c960ffb815257f481a7d77fb2900f9028f7edf3fdd6052
+    .claude/skills/teach/MISSION-FORMAT.md: sha256:8cacbb3c0644d3ae0ea4965564797099401a6930a23f7cf462918576587f2418
+    .claude/skills/teach/RESOURCES-FORMAT.md: sha256:e9cacf34026e11a8d1c8f9de88abe5bcbf654f4ebdb25cae8c0de0d5f48f44ec
+    .claude/skills/teach/SKILL.md: sha256:a32df9dcdfc0c4fdc1c98e1ed3940c5f56b84c1aa90ff60346f32b8b53915b43
+    .claude/skills/teach/agents/openai.yaml: sha256:5856f3ae8aec742f1499c640aecdd5f1d6af5fa210a7c6ec794de8263a6f733f
+  content_hash: sha256:f563ef0510f50afacbb0da4635695e640f6d863e941e89b40874ac27f9f59859
+  target_subset:
+  - claude
+- repo_url: mattpocock/skills
+  name: to-questionnaire
+  host: github.com
+  resolved_commit: c55ee46073ed923f86ce59a5eb3b6d895095d1b7
+  resolved_ref: c55ee46073ed923f86ce59a5eb3b6d895095d1b7
+  version: unknown
+  virtual_path: skills/productivity/to-questionnaire
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/to-questionnaire
+  - .claude/skills/to-questionnaire/SKILL.md
+  - .claude/skills/to-questionnaire/agents/openai.yaml
+  deployed_file_hashes:
+    .claude/skills/to-questionnaire/SKILL.md: sha256:b5eb929842ee0e93d867c5e906d183d350f2f2d149eaeaa86967d94d8eda1d3b
+    .claude/skills/to-questionnaire/agents/openai.yaml: sha256:9e8a06c38c8842eea8d4922cb9d1ead8e3ace647bab259b943c994a1b4742bc2
+  content_hash: sha256:619879fbd0e99ffacb9ae4a23a8c44393a37cb6d90b59a5ce8f5ace1be5baae0
+  target_subset:
+  - claude
+- repo_url: mattpocock/skills
+  name: wait-what
+  host: github.com
+  resolved_commit: c55ee46073ed923f86ce59a5eb3b6d895095d1b7
+  resolved_ref: c55ee46073ed923f86ce59a5eb3b6d895095d1b7
+  version: unknown
+  virtual_path: skills/productivity/wait-what
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/wait-what
+  - .claude/skills/wait-what/SKILL.md
+  - .claude/skills/wait-what/agents/openai.yaml
+  deployed_file_hashes:
+    .claude/skills/wait-what/SKILL.md: sha256:e3f44e3ccbc0e7b62f20ba70b295fc9c9f4aa3f96c77168faee1c71bacbf4215
+    .claude/skills/wait-what/agents/openai.yaml: sha256:b41faadf741d51e4ea184148b2d1854d93f947aaf754c7844f70a00f04194999
+  content_hash: sha256:1cca68c4767907bc80180b3aa90035f9343998a2f32589419013a9d191fa4661
+  target_subset:
+  - claude
+- repo_url: mattpocock/skills
+  name: writing-for-agents
+  host: github.com
+  resolved_commit: c55ee46073ed923f86ce59a5eb3b6d895095d1b7
+  resolved_ref: c55ee46073ed923f86ce59a5eb3b6d895095d1b7
+  version: unknown
+  virtual_path: skills/productivity/writing-for-agents
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/writing-for-agents
+  - .claude/skills/writing-for-agents/SKILL-MECHANICS.md
+  - .claude/skills/writing-for-agents/SKILL.md
+  - .claude/skills/writing-for-agents/agents/openai.yaml
+  deployed_file_hashes:
+    .claude/skills/writing-for-agents/SKILL-MECHANICS.md: sha256:c768e6307c7c10728c401c213f2c4ba71c542127eeb7ad2956aabd15a0fa0059
+    .claude/skills/writing-for-agents/SKILL.md: sha256:551adca942227b44192edba88acd4e8db911f0121ce58ad16944ccf6a896a74a
+    .claude/skills/writing-for-agents/agents/openai.yaml: sha256:eacb24b2a618cfb81dacb0416f4fdd75ddf3a8060f8ddb99aae1b1e301907e4b
+  content_hash: sha256:8365ebe1d0c343d3d46970526f30fcf7c5e0c5e49fd39a3c882977024626ff3c
+  target_subset:
+  - claude
+- repo_url: stablyai/orca
+  name: computer-use
+  host: github.com
+  resolved_commit: a445abadd4b2fd75d987872c0aa9d274f05ab33b
+  resolved_ref: a445abadd4b2fd75d987872c0aa9d274f05ab33b
+  version: unknown
+  virtual_path: skills/computer-use
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/computer-use
+  - .claude/skills/computer-use/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/computer-use/SKILL.md: sha256:244b06656c849aaaa79c29a6053fd4c2be98933ca10bd1edaeb727ce73ede793
+  content_hash: sha256:dc999be3d9692278ff281951d897f0a7497aca607cee8354ac128b63ec2da3f0
+  target_subset:
+  - claude
+- repo_url: stablyai/orca
+  name: linear-tickets
+  host: github.com
+  resolved_commit: a445abadd4b2fd75d987872c0aa9d274f05ab33b
+  resolved_ref: a445abadd4b2fd75d987872c0aa9d274f05ab33b
+  version: unknown
+  virtual_path: skills/linear-tickets
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/linear-tickets
+  - .claude/skills/linear-tickets/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/linear-tickets/SKILL.md: sha256:af2d33d98c21e22726a6a36a3e41b1967770c4df6691530d02409d8aca861c15
+  content_hash: sha256:f94fa36cfd28095dd9111eecfbb708ae1d01380b540547404fa733b85f74d83c
+  target_subset:
+  - claude
+- repo_url: stablyai/orca
+  name: orca-cli
+  host: github.com
+  resolved_commit: a445abadd4b2fd75d987872c0aa9d274f05ab33b
+  resolved_ref: a445abadd4b2fd75d987872c0aa9d274f05ab33b
+  version: unknown
+  virtual_path: skills/orca-cli
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/orca-cli
+  - .claude/skills/orca-cli/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/orca-cli/SKILL.md: sha256:6522a3355993b377abe7d7a5c8f6a00f9726e1a6a6b9aa9c015651e8d0f5e6b8
+  content_hash: sha256:7ad2f1fd9217ab275ae73ffbaf119306e67841b4babc4341ed42fe63e25a4c1b
+  target_subset:
+  - claude
+- repo_url: stablyai/orca
+  name: orca-emulator
+  host: github.com
+  resolved_commit: a445abadd4b2fd75d987872c0aa9d274f05ab33b
+  resolved_ref: a445abadd4b2fd75d987872c0aa9d274f05ab33b
+  version: unknown
+  virtual_path: skills/orca-emulator
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/orca-emulator
+  - .claude/skills/orca-emulator/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/orca-emulator/SKILL.md: sha256:654746c72c0fa4aaa540c3aa7450413404450c195bcdeaf0aaa27fa114d0f058
+  content_hash: sha256:77d855a515ca2a874ef6787f645d855dcd54489ac2d1adfe476655fd37a6eeb3
+  target_subset:
+  - claude
+- repo_url: stablyai/orca
+  name: orca-emulator-android
+  host: github.com
+  resolved_commit: a445abadd4b2fd75d987872c0aa9d274f05ab33b
+  resolved_ref: a445abadd4b2fd75d987872c0aa9d274f05ab33b
+  version: unknown
+  virtual_path: skills/orca-emulator-android
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/orca-emulator-android
+  - .claude/skills/orca-emulator-android/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/orca-emulator-android/SKILL.md: sha256:ae242330d98c9335160fbd4356894e15633d63c02da4edfd7109ab1845368002
+  content_hash: sha256:e3ded1061ca58be5ff0e4ec020ea81157781852e0570ad1391e329bdfad8ccad
+  target_subset:
+  - claude
+- repo_url: stablyai/orca
+  name: orca-linear
+  host: github.com
+  resolved_commit: a445abadd4b2fd75d987872c0aa9d274f05ab33b
+  resolved_ref: a445abadd4b2fd75d987872c0aa9d274f05ab33b
+  version: unknown
+  virtual_path: skills/orca-linear
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/orca-linear
+  - .claude/skills/orca-linear/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/orca-linear/SKILL.md: sha256:85ee0d4d3cfadfec301e3a852c8ff959a1f366ac51b9c312cf463f050e427e72
+  content_hash: sha256:f1d74b990f5cf4d365d4857e974ccf0c29beb36ef880c5f4144ce9474dfae86a
+  target_subset:
+  - claude
+- repo_url: stablyai/orca
+  name: orca-per-workspace-env
+  host: github.com
+  resolved_commit: a445abadd4b2fd75d987872c0aa9d274f05ab33b
+  resolved_ref: a445abadd4b2fd75d987872c0aa9d274f05ab33b
+  version: unknown
+  virtual_path: skills/orca-per-workspace-env
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/orca-per-workspace-env
+  - .claude/skills/orca-per-workspace-env/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/orca-per-workspace-env/SKILL.md: sha256:d3a23c0d3e87c6024f710145e0cc6e5c7eb37eda1386c27d074f2538a92b7d1c
+  content_hash: sha256:9a7e9b3224002a4153f3bafbfda66d2c75d5d97fa401d2cfd63fe35b57f58b33
+  target_subset:
+  - claude
+- repo_url: stablyai/orca
+  name: orchestration
+  host: github.com
+  resolved_commit: a445abadd4b2fd75d987872c0aa9d274f05ab33b
+  resolved_ref: a445abadd4b2fd75d987872c0aa9d274f05ab33b
+  version: unknown
+  virtual_path: skills/orchestration
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/orchestration
+  - .claude/skills/orchestration/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/orchestration/SKILL.md: sha256:36bc32f022447418b566db35f9ffcff75113eb023e37d06fd1bd609c5dd173ef
+  content_hash: sha256:247d274538eafa19d2fc622681dd7373d752e15e77b0efe41087e4790f062c50
+  target_subset:
+  - claude
+- repo_url: vercel-labs/skills
+  name: find-skills
+  host: github.com
+  resolved_commit: 7407f3893ad4dceab546ac002c3ef806e4000c73
+  resolved_ref: 7407f3893ad4dceab546ac002c3ef806e4000c73
+  version: unknown
+  virtual_path: skills/find-skills
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/find-skills
+  - .claude/skills/find-skills/SKILL.md
+  deployed_file_hashes:
+    .claude/skills/find-skills/SKILL.md: sha256:c00eeea0e13e74fe4a9d84ba0a8542205a1b736d65f13134fe1a6647eb14976f
+  content_hash: sha256:913b9d37d0d54047dd65222bb8c67b2bf04e3cb87dcad1729068d7a8b2c8c396
+  target_subset:
+  - claude
+deployments:
+- kind: project-relative
+  target: claude
+  value: .claude/commands/retro.md
+  runtime: null
+  scope: project
+  owners:
+  - yamakura-yuma/dotfiles/core-principal
+  active_owner: yamakura-yuma/dotfiles/core-principal
+  content_hash: sha256:cb7b04b93dfd16970f5cbc260dd590cb5ead870bf0bee6e488277bfc46452890
+- kind: project-relative
+  target: claude
+  value: .claude/commands/workers.md
+  runtime: null
+  scope: project
+  owners:
+  - yamakura-yuma/dotfiles/core-principal
+  active_owner: yamakura-yuma/dotfiles/core-principal
+  content_hash: sha256:b1aa5193c4e9b409bb4952c1988563d2f22791a90ef6b4b5c6efea3dfd4b5dc8
+- kind: project-relative
+  target: claude
+  value: .claude/commands/worktree.md
+  runtime: null
+  scope: project
+  owners:
+  - yamakura-yuma/dotfiles/core-principal
+  active_owner: yamakura-yuma/dotfiles/core-principal
+  content_hash: sha256:c6fae8cf3ed708b9db3ea1dd6aa40ff2c90d551efab5cda98917bda39f300145
+- kind: project-relative
+  target: claude
+  value: .claude/hooks/core-principal/.apm/hooks/scripts/dispatch-in-coordinator.sh
+  runtime: null
+  scope: project
+  owners:
+  - yamakura-yuma/dotfiles/core-principal
+  active_owner: yamakura-yuma/dotfiles/core-principal
+  content_hash: sha256:ec7cccdb823aeceee1efdd58f35c7056457c8fe4cc1b47f3e909989c5e4a6c24
+- kind: project-relative
+  target: claude
+  value: .claude/hooks/core-principal/.apm/hooks/scripts/guard-coordinator-edit.sh
+  runtime: null
+  scope: project
+  owners:
+  - yamakura-yuma/dotfiles/core-principal
+  active_owner: yamakura-yuma/dotfiles/core-principal
+  content_hash: sha256:dc5c0c5528f781330ef7f0d5009febfb28d54bb9bb8b002bd0d8beb0d45f7354
+- kind: project-relative
+  target: claude
+  value: .claude/hooks/core-principal/.apm/hooks/scripts/guard-default-branch.sh
+  runtime: null
+  scope: project
+  owners:
+  - yamakura-yuma/dotfiles/core-principal
+  active_owner: yamakura-yuma/dotfiles/core-principal
+  content_hash: sha256:e7ff3eb2e67e6c8d50ed599f97df08e122014109808b1dec3855b061acd3d9cd
+- kind: project-relative
+  target: claude
+  value: .claude/hooks/core-principal/.apm/hooks/scripts/guard-destructive-git.sh
+  runtime: null
+  scope: project
+  owners:
+  - yamakura-yuma/dotfiles/core-principal
+  active_owner: yamakura-yuma/dotfiles/core-principal
+  content_hash: sha256:ee57fb415c9acbf409715032196a7186fa0f161a5b1187143a40ca6f054b4d35
+- kind: project-relative
+  target: claude
+  value: .claude/hooks/core-principal/.apm/hooks/scripts/lib/coordinator-workspace.sh
+  runtime: null
+  scope: project
+  owners:
+  - yamakura-yuma/dotfiles/core-principal
+  active_owner: yamakura-yuma/dotfiles/core-principal
+  content_hash: sha256:24e243938ef392c76ed238bbf16a42eb489ee0447c45916af1f57ccd43308f1e
+- kind: project-relative
+  target: claude
+  value: .claude/rules/core-principal.md
+  runtime: null
+  scope: project
+  owners:
+  - yamakura-yuma/dotfiles/core-principal
+  active_owner: yamakura-yuma/dotfiles/core-principal
+  content_hash: sha256:2713980ffbde09797ae2a27f046e31255aada776cf505cde181def10463191ff
+- kind: project-relative
+  target: claude
+  value: .claude/skills/cognitive-rhythm-writing
+  runtime: null
+  scope: project
+  owners:
+  - gist.github.com/k16shikano/eb2929f13ed19c97188393d297be8432
+  active_owner: gist.github.com/k16shikano/eb2929f13ed19c97188393d297be8432
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/cognitive-rhythm-writing/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - gist.github.com/k16shikano/eb2929f13ed19c97188393d297be8432
+  active_owner: gist.github.com/k16shikano/eb2929f13ed19c97188393d297be8432
+  content_hash: sha256:65486e64f33ce2ab03c5db198b1f92e2838e71abfb1a80085d1b405340c11437
+- kind: project-relative
+  target: claude
+  value: .claude/skills/computer-use
+  runtime: null
+  scope: project
+  owners:
+  - stablyai/orca/skills/computer-use
+  active_owner: stablyai/orca/skills/computer-use
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/computer-use/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - stablyai/orca/skills/computer-use
+  active_owner: stablyai/orca/skills/computer-use
+  content_hash: sha256:244b06656c849aaaa79c29a6053fd4c2be98933ca10bd1edaeb727ce73ede793
+- kind: project-relative
+  target: claude
+  value: .claude/skills/core-communication
+  runtime: null
+  scope: project
+  owners:
+  - yamakura-yuma/dotfiles/core-principal
+  active_owner: yamakura-yuma/dotfiles/core-principal
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/core-communication/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - yamakura-yuma/dotfiles/core-principal
+  active_owner: yamakura-yuma/dotfiles/core-principal
+  content_hash: sha256:290c4cfbd8095fd64035de93e5fae4c3ab5e80fbd110f0317d272231e5060750
+- kind: project-relative
+  target: claude
+  value: .claude/skills/core-dispatch
+  runtime: null
+  scope: project
+  owners:
+  - yamakura-yuma/dotfiles/core-principal
+  active_owner: yamakura-yuma/dotfiles/core-principal
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/core-dispatch/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - yamakura-yuma/dotfiles/core-principal
+  active_owner: yamakura-yuma/dotfiles/core-principal
+  content_hash: sha256:d8620f9153226fb4a481f15acd5384cd05a6c835448bf9719cc9881d7ee1d8b7
+- kind: project-relative
+  target: claude
+  value: .claude/skills/core-dispatch/references/orca.md
+  runtime: null
+  scope: project
+  owners:
+  - yamakura-yuma/dotfiles/core-principal
+  active_owner: yamakura-yuma/dotfiles/core-principal
+  content_hash: sha256:fa93678a6282a25227ff29d70afc188c2ce1d7ddf59dfef2007ab34a57c8db3a
+- kind: project-relative
+  target: claude
+  value: .claude/skills/core-harness
+  runtime: null
+  scope: project
+  owners:
+  - yamakura-yuma/dotfiles/core-principal
+  active_owner: yamakura-yuma/dotfiles/core-principal
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/core-harness/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - yamakura-yuma/dotfiles/core-principal
+  active_owner: yamakura-yuma/dotfiles/core-principal
+  content_hash: sha256:99c045d95e8dc280ded6ea6b097a2be74250332c29ed88d4f234484f2cfc88f0
+- kind: project-relative
+  target: claude
+  value: .claude/skills/core-retro
+  runtime: null
+  scope: project
+  owners:
+  - yamakura-yuma/dotfiles/core-principal
+  active_owner: yamakura-yuma/dotfiles/core-principal
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/core-retro/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - yamakura-yuma/dotfiles/core-principal
+  active_owner: yamakura-yuma/dotfiles/core-principal
+  content_hash: sha256:eb696797ce02014584b939277d35552c9f02844402d480fb97f152bf56969c09
+- kind: project-relative
+  target: claude
+  value: .claude/skills/core-tools
+  runtime: null
+  scope: project
+  owners:
+  - yamakura-yuma/dotfiles/core-principal
+  active_owner: yamakura-yuma/dotfiles/core-principal
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/core-tools/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - yamakura-yuma/dotfiles/core-principal
+  active_owner: yamakura-yuma/dotfiles/core-principal
+  content_hash: sha256:14ae4206d3a5b10d5d68c8720f7357f5a218d3b509e59bcb2e00ad8a88fb8fe2
+- kind: project-relative
+  target: claude
+  value: .claude/skills/find-skills
+  runtime: null
+  scope: project
+  owners:
+  - vercel-labs/skills/skills/find-skills
+  active_owner: vercel-labs/skills/skills/find-skills
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/find-skills/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - vercel-labs/skills/skills/find-skills
+  active_owner: vercel-labs/skills/skills/find-skills
+  content_hash: sha256:c00eeea0e13e74fe4a9d84ba0a8542205a1b736d65f13134fe1a6647eb14976f
+- kind: project-relative
+  target: claude
+  value: .claude/skills/genshijin
+  runtime: null
+  scope: project
+  owners:
+  - interfacex-co-jp/genshijin/skills/genshijin
+  active_owner: interfacex-co-jp/genshijin/skills/genshijin
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/genshijin-commit
+  runtime: null
+  scope: project
+  owners:
+  - interfacex-co-jp/genshijin/skills/genshijin-commit
+  active_owner: interfacex-co-jp/genshijin/skills/genshijin-commit
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/genshijin-commit/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - interfacex-co-jp/genshijin/skills/genshijin-commit
+  active_owner: interfacex-co-jp/genshijin/skills/genshijin-commit
+  content_hash: sha256:1b06477dbd4032743c369b97fde3f5576a0bbd88d16be67bbf49b18cd7619553
+- kind: project-relative
+  target: claude
+  value: .claude/skills/genshijin-compress
+  runtime: null
+  scope: project
+  owners:
+  - interfacex-co-jp/genshijin/skills/genshijin-compress
+  active_owner: interfacex-co-jp/genshijin/skills/genshijin-compress
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/genshijin-compress/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - interfacex-co-jp/genshijin/skills/genshijin-compress
+  active_owner: interfacex-co-jp/genshijin/skills/genshijin-compress
+  content_hash: sha256:bf949bbd4fa7ddd5fa230fb7e30a6d514863d8fd261a29bdb36e368994e20b68
+- kind: project-relative
+  target: claude
+  value: .claude/skills/genshijin-compress/scripts/__init__.py
+  runtime: null
+  scope: project
+  owners:
+  - interfacex-co-jp/genshijin/skills/genshijin-compress
+  active_owner: interfacex-co-jp/genshijin/skills/genshijin-compress
+  content_hash: sha256:453c1dabbebbf1565a87f8ddfe865f04dc26ca64316c4950f91cb4f7478d5322
+- kind: project-relative
+  target: claude
+  value: .claude/skills/genshijin-compress/scripts/__main__.py
+  runtime: null
+  scope: project
+  owners:
+  - interfacex-co-jp/genshijin/skills/genshijin-compress
+  active_owner: interfacex-co-jp/genshijin/skills/genshijin-compress
+  content_hash: sha256:6d8b7d7846a845059d7a3107143f11131f63c5511d669b44085b15ec5e3d2279
+- kind: project-relative
+  target: claude
+  value: .claude/skills/genshijin-compress/scripts/cli.py
+  runtime: null
+  scope: project
+  owners:
+  - interfacex-co-jp/genshijin/skills/genshijin-compress
+  active_owner: interfacex-co-jp/genshijin/skills/genshijin-compress
+  content_hash: sha256:4468ddbe75d1eca39f7575cf582efc249556615f335f887950fdec8cdfe22497
+- kind: project-relative
+  target: claude
+  value: .claude/skills/genshijin-compress/scripts/compress.py
+  runtime: null
+  scope: project
+  owners:
+  - interfacex-co-jp/genshijin/skills/genshijin-compress
+  active_owner: interfacex-co-jp/genshijin/skills/genshijin-compress
+  content_hash: sha256:4837a81cf6bc44c48c3af80cd2de4b544cacf140235f676097b0e9d8efa57863
+- kind: project-relative
+  target: claude
+  value: .claude/skills/genshijin-compress/scripts/detect.py
+  runtime: null
+  scope: project
+  owners:
+  - interfacex-co-jp/genshijin/skills/genshijin-compress
+  active_owner: interfacex-co-jp/genshijin/skills/genshijin-compress
+  content_hash: sha256:3a5c8944a3428e135627e43ae6e0a590b991e41b2097fc8dcb65f9716c9c7918
+- kind: project-relative
+  target: claude
+  value: .claude/skills/genshijin-compress/scripts/validate.py
+  runtime: null
+  scope: project
+  owners:
+  - interfacex-co-jp/genshijin/skills/genshijin-compress
+  active_owner: interfacex-co-jp/genshijin/skills/genshijin-compress
+  content_hash: sha256:0f19b437d471d24eff57274d256a8f3b9efaf481e6d3e8dbde00646c44cae25f
+- kind: project-relative
+  target: claude
+  value: .claude/skills/genshijin-crew
+  runtime: null
+  scope: project
+  owners:
+  - interfacex-co-jp/genshijin/skills/genshijin-crew
+  active_owner: interfacex-co-jp/genshijin/skills/genshijin-crew
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/genshijin-crew/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - interfacex-co-jp/genshijin/skills/genshijin-crew
+  active_owner: interfacex-co-jp/genshijin/skills/genshijin-crew
+  content_hash: sha256:e1881d3edcc65f84f9f2e07c69fdccd6f7237e71f81478485b4b18ce318e97a2
+- kind: project-relative
+  target: claude
+  value: .claude/skills/genshijin-help
+  runtime: null
+  scope: project
+  owners:
+  - interfacex-co-jp/genshijin/skills/genshijin-help
+  active_owner: interfacex-co-jp/genshijin/skills/genshijin-help
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/genshijin-help/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - interfacex-co-jp/genshijin/skills/genshijin-help
+  active_owner: interfacex-co-jp/genshijin/skills/genshijin-help
+  content_hash: sha256:a2ae8ad6733dda31e5a2e2580df61a885584c003289970eb5cc07bb6c56c5b1d
+- kind: project-relative
+  target: claude
+  value: .claude/skills/genshijin-review
+  runtime: null
+  scope: project
+  owners:
+  - interfacex-co-jp/genshijin/skills/genshijin-review
+  active_owner: interfacex-co-jp/genshijin/skills/genshijin-review
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/genshijin-review/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - interfacex-co-jp/genshijin/skills/genshijin-review
+  active_owner: interfacex-co-jp/genshijin/skills/genshijin-review
+  content_hash: sha256:fa82bbf45747e3bb19d4afe636645db47a426999ca463d5c333be6d74d8b12dc
+- kind: project-relative
+  target: claude
+  value: .claude/skills/genshijin-stats
+  runtime: null
+  scope: project
+  owners:
+  - interfacex-co-jp/genshijin/skills/genshijin-stats
+  active_owner: interfacex-co-jp/genshijin/skills/genshijin-stats
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/genshijin-stats/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - interfacex-co-jp/genshijin/skills/genshijin-stats
+  active_owner: interfacex-co-jp/genshijin/skills/genshijin-stats
+  content_hash: sha256:c689b23b38352111502527ed7785f9b9d4529200f38eece80340eb16213ac9ab
+- kind: project-relative
+  target: claude
+  value: .claude/skills/genshijin/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - interfacex-co-jp/genshijin/skills/genshijin
+  active_owner: interfacex-co-jp/genshijin/skills/genshijin
+  content_hash: sha256:b83954d2e16150c65a535b548cd51e4e2a2344a9cf09e9e616cdee10aea56f73
+- kind: project-relative
+  target: claude
+  value: .claude/skills/grill-me
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/grill-me
+  active_owner: mattpocock/skills/skills/productivity/grill-me
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/grill-me/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/grill-me
+  active_owner: mattpocock/skills/skills/productivity/grill-me
+  content_hash: sha256:caaf8b8de1684f96e26b28f3c29189db5c89cce4b73e1c93d86164f66ef88637
+- kind: project-relative
+  target: claude
+  value: .claude/skills/grill-me/agents/openai.yaml
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/grill-me
+  active_owner: mattpocock/skills/skills/productivity/grill-me
+  content_hash: sha256:c061e39c3e0f9d865fb1b97556d485704af2a8a58f4b8221a8917a5c2074a32b
+- kind: project-relative
+  target: claude
+  value: .claude/skills/grilling
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/grilling
+  active_owner: mattpocock/skills/skills/productivity/grilling
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/grilling/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/grilling
+  active_owner: mattpocock/skills/skills/productivity/grilling
+  content_hash: sha256:10ff989e7498b23b5acb49d5048f11dcd906757d2f79c5cdf8a00001381296f2
+- kind: project-relative
+  target: claude
+  value: .claude/skills/grilling/agents/openai.yaml
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/grilling
+  active_owner: mattpocock/skills/skills/productivity/grilling
+  content_hash: sha256:1411d7df7d99b7e621a1ff8283c8133cc2464be63d064e52d8ce169c6800ee9b
+- kind: project-relative
+  target: claude
+  value: .claude/skills/handoff
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/handoff
+  active_owner: mattpocock/skills/skills/productivity/handoff
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/handoff/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/handoff
+  active_owner: mattpocock/skills/skills/productivity/handoff
+  content_hash: sha256:7c62de979fdc7ac32fb5ddb2146156c917f80ee070d30fadc9d40343c4b6ed25
+- kind: project-relative
+  target: claude
+  value: .claude/skills/handoff/agents/openai.yaml
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/handoff
+  active_owner: mattpocock/skills/skills/productivity/handoff
+  content_hash: sha256:5c479fd562c691851690e8b18c8501045bef0943c10743d636b2fae26add1d28
+- kind: project-relative
+  target: claude
+  value: .claude/skills/humanizer-ja
+  runtime: null
+  scope: project
+  owners:
+  - gonta223/humanizer-ja
+  active_owner: gonta223/humanizer-ja
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/humanizer-ja/LICENSE
+  runtime: null
+  scope: project
+  owners:
+  - gonta223/humanizer-ja
+  active_owner: gonta223/humanizer-ja
+  content_hash: sha256:f75eb14ec27966cd36603902343e942aa1d125e7ef78cfb786ba71b29938b7dc
+- kind: project-relative
+  target: claude
+  value: .claude/skills/humanizer-ja/README.md
+  runtime: null
+  scope: project
+  owners:
+  - gonta223/humanizer-ja
+  active_owner: gonta223/humanizer-ja
+  content_hash: sha256:657ca8e0e1750c2eb025e6e61fe229bc9eafcea3ac53694a12f69399a1a29872
+- kind: project-relative
+  target: claude
+  value: .claude/skills/humanizer-ja/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - gonta223/humanizer-ja
+  active_owner: gonta223/humanizer-ja
+  content_hash: sha256:3fe07f06a179801d7445eff19ed40f1681ef9860665c50c1e9a032f6dffead89
+- kind: project-relative
+  target: claude
+  value: .claude/skills/japanese-tech-writing
+  runtime: null
+  scope: project
+  owners:
+  - gist.github.com/k16shikano/fd287c3133457c4fd8f5601d34aa817d
+  active_owner: gist.github.com/k16shikano/fd287c3133457c4fd8f5601d34aa817d
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/japanese-tech-writing/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - gist.github.com/k16shikano/fd287c3133457c4fd8f5601d34aa817d
+  active_owner: gist.github.com/k16shikano/fd287c3133457c4fd8f5601d34aa817d
+  content_hash: sha256:ad350e0e6f5630fd94d8ab98a6aee194053b0096fdc944c23e271d6dfa09ee68
+- kind: project-relative
+  target: claude
+  value: .claude/skills/linear-tickets
+  runtime: null
+  scope: project
+  owners:
+  - stablyai/orca/skills/linear-tickets
+  active_owner: stablyai/orca/skills/linear-tickets
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/linear-tickets/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - stablyai/orca/skills/linear-tickets
+  active_owner: stablyai/orca/skills/linear-tickets
+  content_hash: sha256:af2d33d98c21e22726a6a36a3e41b1967770c4df6691530d02409d8aca861c15
+- kind: project-relative
+  target: claude
+  value: .claude/skills/orca-cli
+  runtime: null
+  scope: project
+  owners:
+  - stablyai/orca/skills/orca-cli
+  active_owner: stablyai/orca/skills/orca-cli
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/orca-cli/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - stablyai/orca/skills/orca-cli
+  active_owner: stablyai/orca/skills/orca-cli
+  content_hash: sha256:6522a3355993b377abe7d7a5c8f6a00f9726e1a6a6b9aa9c015651e8d0f5e6b8
+- kind: project-relative
+  target: claude
+  value: .claude/skills/orca-emulator
+  runtime: null
+  scope: project
+  owners:
+  - stablyai/orca/skills/orca-emulator
+  active_owner: stablyai/orca/skills/orca-emulator
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/orca-emulator-android
+  runtime: null
+  scope: project
+  owners:
+  - stablyai/orca/skills/orca-emulator-android
+  active_owner: stablyai/orca/skills/orca-emulator-android
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/orca-emulator-android/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - stablyai/orca/skills/orca-emulator-android
+  active_owner: stablyai/orca/skills/orca-emulator-android
+  content_hash: sha256:ae242330d98c9335160fbd4356894e15633d63c02da4edfd7109ab1845368002
+- kind: project-relative
+  target: claude
+  value: .claude/skills/orca-emulator/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - stablyai/orca/skills/orca-emulator
+  active_owner: stablyai/orca/skills/orca-emulator
+  content_hash: sha256:654746c72c0fa4aaa540c3aa7450413404450c195bcdeaf0aaa27fa114d0f058
+- kind: project-relative
+  target: claude
+  value: .claude/skills/orca-linear
+  runtime: null
+  scope: project
+  owners:
+  - stablyai/orca/skills/orca-linear
+  active_owner: stablyai/orca/skills/orca-linear
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/orca-linear/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - stablyai/orca/skills/orca-linear
+  active_owner: stablyai/orca/skills/orca-linear
+  content_hash: sha256:85ee0d4d3cfadfec301e3a852c8ff959a1f366ac51b9c312cf463f050e427e72
+- kind: project-relative
+  target: claude
+  value: .claude/skills/orca-per-workspace-env
+  runtime: null
+  scope: project
+  owners:
+  - stablyai/orca/skills/orca-per-workspace-env
+  active_owner: stablyai/orca/skills/orca-per-workspace-env
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/orca-per-workspace-env/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - stablyai/orca/skills/orca-per-workspace-env
+  active_owner: stablyai/orca/skills/orca-per-workspace-env
+  content_hash: sha256:d3a23c0d3e87c6024f710145e0cc6e5c7eb37eda1386c27d074f2538a92b7d1c
+- kind: project-relative
+  target: claude
+  value: .claude/skills/orchestration
+  runtime: null
+  scope: project
+  owners:
+  - stablyai/orca/skills/orchestration
+  active_owner: stablyai/orca/skills/orchestration
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/orchestration/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - stablyai/orca/skills/orchestration
+  active_owner: stablyai/orca/skills/orchestration
+  content_hash: sha256:36bc32f022447418b566db35f9ffcff75113eb023e37d06fd1bd609c5dd173ef
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ponytail
+  runtime: null
+  scope: project
+  owners:
+  - dietrichgebert/ponytail/skills/ponytail
+  active_owner: dietrichgebert/ponytail/skills/ponytail
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ponytail-audit
+  runtime: null
+  scope: project
+  owners:
+  - dietrichgebert/ponytail/skills/ponytail-audit
+  active_owner: dietrichgebert/ponytail/skills/ponytail-audit
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ponytail-audit/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - dietrichgebert/ponytail/skills/ponytail-audit
+  active_owner: dietrichgebert/ponytail/skills/ponytail-audit
+  content_hash: sha256:5560b8e383dbe2ddfddc873a1e2bf2e586e23e0cd7d995537482b2315331f6d1
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ponytail-debt
+  runtime: null
+  scope: project
+  owners:
+  - dietrichgebert/ponytail/skills/ponytail-debt
+  active_owner: dietrichgebert/ponytail/skills/ponytail-debt
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ponytail-debt/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - dietrichgebert/ponytail/skills/ponytail-debt
+  active_owner: dietrichgebert/ponytail/skills/ponytail-debt
+  content_hash: sha256:c84fba75f0ca12bfe83f9a78ea02fd125c5dd3f1fbb18124105a489937f284e6
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ponytail-gain
+  runtime: null
+  scope: project
+  owners:
+  - dietrichgebert/ponytail/skills/ponytail-gain
+  active_owner: dietrichgebert/ponytail/skills/ponytail-gain
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ponytail-gain/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - dietrichgebert/ponytail/skills/ponytail-gain
+  active_owner: dietrichgebert/ponytail/skills/ponytail-gain
+  content_hash: sha256:24e01d1c9715cb136ba1c4f1e52a95940c0193558b876828e537736480d6408b
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ponytail-help
+  runtime: null
+  scope: project
+  owners:
+  - dietrichgebert/ponytail/skills/ponytail-help
+  active_owner: dietrichgebert/ponytail/skills/ponytail-help
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ponytail-help/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - dietrichgebert/ponytail/skills/ponytail-help
+  active_owner: dietrichgebert/ponytail/skills/ponytail-help
+  content_hash: sha256:2264d1615117b02b0fd5a69ec84cd2757006471a78e4d6c22eed6d581c1d37a4
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ponytail-review
+  runtime: null
+  scope: project
+  owners:
+  - dietrichgebert/ponytail/skills/ponytail-review
+  active_owner: dietrichgebert/ponytail/skills/ponytail-review
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ponytail-review/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - dietrichgebert/ponytail/skills/ponytail-review
+  active_owner: dietrichgebert/ponytail/skills/ponytail-review
+  content_hash: sha256:40df33b58fc6ef889b93585733feb9566b76e9586efa7f376785c1e995197ac0
+- kind: project-relative
+  target: claude
+  value: .claude/skills/ponytail/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - dietrichgebert/ponytail/skills/ponytail
+  active_owner: dietrichgebert/ponytail/skills/ponytail
+  content_hash: sha256:1316a2f3f95741d2300b116fe0c2d81ce4a9568656ed0a62643f54aaf09957f2
+- kind: project-relative
+  target: claude
+  value: .claude/skills/show-me
+  runtime: null
+  scope: project
+  owners:
+  - humanlayer/skills/plugins/show-me
+  active_owner: humanlayer/skills/plugins/show-me
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/show-me/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - humanlayer/skills/plugins/show-me
+  active_owner: humanlayer/skills/plugins/show-me
+  content_hash: sha256:434a2346cc95e313b0d367d477dda2e23ba642dd2181757415a09500664af100
+- kind: project-relative
+  target: claude
+  value: .claude/skills/show-me/agents/openai.yaml
+  runtime: null
+  scope: project
+  owners:
+  - humanlayer/skills/plugins/show-me
+  active_owner: humanlayer/skills/plugins/show-me
+  content_hash: sha256:a1499d95abd8447558c535fe5554adcc3c9b988a0a39264a6283d430effe1e94
+- kind: project-relative
+  target: claude
+  value: .claude/skills/teach
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/teach
+  active_owner: mattpocock/skills/skills/productivity/teach
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/teach/GLOSSARY-FORMAT.md
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/teach
+  active_owner: mattpocock/skills/skills/productivity/teach
+  content_hash: sha256:9b99859ec28437668130d8f2ce5a342938970f8a1ed4fd38c3eab4f4b5fff210
+- kind: project-relative
+  target: claude
+  value: .claude/skills/teach/LEARNING-RECORD-FORMAT.md
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/teach
+  active_owner: mattpocock/skills/skills/productivity/teach
+  content_hash: sha256:701fa34b6748aa89e6c960ffb815257f481a7d77fb2900f9028f7edf3fdd6052
+- kind: project-relative
+  target: claude
+  value: .claude/skills/teach/MISSION-FORMAT.md
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/teach
+  active_owner: mattpocock/skills/skills/productivity/teach
+  content_hash: sha256:8cacbb3c0644d3ae0ea4965564797099401a6930a23f7cf462918576587f2418
+- kind: project-relative
+  target: claude
+  value: .claude/skills/teach/RESOURCES-FORMAT.md
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/teach
+  active_owner: mattpocock/skills/skills/productivity/teach
+  content_hash: sha256:e9cacf34026e11a8d1c8f9de88abe5bcbf654f4ebdb25cae8c0de0d5f48f44ec
+- kind: project-relative
+  target: claude
+  value: .claude/skills/teach/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/teach
+  active_owner: mattpocock/skills/skills/productivity/teach
+  content_hash: sha256:a32df9dcdfc0c4fdc1c98e1ed3940c5f56b84c1aa90ff60346f32b8b53915b43
+- kind: project-relative
+  target: claude
+  value: .claude/skills/teach/agents/openai.yaml
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/teach
+  active_owner: mattpocock/skills/skills/productivity/teach
+  content_hash: sha256:5856f3ae8aec742f1499c640aecdd5f1d6af5fa210a7c6ec794de8263a6f733f
+- kind: project-relative
+  target: claude
+  value: .claude/skills/to-questionnaire
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/to-questionnaire
+  active_owner: mattpocock/skills/skills/productivity/to-questionnaire
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/to-questionnaire/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/to-questionnaire
+  active_owner: mattpocock/skills/skills/productivity/to-questionnaire
+  content_hash: sha256:b5eb929842ee0e93d867c5e906d183d350f2f2d149eaeaa86967d94d8eda1d3b
+- kind: project-relative
+  target: claude
+  value: .claude/skills/to-questionnaire/agents/openai.yaml
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/to-questionnaire
+  active_owner: mattpocock/skills/skills/productivity/to-questionnaire
+  content_hash: sha256:9e8a06c38c8842eea8d4922cb9d1ead8e3ace647bab259b943c994a1b4742bc2
+- kind: project-relative
+  target: claude
+  value: .claude/skills/wait-what
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/wait-what
+  active_owner: mattpocock/skills/skills/productivity/wait-what
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/wait-what/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/wait-what
+  active_owner: mattpocock/skills/skills/productivity/wait-what
+  content_hash: sha256:e3f44e3ccbc0e7b62f20ba70b295fc9c9f4aa3f96c77168faee1c71bacbf4215
+- kind: project-relative
+  target: claude
+  value: .claude/skills/wait-what/agents/openai.yaml
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/wait-what
+  active_owner: mattpocock/skills/skills/productivity/wait-what
+  content_hash: sha256:b41faadf741d51e4ea184148b2d1854d93f947aaf754c7844f70a00f04194999
+- kind: project-relative
+  target: claude
+  value: .claude/skills/writing-for-agents
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/writing-for-agents
+  active_owner: mattpocock/skills/skills/productivity/writing-for-agents
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/writing-for-agents/SKILL-MECHANICS.md
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/writing-for-agents
+  active_owner: mattpocock/skills/skills/productivity/writing-for-agents
+  content_hash: sha256:c768e6307c7c10728c401c213f2c4ba71c542127eeb7ad2956aabd15a0fa0059
+- kind: project-relative
+  target: claude
+  value: .claude/skills/writing-for-agents/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/writing-for-agents
+  active_owner: mattpocock/skills/skills/productivity/writing-for-agents
+  content_hash: sha256:551adca942227b44192edba88acd4e8db911f0121ce58ad16944ccf6a896a74a
+- kind: project-relative
+  target: claude
+  value: .claude/skills/writing-for-agents/agents/openai.yaml
+  runtime: null
+  scope: project
+  owners:
+  - mattpocock/skills/skills/productivity/writing-for-agents
+  active_owner: mattpocock/skills/skills/productivity/writing-for-agents
+  content_hash: sha256:eacb24b2a618cfb81dacb0416f4fdd75ddf3a8060f8ddb99aae1b1e301907e4b
