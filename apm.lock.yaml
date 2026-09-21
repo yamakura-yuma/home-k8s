@@ -4,8 +4,8 @@ dependencies:
 - repo_url: yamakura-yuma/dotfiles
   name: core-principal
   host: github.com
-  resolved_commit: 18e35fe9ca1c7347b7e737a67305f0e067e79f3c
-  resolved_ref: 18e35fe9ca1c7347b7e737a67305f0e067e79f3c
+  resolved_commit: 51856cebaa34d148600b7f64d20d34fac4f2401e
+  resolved_ref: 51856cebaa34d148600b7f64d20d34fac4f2401e
   version: 1.1.0
   virtual_path: core-principal
   is_virtual: true
@@ -33,21 +33,21 @@ dependencies:
   - .claude/skills/core-tools/SKILL.md
   deployed_file_hashes:
     .claude/commands/retro.md: sha256:cb7b04b93dfd16970f5cbc260dd590cb5ead870bf0bee6e488277bfc46452890
-    .claude/commands/workers.md: sha256:b1aa5193c4e9b409bb4952c1988563d2f22791a90ef6b4b5c6efea3dfd4b5dc8
+    .claude/commands/workers.md: sha256:605b6adae0a9107da8a068ef088e94723b6b28b73c3bc32a0bfd96377ca88568
     .claude/commands/worktree.md: sha256:c6fae8cf3ed708b9db3ea1dd6aa40ff2c90d551efab5cda98917bda39f300145
     .claude/hooks/core-principal/.apm/hooks/scripts/dispatch-in-coordinator.sh: sha256:ec7cccdb823aeceee1efdd58f35c7056457c8fe4cc1b47f3e909989c5e4a6c24
-    .claude/hooks/core-principal/.apm/hooks/scripts/guard-coordinator-edit.sh: sha256:dc5c0c5528f781330ef7f0d5009febfb28d54bb9bb8b002bd0d8beb0d45f7354
-    .claude/hooks/core-principal/.apm/hooks/scripts/guard-default-branch.sh: sha256:e7ff3eb2e67e6c8d50ed599f97df08e122014109808b1dec3855b061acd3d9cd
+    .claude/hooks/core-principal/.apm/hooks/scripts/guard-coordinator-edit.sh: sha256:9f334191e8dd50272df6f5356a345ae589c88d51faac40c7b3941be3a7a6cc54
+    .claude/hooks/core-principal/.apm/hooks/scripts/guard-default-branch.sh: sha256:1a32a0d5c9399d9fd4ff5d09599d62b8985dbdf3e5b7daa6fcf358c3e5721729
     .claude/hooks/core-principal/.apm/hooks/scripts/guard-destructive-git.sh: sha256:ee57fb415c9acbf409715032196a7186fa0f161a5b1187143a40ca6f054b4d35
-    .claude/hooks/core-principal/.apm/hooks/scripts/lib/coordinator-workspace.sh: sha256:24e243938ef392c76ed238bbf16a42eb489ee0447c45916af1f57ccd43308f1e
+    .claude/hooks/core-principal/.apm/hooks/scripts/lib/coordinator-workspace.sh: sha256:db2ba153ce0ab0126f6a1c6def88150c2b67e0ebc313e4ea546ff9eae3161542
     .claude/rules/core-principal.md: sha256:2713980ffbde09797ae2a27f046e31255aada776cf505cde181def10463191ff
     .claude/skills/core-communication/SKILL.md: sha256:290c4cfbd8095fd64035de93e5fae4c3ab5e80fbd110f0317d272231e5060750
-    .claude/skills/core-dispatch/SKILL.md: sha256:d8620f9153226fb4a481f15acd5384cd05a6c835448bf9719cc9881d7ee1d8b7
-    .claude/skills/core-dispatch/references/orca.md: sha256:fa93678a6282a25227ff29d70afc188c2ce1d7ddf59dfef2007ab34a57c8db3a
+    .claude/skills/core-dispatch/SKILL.md: sha256:5cfd5f0112a3da5e9845da656b7b9cd244eab31b41ba1b5a672f6c18228bb5a6
+    .claude/skills/core-dispatch/references/orca.md: sha256:d3f6539efe8f66ede2f0a4ee57c327b3516a5b209a66dd1803081d516999b120
     .claude/skills/core-harness/SKILL.md: sha256:99c045d95e8dc280ded6ea6b097a2be74250332c29ed88d4f234484f2cfc88f0
     .claude/skills/core-retro/SKILL.md: sha256:eb696797ce02014584b939277d35552c9f02844402d480fb97f152bf56969c09
-    .claude/skills/core-tools/SKILL.md: sha256:14ae4206d3a5b10d5d68c8720f7357f5a218d3b509e59bcb2e00ad8a88fb8fe2
-  content_hash: sha256:e9705541a955771f225d0429e8531c16476d0515daf00c3e20570db6cd86274d
+    .claude/skills/core-tools/SKILL.md: sha256:6ef187280006ff43a5fec623bbcccfcc86e53571cb156b770ddae63bf9c490cd
+  content_hash: sha256:61f5a01168db79fe0d9231e6fd0fc20e5b28633b09a15bdc6cecd0b9f20e55a7
   target_subset:
   - claude
 - repo_url: dietrichgebert/ponytail
@@ -207,151 +207,6 @@ dependencies:
   target_subset:
   - claude
   declared_license: MIT
-- repo_url: interfacex-co-jp/genshijin
-  name: genshijin
-  host: github.com
-  resolved_commit: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
-  resolved_ref: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
-  version: unknown
-  virtual_path: skills/genshijin
-  is_virtual: true
-  depth: 2
-  resolved_by: yamakura-yuma/dotfiles
-  package_type: claude_skill
-  deployed_files:
-  - .claude/skills/genshijin
-  - .claude/skills/genshijin/SKILL.md
-  deployed_file_hashes:
-    .claude/skills/genshijin/SKILL.md: sha256:b83954d2e16150c65a535b548cd51e4e2a2344a9cf09e9e616cdee10aea56f73
-  content_hash: sha256:905fc789552518db9405ddbc767aca68794fab0af686af73d73999f39bffda91
-  target_subset:
-  - claude
-- repo_url: interfacex-co-jp/genshijin
-  name: genshijin-commit
-  host: github.com
-  resolved_commit: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
-  resolved_ref: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
-  version: unknown
-  virtual_path: skills/genshijin-commit
-  is_virtual: true
-  depth: 2
-  resolved_by: yamakura-yuma/dotfiles
-  package_type: claude_skill
-  deployed_files:
-  - .claude/skills/genshijin-commit
-  - .claude/skills/genshijin-commit/SKILL.md
-  deployed_file_hashes:
-    .claude/skills/genshijin-commit/SKILL.md: sha256:1b06477dbd4032743c369b97fde3f5576a0bbd88d16be67bbf49b18cd7619553
-  content_hash: sha256:db1561cf6b0cad2e60dbe4f089c0ebfa38b35feef8f9cec0e3a4afaadc9271ba
-  target_subset:
-  - claude
-- repo_url: interfacex-co-jp/genshijin
-  name: genshijin-compress
-  host: github.com
-  resolved_commit: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
-  resolved_ref: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
-  version: unknown
-  virtual_path: skills/genshijin-compress
-  is_virtual: true
-  depth: 2
-  resolved_by: yamakura-yuma/dotfiles
-  package_type: claude_skill
-  deployed_files:
-  - .claude/skills/genshijin-compress
-  - .claude/skills/genshijin-compress/SKILL.md
-  - .claude/skills/genshijin-compress/scripts/__init__.py
-  - .claude/skills/genshijin-compress/scripts/__main__.py
-  - .claude/skills/genshijin-compress/scripts/cli.py
-  - .claude/skills/genshijin-compress/scripts/compress.py
-  - .claude/skills/genshijin-compress/scripts/detect.py
-  - .claude/skills/genshijin-compress/scripts/validate.py
-  deployed_file_hashes:
-    .claude/skills/genshijin-compress/SKILL.md: sha256:bf949bbd4fa7ddd5fa230fb7e30a6d514863d8fd261a29bdb36e368994e20b68
-    .claude/skills/genshijin-compress/scripts/__init__.py: sha256:453c1dabbebbf1565a87f8ddfe865f04dc26ca64316c4950f91cb4f7478d5322
-    .claude/skills/genshijin-compress/scripts/__main__.py: sha256:6d8b7d7846a845059d7a3107143f11131f63c5511d669b44085b15ec5e3d2279
-    .claude/skills/genshijin-compress/scripts/cli.py: sha256:4468ddbe75d1eca39f7575cf582efc249556615f335f887950fdec8cdfe22497
-    .claude/skills/genshijin-compress/scripts/compress.py: sha256:4837a81cf6bc44c48c3af80cd2de4b544cacf140235f676097b0e9d8efa57863
-    .claude/skills/genshijin-compress/scripts/detect.py: sha256:3a5c8944a3428e135627e43ae6e0a590b991e41b2097fc8dcb65f9716c9c7918
-    .claude/skills/genshijin-compress/scripts/validate.py: sha256:0f19b437d471d24eff57274d256a8f3b9efaf481e6d3e8dbde00646c44cae25f
-  content_hash: sha256:033b241eacf092868768a68aba06bc4d397b0a8d343ccd7311ed30561841538c
-  target_subset:
-  - claude
-- repo_url: interfacex-co-jp/genshijin
-  name: genshijin-crew
-  host: github.com
-  resolved_commit: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
-  resolved_ref: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
-  version: unknown
-  virtual_path: skills/genshijin-crew
-  is_virtual: true
-  depth: 2
-  resolved_by: yamakura-yuma/dotfiles
-  package_type: claude_skill
-  deployed_files:
-  - .claude/skills/genshijin-crew
-  - .claude/skills/genshijin-crew/SKILL.md
-  deployed_file_hashes:
-    .claude/skills/genshijin-crew/SKILL.md: sha256:e1881d3edcc65f84f9f2e07c69fdccd6f7237e71f81478485b4b18ce318e97a2
-  content_hash: sha256:aa3720f57a1a1ddd0a85cd6ad4f762499cd72905389f9064421fd3c633fa9008
-  target_subset:
-  - claude
-- repo_url: interfacex-co-jp/genshijin
-  name: genshijin-help
-  host: github.com
-  resolved_commit: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
-  resolved_ref: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
-  version: unknown
-  virtual_path: skills/genshijin-help
-  is_virtual: true
-  depth: 2
-  resolved_by: yamakura-yuma/dotfiles
-  package_type: claude_skill
-  deployed_files:
-  - .claude/skills/genshijin-help
-  - .claude/skills/genshijin-help/SKILL.md
-  deployed_file_hashes:
-    .claude/skills/genshijin-help/SKILL.md: sha256:a2ae8ad6733dda31e5a2e2580df61a885584c003289970eb5cc07bb6c56c5b1d
-  content_hash: sha256:46efb7fbfc640cf9b867df9924e6046d7ed83795a4fd809180bb43684f81a601
-  target_subset:
-  - claude
-- repo_url: interfacex-co-jp/genshijin
-  name: genshijin-review
-  host: github.com
-  resolved_commit: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
-  resolved_ref: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
-  version: unknown
-  virtual_path: skills/genshijin-review
-  is_virtual: true
-  depth: 2
-  resolved_by: yamakura-yuma/dotfiles
-  package_type: claude_skill
-  deployed_files:
-  - .claude/skills/genshijin-review
-  - .claude/skills/genshijin-review/SKILL.md
-  deployed_file_hashes:
-    .claude/skills/genshijin-review/SKILL.md: sha256:fa82bbf45747e3bb19d4afe636645db47a426999ca463d5c333be6d74d8b12dc
-  content_hash: sha256:f6fa3c56f88f788c1516eee862434b06c8f86c91a925689a78b114a5a8cee2e0
-  target_subset:
-  - claude
-- repo_url: interfacex-co-jp/genshijin
-  name: genshijin-stats
-  host: github.com
-  resolved_commit: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
-  resolved_ref: 968d3c449499fdefc00aff9f1fe9c52c4dfdc7ae
-  version: unknown
-  virtual_path: skills/genshijin-stats
-  is_virtual: true
-  depth: 2
-  resolved_by: yamakura-yuma/dotfiles
-  package_type: claude_skill
-  deployed_files:
-  - .claude/skills/genshijin-stats
-  - .claude/skills/genshijin-stats/SKILL.md
-  deployed_file_hashes:
-    .claude/skills/genshijin-stats/SKILL.md: sha256:c689b23b38352111502527ed7785f9b9d4529200f38eece80340eb16213ac9ab
-  content_hash: sha256:33b9878352ea6a4003376cd44639fe0002e674d2eb12dcdc6ab0c90648fdb41f
-  target_subset:
-  - claude
 - repo_url: k16shikano/eb2929f13ed19c97188393d297be8432
   name: cognitive-rhythm-writing
   host: gist.github.com
@@ -732,7 +587,7 @@ deployments:
   owners:
   - yamakura-yuma/dotfiles/core-principal
   active_owner: yamakura-yuma/dotfiles/core-principal
-  content_hash: sha256:b1aa5193c4e9b409bb4952c1988563d2f22791a90ef6b4b5c6efea3dfd4b5dc8
+  content_hash: sha256:605b6adae0a9107da8a068ef088e94723b6b28b73c3bc32a0bfd96377ca88568
 - kind: project-relative
   target: claude
   value: .claude/commands/worktree.md
@@ -759,7 +614,7 @@ deployments:
   owners:
   - yamakura-yuma/dotfiles/core-principal
   active_owner: yamakura-yuma/dotfiles/core-principal
-  content_hash: sha256:dc5c0c5528f781330ef7f0d5009febfb28d54bb9bb8b002bd0d8beb0d45f7354
+  content_hash: sha256:9f334191e8dd50272df6f5356a345ae589c88d51faac40c7b3941be3a7a6cc54
 - kind: project-relative
   target: claude
   value: .claude/hooks/core-principal/.apm/hooks/scripts/guard-default-branch.sh
@@ -768,7 +623,7 @@ deployments:
   owners:
   - yamakura-yuma/dotfiles/core-principal
   active_owner: yamakura-yuma/dotfiles/core-principal
-  content_hash: sha256:e7ff3eb2e67e6c8d50ed599f97df08e122014109808b1dec3855b061acd3d9cd
+  content_hash: sha256:1a32a0d5c9399d9fd4ff5d09599d62b8985dbdf3e5b7daa6fcf358c3e5721729
 - kind: project-relative
   target: claude
   value: .claude/hooks/core-principal/.apm/hooks/scripts/guard-destructive-git.sh
@@ -786,7 +641,7 @@ deployments:
   owners:
   - yamakura-yuma/dotfiles/core-principal
   active_owner: yamakura-yuma/dotfiles/core-principal
-  content_hash: sha256:24e243938ef392c76ed238bbf16a42eb489ee0447c45916af1f57ccd43308f1e
+  content_hash: sha256:db2ba153ce0ab0126f6a1c6def88150c2b67e0ebc313e4ea546ff9eae3161542
 - kind: project-relative
   target: claude
   value: .claude/rules/core-principal.md
@@ -867,7 +722,7 @@ deployments:
   owners:
   - yamakura-yuma/dotfiles/core-principal
   active_owner: yamakura-yuma/dotfiles/core-principal
-  content_hash: sha256:d8620f9153226fb4a481f15acd5384cd05a6c835448bf9719cc9881d7ee1d8b7
+  content_hash: sha256:5cfd5f0112a3da5e9845da656b7b9cd244eab31b41ba1b5a672f6c18228bb5a6
 - kind: project-relative
   target: claude
   value: .claude/skills/core-dispatch/references/orca.md
@@ -876,7 +731,7 @@ deployments:
   owners:
   - yamakura-yuma/dotfiles/core-principal
   active_owner: yamakura-yuma/dotfiles/core-principal
-  content_hash: sha256:fa93678a6282a25227ff29d70afc188c2ce1d7ddf59dfef2007ab34a57c8db3a
+  content_hash: sha256:d3f6539efe8f66ede2f0a4ee57c327b3516a5b209a66dd1803081d516999b120
 - kind: project-relative
   target: claude
   value: .claude/skills/core-harness
@@ -930,7 +785,7 @@ deployments:
   owners:
   - yamakura-yuma/dotfiles/core-principal
   active_owner: yamakura-yuma/dotfiles/core-principal
-  content_hash: sha256:14ae4206d3a5b10d5d68c8720f7357f5a218d3b509e59bcb2e00ad8a88fb8fe2
+  content_hash: sha256:6ef187280006ff43a5fec623bbcccfcc86e53571cb156b770ddae63bf9c490cd
 - kind: project-relative
   target: claude
   value: .claude/skills/find-skills
@@ -949,186 +804,6 @@ deployments:
   - vercel-labs/skills/skills/find-skills
   active_owner: vercel-labs/skills/skills/find-skills
   content_hash: sha256:c00eeea0e13e74fe4a9d84ba0a8542205a1b736d65f13134fe1a6647eb14976f
-- kind: project-relative
-  target: claude
-  value: .claude/skills/genshijin
-  runtime: null
-  scope: project
-  owners:
-  - interfacex-co-jp/genshijin/skills/genshijin
-  active_owner: interfacex-co-jp/genshijin/skills/genshijin
-  content_hash: null
-- kind: project-relative
-  target: claude
-  value: .claude/skills/genshijin-commit
-  runtime: null
-  scope: project
-  owners:
-  - interfacex-co-jp/genshijin/skills/genshijin-commit
-  active_owner: interfacex-co-jp/genshijin/skills/genshijin-commit
-  content_hash: null
-- kind: project-relative
-  target: claude
-  value: .claude/skills/genshijin-commit/SKILL.md
-  runtime: null
-  scope: project
-  owners:
-  - interfacex-co-jp/genshijin/skills/genshijin-commit
-  active_owner: interfacex-co-jp/genshijin/skills/genshijin-commit
-  content_hash: sha256:1b06477dbd4032743c369b97fde3f5576a0bbd88d16be67bbf49b18cd7619553
-- kind: project-relative
-  target: claude
-  value: .claude/skills/genshijin-compress
-  runtime: null
-  scope: project
-  owners:
-  - interfacex-co-jp/genshijin/skills/genshijin-compress
-  active_owner: interfacex-co-jp/genshijin/skills/genshijin-compress
-  content_hash: null
-- kind: project-relative
-  target: claude
-  value: .claude/skills/genshijin-compress/SKILL.md
-  runtime: null
-  scope: project
-  owners:
-  - interfacex-co-jp/genshijin/skills/genshijin-compress
-  active_owner: interfacex-co-jp/genshijin/skills/genshijin-compress
-  content_hash: sha256:bf949bbd4fa7ddd5fa230fb7e30a6d514863d8fd261a29bdb36e368994e20b68
-- kind: project-relative
-  target: claude
-  value: .claude/skills/genshijin-compress/scripts/__init__.py
-  runtime: null
-  scope: project
-  owners:
-  - interfacex-co-jp/genshijin/skills/genshijin-compress
-  active_owner: interfacex-co-jp/genshijin/skills/genshijin-compress
-  content_hash: sha256:453c1dabbebbf1565a87f8ddfe865f04dc26ca64316c4950f91cb4f7478d5322
-- kind: project-relative
-  target: claude
-  value: .claude/skills/genshijin-compress/scripts/__main__.py
-  runtime: null
-  scope: project
-  owners:
-  - interfacex-co-jp/genshijin/skills/genshijin-compress
-  active_owner: interfacex-co-jp/genshijin/skills/genshijin-compress
-  content_hash: sha256:6d8b7d7846a845059d7a3107143f11131f63c5511d669b44085b15ec5e3d2279
-- kind: project-relative
-  target: claude
-  value: .claude/skills/genshijin-compress/scripts/cli.py
-  runtime: null
-  scope: project
-  owners:
-  - interfacex-co-jp/genshijin/skills/genshijin-compress
-  active_owner: interfacex-co-jp/genshijin/skills/genshijin-compress
-  content_hash: sha256:4468ddbe75d1eca39f7575cf582efc249556615f335f887950fdec8cdfe22497
-- kind: project-relative
-  target: claude
-  value: .claude/skills/genshijin-compress/scripts/compress.py
-  runtime: null
-  scope: project
-  owners:
-  - interfacex-co-jp/genshijin/skills/genshijin-compress
-  active_owner: interfacex-co-jp/genshijin/skills/genshijin-compress
-  content_hash: sha256:4837a81cf6bc44c48c3af80cd2de4b544cacf140235f676097b0e9d8efa57863
-- kind: project-relative
-  target: claude
-  value: .claude/skills/genshijin-compress/scripts/detect.py
-  runtime: null
-  scope: project
-  owners:
-  - interfacex-co-jp/genshijin/skills/genshijin-compress
-  active_owner: interfacex-co-jp/genshijin/skills/genshijin-compress
-  content_hash: sha256:3a5c8944a3428e135627e43ae6e0a590b991e41b2097fc8dcb65f9716c9c7918
-- kind: project-relative
-  target: claude
-  value: .claude/skills/genshijin-compress/scripts/validate.py
-  runtime: null
-  scope: project
-  owners:
-  - interfacex-co-jp/genshijin/skills/genshijin-compress
-  active_owner: interfacex-co-jp/genshijin/skills/genshijin-compress
-  content_hash: sha256:0f19b437d471d24eff57274d256a8f3b9efaf481e6d3e8dbde00646c44cae25f
-- kind: project-relative
-  target: claude
-  value: .claude/skills/genshijin-crew
-  runtime: null
-  scope: project
-  owners:
-  - interfacex-co-jp/genshijin/skills/genshijin-crew
-  active_owner: interfacex-co-jp/genshijin/skills/genshijin-crew
-  content_hash: null
-- kind: project-relative
-  target: claude
-  value: .claude/skills/genshijin-crew/SKILL.md
-  runtime: null
-  scope: project
-  owners:
-  - interfacex-co-jp/genshijin/skills/genshijin-crew
-  active_owner: interfacex-co-jp/genshijin/skills/genshijin-crew
-  content_hash: sha256:e1881d3edcc65f84f9f2e07c69fdccd6f7237e71f81478485b4b18ce318e97a2
-- kind: project-relative
-  target: claude
-  value: .claude/skills/genshijin-help
-  runtime: null
-  scope: project
-  owners:
-  - interfacex-co-jp/genshijin/skills/genshijin-help
-  active_owner: interfacex-co-jp/genshijin/skills/genshijin-help
-  content_hash: null
-- kind: project-relative
-  target: claude
-  value: .claude/skills/genshijin-help/SKILL.md
-  runtime: null
-  scope: project
-  owners:
-  - interfacex-co-jp/genshijin/skills/genshijin-help
-  active_owner: interfacex-co-jp/genshijin/skills/genshijin-help
-  content_hash: sha256:a2ae8ad6733dda31e5a2e2580df61a885584c003289970eb5cc07bb6c56c5b1d
-- kind: project-relative
-  target: claude
-  value: .claude/skills/genshijin-review
-  runtime: null
-  scope: project
-  owners:
-  - interfacex-co-jp/genshijin/skills/genshijin-review
-  active_owner: interfacex-co-jp/genshijin/skills/genshijin-review
-  content_hash: null
-- kind: project-relative
-  target: claude
-  value: .claude/skills/genshijin-review/SKILL.md
-  runtime: null
-  scope: project
-  owners:
-  - interfacex-co-jp/genshijin/skills/genshijin-review
-  active_owner: interfacex-co-jp/genshijin/skills/genshijin-review
-  content_hash: sha256:fa82bbf45747e3bb19d4afe636645db47a426999ca463d5c333be6d74d8b12dc
-- kind: project-relative
-  target: claude
-  value: .claude/skills/genshijin-stats
-  runtime: null
-  scope: project
-  owners:
-  - interfacex-co-jp/genshijin/skills/genshijin-stats
-  active_owner: interfacex-co-jp/genshijin/skills/genshijin-stats
-  content_hash: null
-- kind: project-relative
-  target: claude
-  value: .claude/skills/genshijin-stats/SKILL.md
-  runtime: null
-  scope: project
-  owners:
-  - interfacex-co-jp/genshijin/skills/genshijin-stats
-  active_owner: interfacex-co-jp/genshijin/skills/genshijin-stats
-  content_hash: sha256:c689b23b38352111502527ed7785f9b9d4529200f38eece80340eb16213ac9ab
-- kind: project-relative
-  target: claude
-  value: .claude/skills/genshijin/SKILL.md
-  runtime: null
-  scope: project
-  owners:
-  - interfacex-co-jp/genshijin/skills/genshijin
-  active_owner: interfacex-co-jp/genshijin/skills/genshijin
-  content_hash: sha256:b83954d2e16150c65a535b548cd51e4e2a2344a9cf09e9e616cdee10aea56f73
 - kind: project-relative
   target: claude
   value: .claude/skills/grill-me
