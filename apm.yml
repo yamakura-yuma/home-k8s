@@ -1,0 +1,23 @@
+name: home-k8s-agent-config
+version: 1.0.0
+description: Agent configuration for the home-k8s project
+author: yamakura-yuma
+
+targets:
+- claude
+
+# The shared harness (rules, guard hooks, core-* skills) from the dotfiles repo,
+# pinned by commit because upstream publishes no tags; bump with `apm update`.
+# `apm install` lands it in ./.claude/, never in ~/.claude/.
+dependencies:
+  apm:
+  - git: https://github.com/yamakura-yuma/dotfiles.git
+    path: core-principal
+    ref: 18e35fe9ca1c7347b7e737a67305f0e067e79f3c
+    alias: core-principal
+    targets:
+    - claude
+  mcp: []
+
+includes: auto
+scripts: {}
