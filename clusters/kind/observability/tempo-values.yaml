@@ -1,0 +1,39 @@
+# grafana-community/tempo chart (単一バイナリ構成) の values。
+# トレースはオブジェクトストレージではなくローカルファイルに置く。保存先は
+# kind の extraMounts で WSL2 ホストの ~/.local/share/home-k8s/observability に
+# つながっており、クラスタを作り直しても残る (docs/observability/claude-code-traces.md)。
+tempo:
+  retention: 336h # 14日
+  reportingEnabled: false
+  storage:
+    trace:
+      backend: local
+      local:
+        path: /var/tempo/traces
+      wal:
+        path: /var/tempo/wal
+  extraVolumeMounts:
+    - name: tempo-data
+      mountPath: /var/tempo
+
+# extraMounts を持つ worker にだけ置く (clusters/kind/kind-config.yaml の labels)
+nodeSelector:
+  home-k8s/observability-storage: "true"
+
+extraVolumes:
+  - name: tempo-data
+    hostPath:
+      path: /var/local/home-k8s/observability/tempo
+      type: DirectoryOrCreate
+
+# hostPath は root 所有で作られるため、Tempo の実行ユーザー (10001) に渡してから起動する
+initContainers:
+  - name: chown-tempo-data
+    image: busybox:1.37
+    command: ["chown", "-R", "10001:10001", "/var/tempo"]
+    securityContext:
+      runAsUser: 0
+      runAsNonRoot: false
+    volumeMounts:
+      - name: tempo-data
+        mountPath: /var/tempo

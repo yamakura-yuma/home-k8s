@@ -14,6 +14,7 @@
           just
           kubectl
           kind
+          kubernetes-helm
         ];
       in
       {
