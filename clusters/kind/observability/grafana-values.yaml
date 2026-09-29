@@ -1,0 +1,33 @@
+# grafana-community/grafana chart の values。
+# ホストの localhost:3000 で開く (NodePort + kind の extraPortMappings)。
+# ローカル専用なので匿名アクセスを Admin 権限で通し、ログイン画面を出さない。
+# 設定は provisioning で入るため、Grafana 自体の永続化はしない。
+service:
+  type: NodePort
+  nodePort: 30300
+
+# 未指定だと chart が upgrade のたびに乱数で作り直し、Pod が毎回再起動する。
+# 匿名アクセスで入るため、この admin は使わない。
+adminPassword: admin
+
+grafana.ini:
+  auth:
+    disable_login_form: true
+  auth.anonymous:
+    enabled: true
+    org_role: Admin
+  analytics:
+    reporting_enabled: false
+    check_for_updates: false
+
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Tempo
+        uid: tempo
+        type: tempo
+        access: proxy
+        url: http://tempo.observability.svc.cluster.local:3200
+        isDefault: true
+        editable: false

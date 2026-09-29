@@ -22,6 +22,8 @@ k3d/minikube も検討したが、複数方式を並行維持するコストが�
 |---|---|---|
 | `name` | `study-kind` | クラスタ名。kubecontext名は `kind-study-kind` になる |
 | `nodes` | control-plane x1, worker x2 | CKAで頻出する「control-planeとworkerの役割分担」「複数worker間のスケジューリング」を練習できる最小構成 |
+| control-plane の `extraPortMappings` | 4318/4317/3000 → NodePort 30318/30317/30300 | 観測スタックの OTLP 受け口と Grafana を WSL2 ホストの `127.0.0.1` に出す (`docs/observability/claude-code-traces.md`) |
+| worker (1台目) の `extraMounts` / `labels` | `${HOME}/.local/share/home-k8s/observability` | Tempo の保存先。クラスタを作り直してもトレースを残す。`${HOME}` は `just kind-up` が展開する |
 | `networking.apiServerAddress` | `127.0.0.1` | 開発用コンテナ (`just devcontainer up`) を `--network=host` で起動しているため、WSL2ホストの `127.0.0.1` にそのままbindされ、他リポジトリ/別プロセスからも到達可能 (`README.md` 参照) |
 
 ## kind自体とkubectlの扱いの違い
@@ -42,7 +44,6 @@ k3d/minikube も検討したが、複数方式を並行維持するコストが�
 
 学習が進むにつれて、以下のような設定拡張が有効になったら追記していく。
 
-- `extraPortMappings`: NodePort/Ingressの動作確認をホストから直接叩けるようにする。
 - `kubeadmConfigPatches`: APIサーバーのfeature gateや証明書関連のオプションを試す。
 - ノード数の変更: マルチetcd構成やcontrol-plane冗長化 (HA) の練習をしたくなった場合。
 
