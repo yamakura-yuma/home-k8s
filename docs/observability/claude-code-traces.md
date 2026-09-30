@@ -36,7 +36,7 @@ WSL2 ホスト
 |---|---|---|---|
 | OTel Collector | `open-telemetry/opentelemetry-collector` | 0.174.0 | `clusters/kind/observability/otel-collector-values.yaml` |
 | Tempo (単一バイナリ) | `grafana-community/tempo` | 3.0.0 | `clusters/kind/observability/tempo-values.yaml` |
-| Prometheus (server のみ) | `prometheus-community/prometheus` | 29.35.0 | `clusters/kind/observability/prometheus-values.yaml` |
+| Prometheus (server・kube-state-metrics・node-exporter) | `prometheus-community/prometheus` | 29.35.0 | `clusters/kind/observability/prometheus-values.yaml` |
 | Loki (単一バイナリ) | `grafana-community/loki` | 18.13.7 | `clusters/kind/observability/loki-values.yaml` |
 | Grafana | `grafana-community/grafana` | 13.2.7 | `clusters/kind/observability/grafana-values.yaml` |
 
@@ -59,6 +59,16 @@ Collector は 3 種類とも OTLP のまま送り先に渡す。変換はしな�
   exporter は廃止済み。リソース属性のうち `service.name` はインデックスラベル
   (`service_name`) に、残りとログの属性 (`event.name`、`trace_id` など) は structured
   metadata になり、`| event_name="tool_result"` のように絞れる。
+
+Claude Code 以外のメトリクスも同じ Prometheus に入る。経路は 2 つで、どちらも
+grafana.com の公開ダッシュボードが読む (`docs/observability/grafana-com-dashboards.md`)。
+
+- Collector 自身のメトリクス (`otelcol_*`): Collector の `service.telemetry.metrics` に
+  OTLP の reader を足し、上と同じ OTLP 受信に 10 秒ごとに送る。スクレイプはしない。
+- Kubernetes 自体のメトリクス: Prometheus がスクレイプする。kube-state-metrics
+  (`kube_*`) と node-exporter (`node_*`) は prometheus chart のサブチャートで入れ、
+  kubelet の cAdvisor (`container_*`)・API サーバー (`apiserver_*`)・CoreDNS (`coredns_*`)
+  と合わせて chart 既定のスクレイプ設定 3 つで取る。
 
 Prometheus には 2 つの feature flag を付けている。
 

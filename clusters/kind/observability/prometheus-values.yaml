@@ -1,6 +1,8 @@
 # prometheus-community/prometheus chart の values。
 # Claude Code のメトリクスを OTel Collector から OTLP (/api/v1/otlp) で受ける。
-# スクレイプはしない (クラスタ自体の監視はこのスタックの目的ではない)。
+# Kubernetes 自体の監視もこのスタックの目的に含める。grafana.com の Kubernetes ダッシュボード
+# (docs/observability/grafana-com-dashboards.md) が前提にする kube-state-metrics・node-exporter・
+# cAdvisor・API サーバー・CoreDNS のメトリクスは、下の scrapeConfigs とサブチャートでスクレイプする。
 # 保存は Tempo と同じく、kind の extraMounts で WSL2 ホストの
 # ~/.local/share/home-k8s/observability につながったローカルディレクトリに置く。
 server:
@@ -47,18 +49,28 @@ server:
         - name: prometheus-data
           mountPath: /prometheus-data
 
-# chart 既定のスクレイプ対象 (Kubernetes の各種メトリクス) は使わない
+# chart 既定のスクレイプ対象のうち、grafana.com の Kubernetes ダッシュボード (dotdc 15757〜15762) が
+# 使うメトリクスを出す 3 つだけを使う。ほかは使うダッシュボードが無いので切ったままにする
 scrapeConfigs:
   prometheus:
     enabled: false
+  # apiserver_* (15761 API Server)
   kubernetes-api-servers:
-    enabled: false
+    enabled: true
   kubernetes-nodes:
     enabled: false
+  # container_* / machine_* (kubelet の cAdvisor。15757 Global・15758 Namespaces・15760 Pods)
   kubernetes-nodes-cadvisor:
-    enabled: false
+    enabled: true
+    # dotdc は container_* / machine_* を node ラベルで絞る (15759 Nodes の Pod 別 CPU・メモリ)。
+    # kubelet の cAdvisor はこのラベルを付けず、chart の既定の relabel も付けないので、ノード名から足す
+    post_relabel_configs: |
+      - source_labels: [__meta_kubernetes_node_name]
+        target_label: node
+  # prometheus.io/scrape 注釈の付いた Service。kube-state-metrics (kube_*)・node-exporter (node_*) と、
+  # kind の CoreDNS (Service kube-dns に注釈が既にある。coredns_*、15762 CoreDNS) がこれで取れる
   kubernetes-service-endpoints:
-    enabled: false
+    enabled: true
   kubernetes-service-endpoints-slow:
     enabled: false
   prometheus-pushgateway:
@@ -70,12 +82,22 @@ scrapeConfigs:
   kubernetes-pods-slow:
     enabled: false
 
-# 同梱のサブチャートも使わない
-alertmanager:
-  enabled: false
+# kube_* と node_* を出すサブチャート。どちらも Service に prometheus.io/scrape 注釈を付けるので、
+# 上の kubernetes-service-endpoints が拾う
 kube-state-metrics:
-  enabled: false
+  enabled: true
+  # kube_<リソース>_labels は、ここに挙げたリソースにしか出ない。dotdc 15758 Namespaces は
+  # これで Deployment・StatefulSet・DaemonSet・NetworkPolicy の数を数えるので、この 4 つを出す。
+  # ラベルを昇格させたいわけではないので、キーは系列が増えない 1 つにとどめる
+  metricLabelsAllowlist:
+    - deployments=[app.kubernetes.io/name]
+    - statefulsets=[app.kubernetes.io/name]
+    - daemonsets=[app.kubernetes.io/name]
+    - networkpolicies=[app.kubernetes.io/name]
 prometheus-node-exporter:
+  enabled: true
+
+alertmanager:
   enabled: false
 prometheus-pushgateway:
   enabled: false

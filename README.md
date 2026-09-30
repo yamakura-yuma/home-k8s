@@ -72,3 +72,5 @@ OTel の設定 (環境変数) ごとに何が届くかは `docs/observability/cl
 coordinator が Orca でワーカーをどう回したか (手戻り) は `docs/observability/orca-orchestration.md`
 (Grafana の「Orca orchestration」)。exporter は `orca` CLI を使うためホスト (WSL) で動かし、
 `just orca-exporter-*` の 3 つだけは開発用コンテナに転送しない。
+Kubernetes・OTel Collector・Claude Code の grafana.com 公開ダッシュボード (フォルダ「grafana.com / …」) の構成と更新手順は
+`docs/observability/grafana-com-dashboards.md`。
