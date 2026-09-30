@@ -14,7 +14,9 @@ devcontainer action:
     main_repo="$(dirname "$(realpath "$(git -C "$root" rev-parse --git-common-dir)")")"
     case "{{action}}" in
       up)
-        mkdir -p "$HOME/.kube"
+        # ~/.local/share/home-k8s には Grafana の admin パスワードを置く
+        # (`just observe-up` が書く)。コンテナを作り直しても残るようホストと共有する。
+        mkdir -p "$HOME/.kube" "$HOME/.local/share/home-k8s"
         docker build -t "$name" "$root"
         if docker ps -aq -f "name=^${name}$" | grep -q .; then
           docker start "$name" >/dev/null
@@ -26,6 +28,7 @@ devcontainer action:
             -v "$root":"$root" \
             -v "$main_repo":"$main_repo" \
             -v "$HOME/.kube":"$HOME/.kube" \
+            -v "$HOME/.local/share/home-k8s":"$HOME/.local/share/home-k8s" \
             -w "$root" \
             "$name"
         fi

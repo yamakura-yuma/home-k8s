@@ -30,6 +30,8 @@ just devcontainer shell   # コンテナにシェルで入る
 just kind-up              # (コンテナ内で) kubeadmベースのマルチノードクラスタを起動
 kubectl --context kind-study-kind get nodes -o wide   # ノード状態を確認
 just observe-up           # (コンテナ内で) OTel Collector/Tempo/Grafana を入れる
+just observe-password     # (コンテナ内で) Grafana の admin パスワードを表示
+just observe-share        # (コンテナ内で) Grafana を一時的に trycloudflare.com で公開 (Ctrl-C で停止)
 just observe-down         # 観測スタックを消す (トレースはホストに残る)
 just kind-down             # クラスタを削除
 just devcontainer down    # 開発用コンテナを削除

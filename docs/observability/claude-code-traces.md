@@ -55,7 +55,7 @@ just observe-down   # 観測スタックを消す (トレースはホストに�
 `observe-up` は `helm upgrade --install` なので、values を変えたあとに打ち直せば反映される。
 chart のリポジトリは `--repo` で直接指定しており、`helm repo add` は不要。
 
-Grafana は <http://localhost:3000> で開く。Explore でデータソース `Tempo` を選び、
+Grafana は <http://localhost:3000> で開き、`admin` でログインする (パスワードは下の「Grafana の認証」)。Explore でデータソース `Tempo` を選び、
 TraceQL で `{resource.service.name="claude-code"}` や `{name="claude_code.interaction"}`
 と打つと一覧が出る。
 
@@ -70,7 +70,8 @@ curl -sS -H 'Content-Type: application/json' http://localhost:4318/v1/traces -d 
   "resourceSpans":[{"resource":{"attributes":[{"key":"service.name","value":{"stringValue":"smoke"}}]},
   "scopeSpans":[{"spans":[{"traceId":"'$tid'","spanId":"'$pid'","name":"parent","kind":1,
   "startTimeUnixNano":"'$((now-1000000000))'","endTimeUnixNano":"'$now'"}]}]}]}'
-curl -sS http://localhost:3000/api/datasources/proxy/uid/tempo/api/v2/traces/$tid
+curl -sS -u "admin:$(cat ~/.local/share/home-k8s/observability/grafana-admin-password)" \
+  http://localhost:3000/api/datasources/proxy/uid/tempo/api/v2/traces/$tid
 ```
 
 gRPC 側は telemetrygen で確かめられる。
@@ -136,16 +137,63 @@ hostPath は root 所有で作られるため、initContainer が Tempo の実�
 
 ## Grafana の認証
 
-ローカル専用で、ポートも `127.0.0.1` にしか bind していないため、匿名アクセスを
-Admin 権限で有効にし、ログイン画面を出さない設定にしている
-(`grafana.ini` の `auth.anonymous` と `auth.disable_login_form`)。chart が作る admin
-ユーザーは使わないが、パスワードを固定 (`admin`) しておかないと `observe-up` のたびに
-乱数で作り直されて Pod が再起動するため、values で指定している。
+Grafana はログイン必須で、匿名アクセスは付けていない (閲覧のみの匿名も無い)。
+下の「別の PC から見る」で外に出すことがあるため。ユーザー名は `admin`、パスワードは
+次のように決まる。
+
+1. `just observe-up` が最初に `~/.local/share/home-k8s/observability/grafana-admin-password`
+   (WSL2 ホスト側、パーミッション 600) を見る。無ければ `openssl rand` で 32 文字の値を作って
+   保存し、あればそれを使う。リポジトリには置かない。
+2. その値を Secret `observability/grafana-admin` (`admin-user` / `admin-password`) に
+   `kubectl apply` で入れる。
+3. chart の `admin.existingSecret: grafana-admin` で、Grafana はこの Secret を環境変数として読む。
+
+chart に Secret を作らせると `observe-up` のたびに乱数で作り直されて Pod が再起動するが、
+この形なら Secret の中身が変わらないので `observe-up` を打ち直しても Pod はそのまま残る。
+
+パスワードは開発用コンテナの中で `just observe-password` と打つと表示される。ファイルの
+所有者はホストのユーザーにしてあるので、WSL2 のシェルから `cat` しても読める。
+変えたいときはファイルを消して `just observe-up` を打ち、Secret が変わったあとで
+`kubectl --context kind-study-kind -n observability rollout restart deploy/grafana` とする
+(Grafana は永続化していないので、起動のたびに Secret の値で admin を作り直す)。
+
+開発用コンテナは `~/.local/share/home-k8s` をホストと同じパスでマウントしている。この
+マウントが無い古いコンテナで `observe-up` を打つと、パスワードがコンテナの中にだけ残らない
+よう止まるので、`just devcontainer down && just devcontainer up` で作り直す。
+
+API を curl で叩くときは Basic 認証を付ける。
+
+```
+curl -u "admin:$(cat ~/.local/share/home-k8s/observability/grafana-admin-password)" \
+  http://localhost:3000/api/dashboards/uid/claude-code-traces
+```
 
 データソース `Tempo` (uid `tempo`) は `datasources` の provisioning で登録しており、
 UI からは編集できない。変えるときは `grafana-values.yaml` を直して `just observe-up`
 を打ち直す。Grafana 自体は永続化していないので、UI で作ったダッシュボードは Pod の
 再起動で消える。
+
+## 別の PC から見る
+
+Cloudflare Quick Tunnel で Grafana だけを一時的に公開する。Cloudflare のアカウントは要らず、
+`https://<ランダム>.trycloudflare.com` の URL が発行される。開発用コンテナの中で次を打つ。
+
+```
+just observe-share   # cloudflared tunnel --url http://localhost:3000 を前面で動かす
+```
+
+ログに出る `https://....trycloudflare.com` を別の PC のブラウザで開き、`admin` と
+`just observe-password` のパスワードでログインする。Ctrl-C で cloudflared を止めると URL は
+無効になり、次に打つと別の URL になる。
+
+- 公開するのは Grafana (3000) だけで、OTLP の受け口 (4318 / 4317) は出さない。
+  cloudflared は外から localhost:3000 に向かう接続を 1 本張るだけで、ホストのポートを開ける
+  わけではない。開発用コンテナは `--network=host` なので、コンテナ内の cloudflared から
+  localhost:3000 に届く。
+- URL を知っていれば誰でもログイン画面まで来られる。URL とパスワードは自分以外に渡さない。
+- 使い終わったら必ず止める。開きっぱなしにしない。
+- Quick Tunnel は試用向けで、稼働の保証は無い (同時リクエスト数の上限もある)。
+  長く使う場合は Cloudflare のアカウントで名前付きトンネルと Access を組む。
 
 ## ダッシュボード
 
