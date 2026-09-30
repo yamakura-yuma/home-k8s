@@ -48,24 +48,4 @@ observe-share:
 # admin パスワードを (無ければ生成して) Secret grafana-admin に入れる。
 # 中身が同じなら apply は何も変えないので、Grafana の Pod は再起動しない
 _grafana-admin-secret:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    file="{{grafana_password_file}}"
-    dir="$(dirname "$file")"
-    # 開発用コンテナでは ~/.local/share/home-k8s をホストと共有していないと、
-    # パスワードがコンテナの中にだけ残る。古いコンテナなら作り直してもらう
-    if [ -f /.dockerenv ] && ! mountpoint -q "$HOME/.local/share/home-k8s"; then
-        echo "~/.local/share/home-k8s がホストと共有されていない。just devcontainer down && just devcontainer up で作り直す" >&2
-        exit 1
-    fi
-    if [ ! -s "$file" ]; then
-        mkdir -p "$dir"
-        (umask 077; printf '%s' "$(openssl rand -base64 24)" > "$file")
-        # コンテナは root で動くので、ホストのユーザー (リポジトリの所有者) からも読めるようにする
-        chown "$(stat -c %u:%g "{{justfile_directory()}}")" "$file"
-    fi
-    kubectl --context kind-study-kind create namespace {{observe_ns}} --dry-run=client -o yaml \
-        | kubectl --context kind-study-kind apply -f - >/dev/null
-    kubectl --context kind-study-kind -n {{observe_ns}} create secret generic grafana-admin \
-        --from-literal=admin-user=admin --from-file=admin-password="$file" \
-        --dry-run=client -o yaml | kubectl --context kind-study-kind apply -f -
+    bash just/grafana-admin-secret.sh "{{grafana_password_file}}" {{observe_ns}} "{{justfile_directory()}}"

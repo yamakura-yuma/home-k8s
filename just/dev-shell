@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# justfile の `set shell` から呼ばれる、レシピ 1 行ぶんの実行器 (`bash -cu '<行>'` の代わり)。
+# ホストで打たれたら開発用コンテナ home-k8s-dev の中の同じ場所で実行し、
+# コンテナの中で打たれたらそのまま bash で実行する。レシピごとの分岐は要らない。
+# 判定は環境変数 HOME_K8S_DEV (Dockerfile の ENV と、下の docker exec -e で立てる)。
+# ツールの有無や /.dockerenv では「開発用コンテナ」かどうかが分からないため、明示的な印を使う。
+set -euo pipefail
+
+if [ -n "${HOME_K8S_DEV:-}" ]; then
+    exec bash "$@"
+fi
+
+name=home-k8s-dev
+dir="$PWD"
+
+if [ "$(docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null || true)" != true ]; then
+    echo "開発用コンテナ $name が動いていない。先に just devcontainer up を打つ" >&2
+    exit 1
+fi
+# コンテナは起動時の checkout と main repo しかマウントしていない
+if ! docker exec "$name" test -d "$dir"; then
+    echo "$dir が開発用コンテナにマウントされていない (別の worktree で起動したコンテナ)。" >&2
+    echo "この checkout で just devcontainer down && just devcontainer up を打って作り直す" >&2
+    exit 1
+fi
+
+# 端末に繋がっているとき (observe-share の Ctrl-C など) は -t を付ける。Ctrl-C がそのままコンテナ内に届く。
+if [ -t 0 ] && [ -t 1 ]; then
+    exec docker exec -it -e HOME_K8S_DEV=1 -w "$dir" "$name" bash "$@"
+fi
+
+# 端末が無いとき、docker exec はシグナルをコンテナ内に転送せず、クライアントだけが死んで
+# コンテナ内のプロセスが残る。pid を控えておき、INT/TERM を受けたらコンテナ内へ転送する。
+pidfile="/tmp/dev-shell.$$"
+forward() {
+    docker exec "$name" bash -c 'pid=$(cat "$1") && pkill -"$2" -P "$pid"; kill -"$2" "$pid"' _ "$pidfile" "$1" 2>/dev/null || true
+}
+trap 'forward INT' INT
+trap 'forward TERM' TERM
+docker exec -i -e HOME_K8S_DEV=1 -w "$dir" "$name" bash -c 'echo $$ > "$1"; shift; exec bash "$@"' _ "$pidfile" "$@" &
+wait $! || status=$?
+# 転送したシグナルで wait が中断されたら、コンテナ内のプロセスの終了を待ち直す
+wait $! 2>/dev/null || status=$?
+docker exec "$name" rm -f "$pidfile" 2>/dev/null || true
+exit "${status:-0}"
