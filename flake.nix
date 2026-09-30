@@ -15,6 +15,7 @@
           kubectl
           kind
           kubernetes-helm
+          cloudflared
         ];
       in
       {

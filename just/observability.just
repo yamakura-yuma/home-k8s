@@ -4,9 +4,11 @@
 
 observe_ns := "observability"
 observe_values := "clusters/kind/observability"
+# Grafana の admin パスワード。リポジトリの外 (WSL2 ホスト側) に置き、2 回目以降は再利用する
+grafana_password_file := env_var("HOME") + "/.local/share/home-k8s/observability/grafana-admin-password"
 
 # 観測スタックを入れる (既にあれば values を反映し直す)
-observe-up:
+observe-up: _grafana-admin-secret
     helm upgrade --install tempo tempo \
         --repo https://grafana-community.github.io/helm-charts --version 3.0.0 \
         --kube-context kind-study-kind --namespace {{observe_ns}} --create-namespace \
@@ -24,3 +26,37 @@ observe-up:
 # 観測スタックを消す (保存済みのトレースはホスト側に残る)
 observe-down:
     -helm uninstall grafana otel-collector tempo --kube-context kind-study-kind --namespace {{observe_ns}} --wait
+
+# Grafana の admin パスワードを表示する (ユーザー名は admin)
+observe-password:
+    @cat {{grafana_password_file}}; echo
+
+# 表示される https://*.trycloudflare.com を開く。Ctrl-C で止めれば URL は無効になる。
+# Grafana (localhost:3000) だけを Cloudflare Quick Tunnel で一時的に公開する
+observe-share:
+    cloudflared tunnel --no-autoupdate --url http://localhost:3000
+
+# admin パスワードを (無ければ生成して) Secret grafana-admin に入れる。
+# 中身が同じなら apply は何も変えないので、Grafana の Pod は再起動しない
+_grafana-admin-secret:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    file="{{grafana_password_file}}"
+    dir="$(dirname "$file")"
+    # 開発用コンテナでは ~/.local/share/home-k8s をホストと共有していないと、
+    # パスワードがコンテナの中にだけ残る。古いコンテナなら作り直してもらう
+    if [ -f /.dockerenv ] && ! mountpoint -q "$HOME/.local/share/home-k8s"; then
+        echo "~/.local/share/home-k8s がホストと共有されていない。just devcontainer down && just devcontainer up で作り直す" >&2
+        exit 1
+    fi
+    if [ ! -s "$file" ]; then
+        mkdir -p "$dir"
+        (umask 077; printf '%s' "$(openssl rand -base64 24)" > "$file")
+        # コンテナは root で動くので、ホストのユーザー (リポジトリの所有者) からも読めるようにする
+        chown "$(stat -c %u:%g "{{justfile_directory()}}")" "$file"
+    fi
+    kubectl --context kind-study-kind create namespace {{observe_ns}} --dry-run=client -o yaml \
+        | kubectl --context kind-study-kind apply -f - >/dev/null
+    kubectl --context kind-study-kind -n {{observe_ns}} create secret generic grafana-admin \
+        --from-literal=admin-user=admin --from-file=admin-password="$file" \
+        --dry-run=client -o yaml | kubectl --context kind-study-kind apply -f -
