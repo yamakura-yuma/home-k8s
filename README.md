@@ -34,6 +34,7 @@ just observe-up           # OTel Collector/Tempo/Prometheus/Loki/Grafana を入�
 just observe-share        # Grafana を一時的に trycloudflare.com で公開し、URL とパスワードを表示 (Ctrl-C で停止)
 just observe-show-connection  # いまの接続先 (公開中なら公開 URL、止めていれば localhost:3000) とパスワードを表示
 just observe-down         # 観測スタックを消す (トレース・メトリクス・ログはホストに残る)
+just orca-exporter-install  # Orca のオーケストレーションを観測スタックに送る exporter を systemd で常駐させる (ホストで動く例外)
 just kind-down             # クラスタを削除
 just devcontainer down    # 開発用コンテナを削除
 ```
@@ -67,3 +68,6 @@ kind自体は試験で問われないためクラスタの起動/削除は just 
 `docs/observability/playbook.md` (Grafana のホーム「Claude Code はじめに」にも同じ内容の短縮版がある)。
 OTel の設定 (環境変数) ごとに何が届くかは `docs/observability/claude-code-settings.md`
 (Grafana のフォルダ「Claude Code 設定項目別」)。
+coordinator が Orca でワーカーをどう回したか (手戻り) は `docs/observability/orca-orchestration.md`
+(Grafana の「Orca orchestration」)。exporter は `orca` CLI を使うためホスト (WSL) で動かし、
+`just orca-exporter-*` の 3 つだけは開発用コンテナに転送しない。
