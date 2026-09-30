@@ -31,6 +31,55 @@ datasources:
         url: http://tempo.observability.svc.cluster.local:3200
         isDefault: true
         editable: false
+        jsonData:
+          # スパンから、同じトレースの Claude Code イベント (Loki) へ飛ぶ。
+          # イベントは trace_id を structured metadata として持つ
+          tracesToLogsV2:
+            datasourceUid: loki
+            spanStartTimeShift: -5m
+            spanEndTimeShift: 5m
+            customQuery: true
+            query: '{service_name="claude-code"} | trace_id="$${__trace.traceId}"'
+          # スパンから、同じモデル・同じワーカーのメトリクス (Prometheus) へ飛ぶ
+          tracesToMetrics:
+            datasourceUid: prometheus
+            spanStartTimeShift: -30m
+            spanEndTimeShift: 30m
+            tags:
+              - key: model
+            queries:
+              - name: コスト (USD/時)
+                query: sum by (model) (rate(claude_code_cost_usage_USD_total{$$__tags}[5m])) * 3600
+              - name: トークン (種類別/分)
+                query: sum by (type) (rate(claude_code_token_usage_tokens_total{$$__tags}[5m])) * 60
+          serviceMap:
+            datasourceUid: prometheus
+          nodeGraph:
+            enabled: true
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus-server.observability.svc.cluster.local
+        editable: false
+        jsonData:
+          # Claude Code は 60 秒ごとに送るので、rate() の窓はその 4 倍を下限にする
+          timeInterval: 1m
+      - name: Loki
+        uid: loki
+        type: loki
+        access: proxy
+        url: http://loki.observability.svc.cluster.local:3100
+        editable: false
+        jsonData:
+          # イベントの structured metadata trace_id から、Tempo のトレースへ飛ぶ
+          derivedFields:
+            - name: TraceID
+              matcherType: label
+              matcherRegex: trace_id
+              datasourceUid: tempo
+              url: "$${__value.raw}"
+              urlDisplayLabel: トレースを開く
 
 # ダッシュボードは JSON をリポジトリに置き、provisioning で読み込む。
 # 中身は `just observe-up` が --set-file で dashboards.default.<名前>.json に流し込む

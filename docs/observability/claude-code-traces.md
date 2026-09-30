@@ -2,44 +2,72 @@
 
 WSL2 上の Claude Code が OpenTelemetry (OTLP) で出すトレースを kind クラスタで受け、
 Grafana でスパンの親子関係 (サブエージェントを含む) として見るための構成をまとめる。
-オールインワンイメージ (`grafana/otel-lgtm`) は使わず、OTel Collector・Tempo・Grafana
-を別々の Helm chart で入れている。本番の構成に近い形で、部品ごとに差し替えて学べる。
+同じ経路でメトリクスを Prometheus に、ログ (イベント) を Loki に入れている。
+オールインワンイメージ (`grafana/otel-lgtm`) は使わず、OTel Collector・Tempo・Prometheus・
+Loki・Grafana を別々の Helm chart で入れている。本番の構成に近い形で、部品ごとに差し替えて学べる。
 
 ## 構成
 
+トレース・メトリクス・ログの 3 種類をどう見るかは
+[claude-code-usage.md](claude-code-usage.md) にまとめた。ここは部品と入れ方の話。
+
 ```
 WSL2 ホスト
-  claude (OTLP/HTTP)           ブラウザ
-     │ localhost:4318              │ localhost:3000
-     │ (gRPC は localhost:4317)     │
-─────┼─────────────────────────────┼──────────────── kind: extraPortMappings
-     ▼                             ▼                  (control-plane ノード)
-  NodePort 30318 / 30317       NodePort 30300
-     │                             │
-  namespace observability          │
-     ▼                             ▼
-  OTel Collector ──OTLP/gRPC──▶ Tempo ◀──HTTP:3200── Grafana
-  (Deployment)                 (StatefulSet,         (データソースは
-                                study-kind-worker     provisioning で登録)
-                                に固定)
-                                  │ /var/tempo (hostPath)
-─────────────────────────────────┼──────────────── kind: extraMounts
-                                  ▼                  (study-kind-worker ノード)
-                     ~/.local/share/home-k8s/observability/tempo
-                                  (WSL2 ホストのディレクトリ)
+  claude (OTLP/HTTP)                               ブラウザ
+     │ localhost:4318 (gRPC は 4317)                    │ localhost:3000
+─────┼──────────────────────────────────────────────────┼──── kind: extraPortMappings
+     ▼                                                  ▼
+  NodePort 30318 / 30317                            NodePort 30300
+     │   namespace observability                        │
+     ▼                                                  ▼
+  OTel Collector ─ traces  ─OTLP/gRPC──▶ Tempo       ◀─┐
+  (Deployment)   ─ metrics ─OTLP/HTTP──▶ Prometheus  ◀─┼── Grafana
+                 ─ logs    ─OTLP/HTTP──▶ Loki        ◀─┘  (データソースと
+                                          │                ダッシュボードは
+                                          │                provisioning)
+                     3 つとも study-kind-worker に固定し hostPath に保存
+─────────────────────────────────────────┼─────────────────── kind: extraMounts
+                                          ▼
+                     ~/.local/share/home-k8s/observability/{tempo,prometheus,loki}
+                                   (WSL2 ホストのディレクトリ)
 ```
 
 | コンポーネント | chart | version | values |
 |---|---|---|---|
 | OTel Collector | `open-telemetry/opentelemetry-collector` | 0.174.0 | `clusters/kind/observability/otel-collector-values.yaml` |
 | Tempo (単一バイナリ) | `grafana-community/tempo` | 3.0.0 | `clusters/kind/observability/tempo-values.yaml` |
+| Prometheus (server のみ) | `prometheus-community/prometheus` | 29.35.0 | `clusters/kind/observability/prometheus-values.yaml` |
+| Loki (単一バイナリ) | `grafana-community/loki` | 18.13.7 | `clusters/kind/observability/loki-values.yaml` |
 | Grafana | `grafana-community/grafana` | 13.2.7 | `clusters/kind/observability/grafana-values.yaml` |
 
-Tempo と Grafana の chart は `grafana/helm-charts` から `grafana-community/helm-charts`
-に移っている。旧リポジトリの `grafana/tempo` は Tempo 2.9 で止まっているため使わない。
+Tempo・Loki・Grafana の chart は `grafana/helm-charts` から `grafana-community/helm-charts`
+に移っている。旧リポジトリの `grafana/tempo` は Tempo 2.9、`grafana/loki` は Loki 3.6 で
+止まっているため使わない。
 
-Collector はトレースだけを Tempo に中継する。メトリクスとログも受け取るが、保存先が
-無いので `debug` exporter に流して捨てている。
+### メトリクスとログの受け方
+
+Collector は 3 種類とも OTLP のまま送り先に渡す。変換はしない。
+
+- メトリクス: Prometheus の OTLP 受信 (`--web.enable-otlp-receiver`、
+  `/api/v1/otlp/v1/metrics`) に `otlphttp` exporter で送る。Collector の
+  `prometheusremotewrite` exporter は使わない。使っている Collector のイメージ
+  (`otel/opentelemetry-collector-k8s`) に入っておらず、contrib イメージへの差し替えが要るため。
+  OTLP 受信なら Prometheus 側でリソース属性をラベルに昇格させられる
+  (`otlp.promote_resource_attributes`)。`orca.worktree.name` と `orca.worktree.id` を
+  昇格させ、`orca_worktree_name` / `orca_worktree_id` ラベルとして全系列に付けている。
+- ログ: Loki 3 の OTLP 受信 (`/otlp`) に `otlphttp` exporter で送る。contrib の `loki`
+  exporter は廃止済み。リソース属性のうち `service.name` はインデックスラベル
+  (`service_name`) に、残りとログの属性 (`event.name`、`trace_id` など) は structured
+  metadata になり、`| event_name="tool_result"` のように絞れる。
+
+Prometheus には 2 つの feature flag を付けている。
+
+- `created-timestamp-zero-ingestion`: OTLP の開始時刻に 0 の点を入れる。`claude -p` の
+  ような短いセッションは点が 1〜2 個しか無く、これが無いと `increase()` が最初の送信分を
+  数えない。
+- `promql-extended-range-selectors`: ダッシュボードの `increase(...[$__range] anchored)` に
+  使う。`anchored` は範囲の外挿をせず、範囲の端の直前の値からの差をそのまま返すので、
+  コストや行数の合計が実際の値からずれない。
 
 ## 手順
 
@@ -47,9 +75,9 @@ Collector はトレースだけを Tempo に中継する。メトリクスとロ
 
 ```sh
 just kind-up        # クラスタ作成 (受け口のポートと保存先のマウントも作られる)
-just observe-up     # Tempo → OTel Collector → Grafana の順に helm upgrade --install
+just observe-up     # Tempo → Prometheus → Loki → OTel Collector → Grafana の順に helm upgrade --install
 kubectl --context kind-study-kind -n observability get pods -o wide
-just observe-down   # 観測スタックを消す (トレースはホストに残る)
+just observe-down   # 観測スタックを消す (トレース・メトリクス・ログはホストに残る)
 ```
 
 `observe-up` は `helm upgrade --install` なので、values を変えたあとに打ち直せば反映される。
@@ -132,6 +160,12 @@ hostPath は root 所有で作られるため、initContainer が Tempo の実�
 所有になる。トレースを全部消したいときは `sudo rm -rf ~/.local/share/home-k8s/observability/tempo`
 とする。
 
+Prometheus と Loki も同じ仕組みで、同じノードに固定し、hostPath
+`/var/local/home-k8s/observability/prometheus` と `.../loki` に書く。保持期間はどちらも
+14 日 (Prometheus は `server.retention: 14d`、Loki は `limits_config.retention_period: 336h`
+と compactor の `retention_enabled`)。所有者は Prometheus が UID 65534 (nobody)、Loki が
+UID 10001 になる。PVC は使わない (kind の local-path は PVC を消すとデータも消えるため)。
+
 後で MinIO を立てて Tempo の backend を `s3` に切り替えると、オブジェクトストレージに
 保存する本番に近い構成を練習できる。
 
@@ -168,7 +202,8 @@ curl -u "admin:$(cat ~/.local/share/home-k8s/observability/grafana-admin-passwor
   http://localhost:3000/api/dashboards/uid/claude-code-traces
 ```
 
-データソース `Tempo` (uid `tempo`) は `datasources` の provisioning で登録しており、
+データソース `Tempo` (uid `tempo`)・`Prometheus` (uid `prometheus`)・`Loki` (uid `loki`) は
+`datasources` の provisioning で登録しており、
 UI からは編集できない。変えるときは `grafana-values.yaml` を直して `just observe-up`
 を打ち直す。Grafana 自体は永続化していないので、UI で作ったダッシュボードは Pod の
 再起動で消える。
@@ -198,16 +233,18 @@ just observe-share   # cloudflared tunnel --url http://localhost:3000 を前面�
 ## ダッシュボード
 
 `just observe-up` で Grafana にダッシュボード「Claude Code traces」
-(<http://localhost:3000/d/claude-code-traces>) が入る。定義は
+(<http://localhost:3000/d/claude-code-traces>) と「Claude Code usage」
+(<http://localhost:3000/d/claude-code-usage>、[claude-code-usage.md](claude-code-usage.md))
+が入る。上部の「Claude Code」リンク (タグ `claude-code`) で互いに行き来できる。定義は
 `clusters/kind/observability/dashboards/claude-code-traces.json` で、UI で直しても Pod の
 再起動で消えるので、変えるときは JSON を編集して `just observe-up` を打ち直す。
 
 ### 読み込みの仕組み
 
 chart の `dashboardProviders` で `/var/lib/grafana/dashboards/default` を読むプロバイダを
-作り、`observe-up` が `--set-file dashboards.default.claude-code-traces.json=<JSON>` で
+作り、`observe-up` が `--set-file dashboards.default.<名前>.json=<JSON>` で
 JSON を values に流し込む。chart はそれを ConfigMap にしてそのディレクトリにマウントする。
-sidecar (ラベル付き ConfigMap を拾うコンテナ) は、ダッシュボードが 1 枚で ConfigMap を
+sidecar (ラベル付き ConfigMap を拾うコンテナ) は、ダッシュボードが数枚で ConfigMap を
 自分で書く必要も無いので使っていない。values に JSON を直書きしないのは、ファイルのままなら
 Grafana の Export / Import とそのまま行き来できるため。
 
@@ -217,7 +254,8 @@ Grafana の Export / Import とそのまま行き来できるため。
 `sum_over_time()`) を投げて、保存済みのトレースからその場で集計する。metrics-generator
 (スパンから Prometheus 形式のメトリクスを作って remote write する機能) は使わない。
 
-- metrics-generator の出力先となる Prometheus がこのスタックに無い。
+- Claude Code 自身がコストやトークンをメトリクスとして出しており、Prometheus にはそれが
+  入っている。スパンからメトリクスを作り直す必要が無い。
 - Tempo 3.0 の単一バイナリ構成は、追加の設定なしで TraceQL metrics に答えられる
   (local-blocks プロセッサの有効化は不要だった)。
 - 件数が少ない (1 日に数十トレース) ので、クエリのたびに全スパンを読んでも速い。

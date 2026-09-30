@@ -1,5 +1,6 @@
 # open-telemetry/opentelemetry-collector chart の values。
-# Claude Code (WSL2 ホスト) から OTLP を受け、トレースを Tempo に中継する。
+# Claude Code (WSL2 ホスト) から OTLP を受け、トレースを Tempo、メトリクスを Prometheus、
+# ログを Loki に中継する。3 つとも OTLP のまま渡す (docs/observability/claude-code-traces.md)。
 # 受け口は NodePort + kind の extraPortMappings (clusters/kind/kind-config.yaml) で
 # ホストの localhost:4318 (HTTP) / localhost:4317 (gRPC) に出している。
 mode: deployment
@@ -49,18 +50,27 @@ config:
       endpoint: tempo.observability.svc.cluster.local:4317
       tls:
         insecure: true
+    # Prometheus の OTLP 受信 (--web.enable-otlp-receiver)。/v1/metrics は exporter が付ける
+    otlp_http/prometheus:
+      metrics_endpoint: http://prometheus-server.observability.svc.cluster.local/api/v1/otlp/v1/metrics
+      tls:
+        insecure: true
+    # Loki 3 の OTLP 受信。/v1/logs は exporter が付ける
+    otlp_http/loki:
+      endpoint: http://loki.observability.svc.cluster.local:3100/otlp
+      tls:
+        insecure: true
   service:
     pipelines:
       traces:
         receivers: [otlp]
         processors: [memory_limiter, batch]
         exporters: [otlp_grpc/tempo]
-      # Claude Code はメトリクスとログも OTLP で出せるが、いまは受け口が無いので捨てる
       metrics:
         receivers: [otlp]
         processors: [memory_limiter, batch]
-        exporters: [debug]
+        exporters: [otlp_http/prometheus]
       logs:
         receivers: [otlp]
         processors: [memory_limiter, batch]
-        exporters: [debug]
+        exporters: [otlp_http/loki]

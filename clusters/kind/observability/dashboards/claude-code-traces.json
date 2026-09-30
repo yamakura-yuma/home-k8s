@@ -14,6 +14,20 @@
   },
   "refresh": "",
   "timepicker": {},
+  "links": [
+    {
+      "type": "dashboards",
+      "title": "Claude Code",
+      "tags": [
+        "claude-code"
+      ],
+      "asDropdown": false,
+      "includeVars": false,
+      "keepTime": true,
+      "targetBlank": false,
+      "icon": "external link"
+    }
+  ],
   "templating": {
     "list": [
       {

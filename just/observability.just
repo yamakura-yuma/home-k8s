@@ -1,4 +1,4 @@
-# 観測スタック (OTel Collector + Tempo + Grafana) の導入/削除。
+# 観測スタック (OTel Collector + Tempo + Prometheus + Loki + Grafana) の導入/削除。
 # 構成と使い方は docs/observability/claude-code-traces.md。
 # helm の操作は試験範囲ではないため自動化するが、状態の確認は kubectl を素手で叩くこと。
 
@@ -13,6 +13,14 @@ observe-up: _grafana-admin-secret
         --repo https://grafana-community.github.io/helm-charts --version 3.0.0 \
         --kube-context kind-study-kind --namespace {{observe_ns}} --create-namespace \
         --values {{observe_values}}/tempo-values.yaml --wait
+    helm upgrade --install prometheus prometheus \
+        --repo https://prometheus-community.github.io/helm-charts --version 29.35.0 \
+        --kube-context kind-study-kind --namespace {{observe_ns}} \
+        --values {{observe_values}}/prometheus-values.yaml --wait
+    helm upgrade --install loki loki \
+        --repo https://grafana-community.github.io/helm-charts --version 18.13.7 \
+        --kube-context kind-study-kind --namespace {{observe_ns}} \
+        --values {{observe_values}}/loki-values.yaml --wait
     helm upgrade --install otel-collector opentelemetry-collector \
         --repo https://open-telemetry.github.io/opentelemetry-helm-charts --version 0.174.0 \
         --kube-context kind-study-kind --namespace {{observe_ns}} \
@@ -21,11 +29,12 @@ observe-up: _grafana-admin-secret
         --repo https://grafana-community.github.io/helm-charts --version 13.2.7 \
         --kube-context kind-study-kind --namespace {{observe_ns}} \
         --values {{observe_values}}/grafana-values.yaml \
-        --set-file 'dashboards.default.claude-code-traces.json={{observe_values}}/dashboards/claude-code-traces.json' --wait
+        --set-file 'dashboards.default.claude-code-traces.json={{observe_values}}/dashboards/claude-code-traces.json' \
+        --set-file 'dashboards.default.claude-code-usage.json={{observe_values}}/dashboards/claude-code-usage.json' --wait
 
-# 観測スタックを消す (保存済みのトレースはホスト側に残る)
+# 観測スタックを消す (保存済みのトレース・メトリクス・ログはホスト側に残る)
 observe-down:
-    -helm uninstall grafana otel-collector tempo --kube-context kind-study-kind --namespace {{observe_ns}} --wait
+    -helm uninstall grafana otel-collector loki prometheus tempo --kube-context kind-study-kind --namespace {{observe_ns}} --wait
 
 # Grafana の admin パスワードを表示する (ユーザー名は admin)
 observe-password:

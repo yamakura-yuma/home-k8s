@@ -1,0 +1,79 @@
+# grafana-community/loki chart (単一バイナリ構成) の values。
+# Claude Code のログ (イベント) を OTel Collector から OTLP (/otlp) で受ける。
+# 保存は Tempo と同じく、kind の extraMounts で WSL2 ホストの
+# ~/.local/share/home-k8s/observability につながったローカルディレクトリに置く。
+deploymentMode: Monolithic
+
+loki:
+  # マルチテナントにしない (X-Scope-OrgID ヘッダ無しで読み書きする)
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem
+  schemaConfig:
+    configs:
+      - from: "2026-09-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+  limits_config:
+    retention_period: 336h # 14日 (Tempo に揃える)
+    # OTLP のリソース属性・ログ属性は structured metadata として残す (Loki 3 の既定)
+    allow_structured_metadata: true
+    volume_enabled: true
+  # 保持期間を過ぎたログは compactor が消す
+  compactor:
+    retention_enabled: true
+    delete_request_store: filesystem
+  analytics:
+    reporting_enabled: false
+
+singleBinary:
+  replicas: 1
+  # PVC ではなく hostPath を /var/loki に直接マウントする (volume 名は chart 側で storage)
+  persistence:
+    enabled: false
+    dataVolumeParameters:
+      hostPath:
+        path: /var/local/home-k8s/observability/loki
+        type: DirectoryOrCreate
+  # extraMounts を持つ worker にだけ置く (clusters/kind/kind-config.yaml の labels)
+  nodeSelector:
+    home-k8s/observability-storage: "true"
+  # hostPath は root 所有で作られるため、Loki の実行ユーザー (10001) に渡してから起動する
+  initContainers:
+    - name: chown-loki-data
+      image: busybox:1.37
+      command: ["chown", "-R", "10001:10001", "/var/loki"]
+      securityContext:
+        runAsUser: 0
+        runAsNonRoot: false
+      volumeMounts:
+        - name: storage
+          mountPath: /var/loki
+
+# 単一構成では使わない部品を止める
+gateway:
+  enabled: false
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
+lokiCanary:
+  enabled: false
+test:
+  enabled: false
+sidecar:
+  rules:
+    enabled: false
+# chart の既定は SimpleScalable の read/write/backend にも replicas を持たせているので 0 にする
+read:
+  replicas: 0
+write:
+  replicas: 0
+backend:
+  replicas: 0

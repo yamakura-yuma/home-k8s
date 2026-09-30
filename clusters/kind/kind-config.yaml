@@ -16,8 +16,8 @@ nodes:
         hostPort: 3000
         listenAddress: "127.0.0.1"
   - role: worker
-    # Tempo の保存先。${HOME} は `just kind-up` が展開する (kind 自体は環境変数を展開しない)。
-    # Tempo はこのラベルのノードに固定し、クラスタを作り直しても同じディレクトリを使う。
+    # Tempo・Prometheus・Loki の保存先。${HOME} は `just kind-up` が展開する (kind 自体は環境変数を展開しない)。
+    # 3 つともこのラベルのノードに固定し、クラスタを作り直しても同じディレクトリを使う。
     labels:
       home-k8s/observability-storage: "true"
     extraMounts:
