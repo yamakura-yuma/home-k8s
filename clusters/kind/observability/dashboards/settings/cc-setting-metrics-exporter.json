@@ -1,0 +1,572 @@
+{
+ "uid": "cc-setting-metrics-exporter",
+ "title": "設定: OTEL_METRICS_EXPORTER",
+ "description": "メトリクスで届くものすべて",
+ "tags": [
+  "claude-code-setting"
+ ],
+ "timezone": "browser",
+ "editable": true,
+ "graphTooltip": 1,
+ "schemaVersion": 41,
+ "time": {
+  "from": "now-7d",
+  "to": "now"
+ },
+ "refresh": "",
+ "links": [
+  {
+   "type": "link",
+   "title": "設定項目別の一覧",
+   "url": "/d/cc-settings",
+   "icon": "dashboard",
+   "keepTime": true,
+   "targetBlank": false,
+   "asDropdown": false,
+   "includeVars": false,
+   "tags": []
+  },
+  {
+   "type": "dashboards",
+   "title": "設定項目別",
+   "tags": [
+    "claude-code-setting"
+   ],
+   "asDropdown": true,
+   "includeVars": false,
+   "keepTime": true,
+   "targetBlank": false,
+   "icon": "external link"
+  },
+  {
+   "type": "dashboards",
+   "title": "Claude Code",
+   "tags": [
+    "claude-code"
+   ],
+   "asDropdown": true,
+   "includeVars": false,
+   "keepTime": true,
+   "targetBlank": false,
+   "icon": "external link"
+  }
+ ],
+ "templating": {
+  "list": [
+   {
+    "type": "query",
+    "name": "metric",
+    "label": "メトリクス",
+    "datasource": {
+     "type": "prometheus",
+     "uid": "prometheus"
+    },
+    "query": {
+     "qryType": 2,
+     "query": "metrics(claude_code_.*)",
+     "refId": "PrometheusVariableQueryEditor-VariableQuery"
+    },
+    "definition": "metrics(claude_code_.*)",
+    "refresh": 2,
+    "sort": 1,
+    "includeAll": true,
+    "multi": true,
+    "hide": 0,
+    "current": {
+     "text": [
+      "All"
+     ],
+     "value": [
+      "$__all"
+     ]
+    }
+   }
+  ]
+ },
+ "panels": [
+  {
+   "type": "text",
+   "title": "この設定について",
+   "options": {
+    "mode": "markdown",
+    "content": "**環境変数**: `OTEL_METRICS_EXPORTER`\n\n**いまの値**: `otlp` (送り先は `OTEL_EXPORTER_OTLP_ENDPOINT` = Collector、温度は `cumulative`)\n\n**何が届くようになるか (公式)**: メトリクス (カウンタ) を送る。公式のメトリクスは 8 種: session / lines_of_code / pull_request / commit / cost / token / code_edit_tool_decision / active_time。60 秒ごと (`OTEL_METRIC_EXPORT_INTERVAL`) に送る。Prometheus では `claude_code_<名前>_<単位>_total` になり、属性の `.` は `_` になる。\n\n**止めると消えるもの**: `claude_code_*` の全系列。usage ダッシュボードのコスト・トークン・アクティブ時間、はじめにの数字が消える (ログ・トレースは残る)。\n\n**何が分かる・何に使えるか**: コスト・トークン・作業時間を、モデル・ワーカー・リポジトリ・skill・MCP サーバー別に長期間で見る。個々の依頼の中身は分からない。\n\n**公式と実データの突き合わせ**: 公式の 8 種のうち、実データで届いているのは下の表の通り。pull_request / commit は PR やコミットを作ったときだけ系列ができる。"
+   },
+   "id": 1,
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 12
+   }
+  },
+  {
+   "type": "row",
+   "title": "公式のメトリクス一覧と届いているか",
+   "collapsed": false,
+   "panels": [],
+   "id": 2,
+   "gridPos": {
+    "x": 0,
+    "y": 12,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "table",
+   "title": "公式のメトリクス 8 種 × 届いた系列数",
+   "description": "0 = 公式にはあるが期間中に 1 度も送られていない (PR やコミットを作っていないなど)。",
+   "datasource": {
+    "type": "yesoreyeram-infinity-datasource",
+    "uid": "backend-api"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://prometheus-server.observability.svc.cluster.local/api/v1/series",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "match[]",
+        "value": "{__name__=~\"claude_code_.*\"}"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       }
+      ]
+     },
+     "root_selector": "( $d := data; $names := $distinct($d.__name__); $append([\"claude_code_session_count_total\", \"claude_code_lines_of_code_count_total\", \"claude_code_pull_request_count_total\", \"claude_code_commit_count_total\", \"claude_code_cost_usage_USD_total\", \"claude_code_token_usage_tokens_total\", \"claude_code_code_edit_tool_decision_total\", \"claude_code_active_time_seconds_total\"], $names[$not($ in [\"claude_code_session_count_total\", \"claude_code_lines_of_code_count_total\", \"claude_code_pull_request_count_total\", \"claude_code_commit_count_total\", \"claude_code_cost_usage_USD_total\", \"claude_code_token_usage_tokens_total\", \"claude_code_code_edit_tool_decision_total\", \"claude_code_active_time_seconds_total\"])]).( $m := $; {\"metric\": $m, \"doc\": $m in [\"claude_code_session_count_total\", \"claude_code_lines_of_code_count_total\", \"claude_code_pull_request_count_total\", \"claude_code_commit_count_total\", \"claude_code_cost_usage_USD_total\", \"claude_code_token_usage_tokens_total\", \"claude_code_code_edit_tool_decision_total\", \"claude_code_active_time_seconds_total\"] ? \"公式\" : \"公式に無い\", \"series\": $count($d[__name__ = $m])} ) )",
+     "columns": []
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm",
+    "sortBy": [
+     {
+      "displayName": "系列数",
+      "desc": true
+     }
+    ]
+   },
+   "transformations": [
+    {
+     "id": "organize",
+     "options": {
+      "renameByName": {
+       "metric": "メトリクス",
+       "doc": "出どころ",
+       "series": "系列数"
+      },
+      "excludeByName": {},
+      "indexByName": {}
+     }
+    }
+   ],
+   "id": 3,
+   "gridPos": {
+    "x": 0,
+    "y": 13,
+    "w": 10,
+    "h": 9
+   }
+  },
+  {
+   "type": "table",
+   "title": "メトリクスごとの現在値と期間中の増加",
+   "description": "系列数 = ラベルの組み合わせの数。増加 = 期間中に増えた量 (コストなら USD、トークンなら個数、時間なら秒)。",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "count by (__name__) (last_over_time({__name__=~\"claude_code_.*\"}[$__range]))",
+     "legendFormat": "__auto",
+     "instant": true,
+     "range": false,
+     "format": "table"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (__name__) (label_replace(sum by (m) (increase(label_replace({__name__=~\"claude_code_.*\"}, \"m\", \"$1\", \"__name__\", \"(.*)\")[$__range:1m])), \"__name__\", \"$1\", \"m\", \"(.*)\"))",
+     "legendFormat": "__auto",
+     "instant": true,
+     "range": false,
+     "format": "table"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm",
+    "sortBy": [
+     {
+      "displayName": "系列数",
+      "desc": true
+     }
+    ]
+   },
+   "transformations": [
+    {
+     "id": "merge",
+     "options": {}
+    },
+    {
+     "id": "organize",
+     "options": {
+      "renameByName": {
+       "__name__": "メトリクス",
+       "Value #A": "系列数",
+       "Value #B": "期間中の増加"
+      },
+      "excludeByName": {
+       "Time": true
+      },
+      "indexByName": {}
+     }
+    }
+   ],
+   "id": 4,
+   "gridPos": {
+    "x": 10,
+    "y": 13,
+    "w": 14,
+    "h": 9
+   }
+  },
+  {
+   "type": "row",
+   "title": "全メトリクス × 全ラベル",
+   "collapsed": false,
+   "panels": [],
+   "id": 5,
+   "gridPos": {
+    "x": 0,
+    "y": 22,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "table",
+   "title": "メトリクス × ラベル (値の種類と値の例)",
+   "description": "Prometheus の series API が返した全系列を、メトリクス × ラベルの 1 行にした。値の種類 = そのラベルが取る値の数。",
+   "datasource": {
+    "type": "yesoreyeram-infinity-datasource",
+    "uid": "backend-api"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://prometheus-server.observability.svc.cluster.local/api/v1/series",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "match[]",
+        "value": "{__name__=~\"claude_code_.*\"}"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       }
+      ]
+     },
+     "root_selector": "( $d := data; $distinct($d.__name__).( $m := $; $s := $d[__name__ = $m]; $distinct($s.$keys($))[$ != \"__name__\"].( $k := $; $v := $distinct($filter($s.$lookup($, $k), function($x){ $type($x) = \"string\" })); {\"metric\": $m, \"label\": $k, \"n\": $count($v), \"examples\": $join($v[[0..4]], \" / \")} ) ) )",
+     "columns": []
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "値の例"
+      },
+      "properties": [
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "auto",
+         "wrapText": true
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "transformations": [
+    {
+     "id": "organize",
+     "options": {
+      "renameByName": {
+       "metric": "メトリクス",
+       "label": "ラベル",
+       "n": "値の種類",
+       "examples": "値の例"
+      },
+      "excludeByName": {},
+      "indexByName": {
+       "metric": 0,
+       "label": 1,
+       "n": 2,
+       "examples": 3
+      }
+     }
+    }
+   ],
+   "id": 6,
+   "gridPos": {
+    "x": 0,
+    "y": 23,
+    "w": 12,
+    "h": 14
+   }
+  },
+  {
+   "type": "table",
+   "title": "メトリクス × ラベル (表の形、セル = 値の種類)",
+   "description": "行 = ラベル、列 = メトリクス。空欄 = そのメトリクスには付いていないラベル。",
+   "datasource": {
+    "type": "yesoreyeram-infinity-datasource",
+    "uid": "backend-api"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://prometheus-server.observability.svc.cluster.local/api/v1/series",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "match[]",
+        "value": "{__name__=~\"claude_code_.*\"}"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       }
+      ]
+     },
+     "root_selector": "( $d := data; $distinct($d.__name__).( $m := $; $s := $d[__name__ = $m]; $distinct($s.$keys($))[$ != \"__name__\"].( $k := $; $v := $distinct($filter($s.$lookup($, $k), function($x){ $type($x) = \"string\" })); {\"metric\": $m, \"label\": $k, \"n\": $count($v), \"examples\": $join($v[[0..4]], \" / \")} ) ) )",
+     "columns": []
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byRegexp",
+       "options": ".*"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 105
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "transformations": [
+    {
+     "id": "groupingToMatrix",
+     "options": {
+      "columnField": "metric",
+      "rowField": "label",
+      "valueField": "n",
+      "emptyValue": "empty"
+     }
+    },
+    {
+     "id": "renameByRegex",
+     "options": {
+      "regex": "^claude_code_(.*?)(_total)?$",
+      "renamePattern": "$1"
+     }
+    }
+   ],
+   "id": 7,
+   "gridPos": {
+    "x": 12,
+    "y": 23,
+    "w": 12,
+    "h": 14
+   }
+  },
+  {
+   "type": "row",
+   "title": "各メトリクスの推移 ($metric、ラベルの内訳ごと)",
+   "collapsed": false,
+   "panels": [],
+   "id": 8,
+   "gridPos": {
+    "x": 0,
+    "y": 37,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "$metric (1 分あたりの増加、内訳ごと)",
+   "description": "識別用のラベル (ユーザー・組織・端末など、どの系列にも同じ値で付くもの) を外し、残りのラベルの組ごとに描いた。",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum without (job, instance, organization_id, user_account_id, user_account_uuid, user_email, user_id, terminal_type, vcs_owner_name, vcs_provider_name, vcs_repository_url_full, orca_worktree_id) (rate({__name__=\"$metric\"}[$__rate_interval])) * 60",
+     "legendFormat": "__auto",
+     "range": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 1,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "none",
+       "group": "A"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "bottom",
+     "calcs": [
+      "sum"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "repeat": "metric",
+   "repeatDirection": "h",
+   "maxPerRow": 2,
+   "id": 9,
+   "gridPos": {
+    "x": 0,
+    "y": 38,
+    "w": 12,
+    "h": 9
+   }
+  }
+ ]
+}

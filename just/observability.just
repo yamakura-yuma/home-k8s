@@ -37,7 +37,8 @@ observe-up: _grafana-admin-secret
         --set-file 'dashboards.default.claude-code-usage.json={{observe_values}}/dashboards/claude-code-usage.json' \
         --set-file 'dashboards.default.claude-code-improve.json={{observe_values}}/dashboards/claude-code-improve.json' \
         --set-file 'dashboards.default.claude-code-raw.json={{observe_values}}/dashboards/claude-code-raw.json' \
-        --set-file 'dashboards.default.claude-code-start.json={{observe_values}}/dashboards/claude-code-start.json' --wait
+        --set-file 'dashboards.default.claude-code-start.json={{observe_values}}/dashboards/claude-code-start.json' \
+        $(for f in {{observe_values}}/dashboards/settings/*.json; do n=$(basename "$f" .json); printf -- "--set-file dashboards.settings.%s.json=%s " "$n" "$f"; done) --wait
 
 # 観測スタックを消す (保存済みのトレース・メトリクス・ログはホスト側に残る)
 observe-down:

@@ -44,7 +44,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "Claude Code が送ってくるテレメトリ (メトリクス・ログ・トレース) を見るためのダッシュボード群の入口。\n困りごとを下の場面から選び、書いてあるパネルを開く。詳しい版はリポジトリの `docs/observability/playbook.md`。\n\n| ダッシュボード | 使う場面 |\n|---|---|\n| [Claude Code raw](/d/claude-code-raw) | 何が届いているかを信号ごとにそのまま見る。属性名を調べるとき |\n| [Claude Code usage](/d/claude-code-usage) | コスト・トークン・ワーカー別の量 |\n| [Claude Code traces](/d/claude-code-traces) | 所要時間、ツール、hook、サブエージェントの内訳 |\n| [Claude Code improve](/d/claude-code-improve) | ハーネス (rule / skill / spec / モデル選択) を直す箇所を決める |\n"
+        "content": "Claude Code が送ってくるテレメトリ (メトリクス・ログ・トレース) を見るためのダッシュボード群の入口。\n困りごとを下の場面から選び、書いてあるパネルを開く。詳しい版はリポジトリの `docs/observability/playbook.md`。\n\n| ダッシュボード | 使う場面 |\n|---|---|\n| [Claude Code raw](/d/claude-code-raw) | 何が届いているかを信号ごとにそのまま見る。属性名を調べるとき |\n| [Claude Code usage](/d/claude-code-usage) | コスト・トークン・ワーカー別の量 |\n| [Claude Code traces](/d/claude-code-traces) | 所要時間、ツール、hook、サブエージェントの内訳 |\n| [Claude Code improve](/d/claude-code-improve) | ハーネス (rule / skill / spec / モデル選択) を直す箇所を決める |\n| [Claude Code 設定項目別](/d/cc-settings) | OTel の設定 (環境変数) 1 つごとに、その設定で何が届くようになったかを全部見る。設定を変える前後の確認 |\n"
       }
     },
     {

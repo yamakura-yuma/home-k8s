@@ -120,3 +120,14 @@ dashboardProviders:
         allowUiUpdates: true
         options:
           path: /var/lib/grafana/dashboards/default
+      # 設定項目 (環境変数) ごとのダッシュボード。dashboards/settings/*.json を
+      # `just observe-up` が dashboards.settings.<名前>.json に流し込む
+      - name: settings
+        orgId: 1
+        type: file
+        folder: Claude Code 設定項目別
+        folderUid: cc-settings
+        disableDeletion: true
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards/settings

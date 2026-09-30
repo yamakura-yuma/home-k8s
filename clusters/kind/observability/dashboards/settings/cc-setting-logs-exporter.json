@@ -1,0 +1,680 @@
+{
+ "uid": "cc-setting-logs-exporter",
+ "title": "設定: OTEL_LOGS_EXPORTER",
+ "description": "ログ / イベントで届くものすべて",
+ "tags": [
+  "claude-code-setting"
+ ],
+ "timezone": "browser",
+ "editable": true,
+ "graphTooltip": 1,
+ "schemaVersion": 41,
+ "time": {
+  "from": "now-7d",
+  "to": "now"
+ },
+ "refresh": "",
+ "links": [
+  {
+   "type": "link",
+   "title": "設定項目別の一覧",
+   "url": "/d/cc-settings",
+   "icon": "dashboard",
+   "keepTime": true,
+   "targetBlank": false,
+   "asDropdown": false,
+   "includeVars": false,
+   "tags": []
+  },
+  {
+   "type": "dashboards",
+   "title": "設定項目別",
+   "tags": [
+    "claude-code-setting"
+   ],
+   "asDropdown": true,
+   "includeVars": false,
+   "keepTime": true,
+   "targetBlank": false,
+   "icon": "external link"
+  },
+  {
+   "type": "dashboards",
+   "title": "Claude Code",
+   "tags": [
+    "claude-code"
+   ],
+   "asDropdown": true,
+   "includeVars": false,
+   "keepTime": true,
+   "targetBlank": false,
+   "icon": "external link"
+  }
+ ],
+ "templating": {
+  "list": [
+   {
+    "type": "query",
+    "name": "event",
+    "label": "イベント種別",
+    "datasource": {
+     "type": "yesoreyeram-infinity-datasource",
+     "uid": "backend-api"
+    },
+    "query": {
+     "queryType": "infinity",
+     "refId": "variable",
+     "infinityQuery": {
+      "refId": "variable",
+      "datasource": {
+       "type": "yesoreyeram-infinity-datasource",
+       "uid": "backend-api"
+      },
+      "type": "json",
+      "source": "url",
+      "parser": "backend",
+      "format": "table",
+      "url": "http://loki.observability.svc.cluster.local:3100/loki/api/v1/query_range",
+      "url_options": {
+       "method": "GET",
+       "params": [
+        {
+         "key": "query",
+         "value": "sum by (event_name) (count_over_time({service_name=\"claude-code\"} [5m]))"
+        },
+        {
+         "key": "start",
+         "value": "${__from:date:seconds}"
+        },
+        {
+         "key": "end",
+         "value": "${__to:date:seconds}"
+        },
+        {
+         "key": "step",
+         "value": "300"
+        }
+       ]
+      },
+      "root_selector": "data.result.metric.event_name",
+      "columns": []
+     }
+    },
+    "refresh": 2,
+    "sort": 1,
+    "includeAll": false,
+    "multi": false,
+    "hide": 0,
+    "current": {
+     "text": "tool_result",
+     "value": "tool_result"
+    }
+   }
+  ]
+ },
+ "panels": [
+  {
+   "type": "text",
+   "title": "この設定について",
+   "options": {
+    "mode": "markdown",
+    "content": "**環境変数**: `OTEL_LOGS_EXPORTER`\n\n**いまの値**: `otlp`\n\n**何が届くようになるか (公式)**: イベント (OTel のログ) を送る。依頼 (`user_prompt`)、応答 (`assistant_response`)、API 呼び出し (`api_request` / `api_error`)、ツールの許可と結果 (`tool_decision` / `tool_result`)、hook・skill・MCP 接続・plugin など公式で 27 種。`prompt.id` で同じ依頼のイベントをまとめられ、`trace_id` / `span_id` でトレースに繋がる。Loki では属性が structured metadata になり、`.` は `_` になる。\n\n**止めると消えるもの**: Loki のイベントすべて。依頼ごとのコスト (improve)、依頼文・応答文・コマンド・ツールの失敗の一覧が消える。`OTEL_LOG_USER_PROMPTS` / `OTEL_LOG_TOOL_DETAILS` / `OTEL_LOG_ASSISTANT_RESPONSES` はイベントの中身を増やす設定なので、これを止めると意味を失う。\n\n**何が分かる・何に使えるか**: 依頼 1 回ずつ、API 呼び出し 1 回ずつ、ツール呼び出し 1 回ずつの記録。コストの高い依頼、失敗の多いコマンド、使われていない skill を探す。\n\n**公式と実データの突き合わせ**: 公式の 27 種のうち届いているのは下の表の通り。属性キーはすべて実データから数えている。"
+   },
+   "id": 1,
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 12
+   }
+  },
+  {
+   "type": "row",
+   "title": "公式のイベント種別と届いているか",
+   "collapsed": false,
+   "panels": [],
+   "id": 2,
+   "gridPos": {
+    "x": 0,
+    "y": 12,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "table",
+   "title": "公式のイベント 27 種 × 届いた件数",
+   "description": "0 = 公式にはあるが期間中に起きていない (API エラー、compaction など) か、別の設定が要る (`api_request_body` は `OTEL_LOG_RAW_API_BODIES`)。",
+   "datasource": {
+    "type": "yesoreyeram-infinity-datasource",
+    "uid": "backend-api"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://loki.observability.svc.cluster.local:3100/loki/api/v1/query_range",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "query",
+        "value": "sum by (event_name) (count_over_time({service_name=\"claude-code\"} [5m]))"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       },
+       {
+        "key": "step",
+        "value": "300"
+       }
+      ]
+     },
+     "root_selector": "( $r := data.result; $names := $r.metric.event_name; $doc := [\"user_prompt\", \"assistant_response\", \"tool_result\", \"api_request\", \"api_error\", \"api_refusal\", \"api_request_body\", \"api_response_body\", \"tool_decision\", \"permission_mode_changed\", \"auth\", \"mcp_server_connection\", \"internal_error\", \"plugin_installed\", \"plugin_loaded\", \"skill_activated\", \"at_mention\", \"api_retries_exhausted\", \"hook_registered\", \"hook_execution_start\", \"hook_execution_complete\", \"hook_plugin_metrics\", \"compaction\", \"subagent_completed\", \"feedback_survey\", \"retention_sweep\", \"managed_settings_resolved\"]; $append($doc, $names[$not($ in $doc)]).( $e := $; {\"event\": $e, \"doc\": $e in $doc ? \"公式\" : \"公式に無い\", \"count\": $sum($r[metric.event_name = $e].$sum(values.$number($[1])))} ) )",
+     "columns": []
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm",
+    "sortBy": [
+     {
+      "displayName": "件数",
+      "desc": true
+     }
+    ]
+   },
+   "transformations": [
+    {
+     "id": "organize",
+     "options": {
+      "renameByName": {
+       "event": "イベント種別",
+       "doc": "出どころ",
+       "count": "件数"
+      },
+      "excludeByName": {},
+      "indexByName": {}
+     }
+    }
+   ],
+   "id": 3,
+   "gridPos": {
+    "x": 0,
+    "y": 13,
+    "w": 8,
+    "h": 16
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "イベント種別ごとの件数の推移",
+   "description": "",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum by (event_name) (count_over_time({service_name=\"claude-code\"} [$__interval]))",
+     "queryType": "range",
+     "legendFormat": "{{event_name}}"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "drawStyle": "bars",
+      "lineWidth": 1,
+      "fillOpacity": 60,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "normal",
+       "group": "A"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "sum"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "id": 4,
+   "gridPos": {
+    "x": 8,
+    "y": 13,
+    "w": 16,
+    "h": 16
+   }
+  },
+  {
+   "type": "row",
+   "title": "全イベント種別 × 全属性",
+   "collapsed": false,
+   "panels": [],
+   "id": 5,
+   "gridPos": {
+    "x": 0,
+    "y": 29,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "table",
+   "title": "イベント種別 × 属性キー (縦持ち、件数つき)",
+   "description": "Loki のイベントを種別ごとに数え、そのイベントが持っていた属性キーを 1 行ずつにした。状態 = 値が入っていたか、`<REDACTED>` (設定がオフで伏せられた) か。件数 = その状態でその属性を持っていたイベント数。",
+   "datasource": {
+    "type": "yesoreyeram-infinity-datasource",
+    "uid": "backend-api"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://loki.observability.svc.cluster.local:3100/loki/api/v1/query_range",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "query",
+        "value": "sum by (event_name, keys, rkeys) (count_over_time({service_name=\"claude-code\"} | label_format keys=`{{ range $k, $v := . }}{{ if and (ne $v \"\") (ne $v \"<REDACTED>\") }}{{ $k }} {{ end }}{{ end }}`, rkeys=`{{ range $k, $v := . }}{{ if eq $v \"<REDACTED>\" }}{{ $k }} {{ end }}{{ end }}` [5m]))"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       },
+       {
+        "key": "step",
+        "value": "300"
+       }
+      ]
+     },
+     "root_selector": "( $rows := data.result.( $e := metric.event_name; $n := $sum(values.$number($[1])); $append($map($filter($split($trim($string(metric.keys)), \" \"), function($x){ $x != \"\" }), function($x){ {\"event\": $e, \"key\": $x, \"state\": \"値あり\", \"n\": $n} }), $map($filter($split($trim($string(metric.rkeys)), \" \"), function($x){ $x != \"\" }), function($x){ {\"event\": $e, \"key\": $x, \"state\": \"<REDACTED>\", \"n\": $n} })) ); $distinct($rows.(event & \"|\" & key & \"|\" & state)).( $k := $; $g := $rows[(event & \"|\" & key & \"|\" & state) = $k]; {\"event\": $g[0].event, \"key\": $g[0].key, \"state\": $g[0].state, \"count\": $sum($g.n)} ) )",
+     "columns": []
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm",
+    "sortBy": [
+     {
+      "displayName": "件数",
+      "desc": true
+     }
+    ]
+   },
+   "transformations": [
+    {
+     "id": "organize",
+     "options": {
+      "renameByName": {
+       "event": "イベント種別",
+       "key": "属性キー",
+       "state": "状態",
+       "count": "件数"
+      },
+      "excludeByName": {},
+      "indexByName": {
+       "event": 0,
+       "key": 1,
+       "state": 2,
+       "count": 3
+      }
+     }
+    }
+   ],
+   "id": 6,
+   "gridPos": {
+    "x": 0,
+    "y": 30,
+    "w": 10,
+    "h": 18
+   }
+  },
+  {
+   "type": "table",
+   "title": "イベント種別 × 属性キー (表の形、セル = 値ありの件数)",
+   "description": "左の表を、行 = 属性キー、列 = イベント種別に並べ替えた。空欄 = その種別では届いていない。",
+   "datasource": {
+    "type": "yesoreyeram-infinity-datasource",
+    "uid": "backend-api"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://loki.observability.svc.cluster.local:3100/loki/api/v1/query_range",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "query",
+        "value": "sum by (event_name, keys, rkeys) (count_over_time({service_name=\"claude-code\"} | label_format keys=`{{ range $k, $v := . }}{{ if and (ne $v \"\") (ne $v \"<REDACTED>\") }}{{ $k }} {{ end }}{{ end }}`, rkeys=`{{ range $k, $v := . }}{{ if eq $v \"<REDACTED>\" }}{{ $k }} {{ end }}{{ end }}` [5m]))"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       },
+       {
+        "key": "step",
+        "value": "300"
+       }
+      ]
+     },
+     "root_selector": "( $rows := data.result.( $e := metric.event_name; $n := $sum(values.$number($[1])); $append($map($filter($split($trim($string(metric.keys)), \" \"), function($x){ $x != \"\" }), function($x){ {\"event\": $e, \"key\": $x, \"state\": \"値あり\", \"n\": $n} }), $map($filter($split($trim($string(metric.rkeys)), \" \"), function($x){ $x != \"\" }), function($x){ {\"event\": $e, \"key\": $x, \"state\": \"<REDACTED>\", \"n\": $n} })) ); $distinct($rows.(event & \"|\" & key & \"|\" & state)).( $k := $; $g := $rows[(event & \"|\" & key & \"|\" & state) = $k]; {\"event\": $g[0].event, \"key\": $g[0].key, \"state\": $g[0].state, \"count\": $sum($g.n)} ) )",
+     "columns": []
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byRegexp",
+       "options": ".*"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 110
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "key\\event"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 230
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "transformations": [
+    {
+     "id": "filterByValue",
+     "options": {
+      "type": "include",
+      "match": "any",
+      "filters": [
+       {
+        "fieldName": "state",
+        "config": {
+         "id": "equal",
+         "options": {
+          "value": "値あり"
+         }
+        }
+       }
+      ]
+     }
+    },
+    {
+     "id": "groupingToMatrix",
+     "options": {
+      "columnField": "event",
+      "rowField": "key",
+      "valueField": "count",
+      "emptyValue": "empty"
+     }
+    }
+   ],
+   "id": 7,
+   "gridPos": {
+    "x": 10,
+    "y": 30,
+    "w": 14,
+    "h": 18
+   }
+  },
+  {
+   "type": "row",
+   "title": "選んだイベント種別 ($event) の生データ",
+   "collapsed": false,
+   "panels": [],
+   "id": 8,
+   "gridPos": {
+    "x": 0,
+    "y": 48,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "table",
+   "title": "$event の生のイベント (新しい順、最大 200 行)",
+   "description": "上の変数「イベント種別」で選んだものの生の行。structured metadata をすべて列に展開した (列が多いときは横にスクロール)。共通の列 (OS、アカウント、リポジトリ) は後ろに寄せた。trace_id をクリックするとトレースへ飛ぶ。",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "queryType": "range",
+     "expr": "{service_name=\"claude-code\"} | event_name=\"$event\"",
+     "maxLines": 200
+    }
+   ],
+   "transformations": [
+    {
+     "id": "extractFields",
+     "options": {
+      "source": "labels",
+      "format": "auto",
+      "replace": false,
+      "keepTime": true
+     }
+    },
+    {
+     "id": "organize",
+     "options": {
+      "renameByName": {
+       "Time": "時刻"
+      },
+      "excludeByName": {
+       "labels": true,
+       "Line": true,
+       "tsNs": true,
+       "labelTypes": true,
+       "id": true,
+       "event_name": true,
+       "detected_level": true,
+       "flags": true,
+       "observed_timestamp": true,
+       "service_name": true,
+       "scope_name": true
+      }
+     }
+    },
+    {
+     "id": "sortBy",
+     "options": {
+      "sort": [
+       {
+        "field": "時刻",
+        "desc": true
+       }
+      ]
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 90
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "時刻"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "dateTimeAsLocal"
+       },
+       {
+        "id": "custom.width",
+        "value": 160
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "trace_id"
+      },
+      "properties": [
+       {
+        "id": "links",
+        "value": [
+         {
+          "title": "トレースを開く",
+          "url": "",
+          "internal": {
+           "datasourceUid": "tempo",
+           "datasourceName": "Tempo",
+           "query": {
+            "queryType": "traceql",
+            "query": "${__value.raw}"
+           }
+          }
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byRegexp",
+       "options": "^(host_arch|os_type|os_version|wsl_version|service_version|scope_version|terminal_type|organization_id|user_.*|vcs_.*|orca_worktree_id|event_timestamp|event_sequence|span_id)$"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 110
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "id": 9,
+   "gridPos": {
+    "x": 0,
+    "y": 49,
+    "w": 24,
+    "h": 12
+   }
+  }
+ ]
+}
