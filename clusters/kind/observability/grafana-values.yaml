@@ -19,6 +19,9 @@ grafana.ini:
   analytics:
     reporting_enabled: false
     check_for_updates: false
+  # ログイン直後のホームを「Claude Code はじめに」にする (下の provisioning で置かれるファイル)
+  dashboards:
+    default_home_dashboard_path: /var/lib/grafana/dashboards/default/claude-code-start.json
 
 datasources:
   datasources.yaml:
@@ -84,6 +87,23 @@ datasources:
               datasourceUid: tempo
               url: "$${__value.raw}"
               urlDisplayLabel: トレースを開く
+      # 各バックエンドの HTTP API (Prometheus の系列一覧、Tempo のタグ一覧、Loki のクエリ) の JSON を
+      # 表にするためのデータソース。claude-code-raw ダッシュボードが属性キーの一覧を出すのに使う。
+      # PromQL / TraceQL / LogQL にはキーの一覧を返す書き方が無いため、API を直接叩く
+      - name: Backend API
+        uid: backend-api
+        type: yesoreyeram-infinity-datasource
+        access: proxy
+        editable: false
+        jsonData:
+          allowedHosts:
+            - http://prometheus-server.observability.svc.cluster.local
+            - http://tempo.observability.svc.cluster.local:3200
+            - http://loki.observability.svc.cluster.local:3100
+
+# Backend API データソースのプラグイン。Grafana 13.2 に合う版に固定する
+plugins:
+  - yesoreyeram-infinity-datasource@4.0.0
 
 # ダッシュボードは JSON をリポジトリに置き、provisioning で読み込む。
 # 中身は `just observe-up` が --set-file で dashboards.default.<名前>.json に流し込む

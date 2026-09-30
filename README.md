@@ -63,4 +63,5 @@ kind自体は試験で問われないためクラスタの起動/削除は just 
 `docs/certification/roadmap.md` を参照。Claude Code のトレース・メトリクス・ログを見る
 観測スタックは `docs/observability/claude-code-traces.md`、ダッシュボードの見方は
 `docs/observability/claude-code-usage.md`、ハーネスの直し方は
-`docs/observability/claude-code-improve.md` を参照。
+`docs/observability/claude-code-improve.md` を参照。困りごとからどのダッシュボードを見るかは
+`docs/observability/playbook.md` (Grafana のホーム「Claude Code はじめに」にも同じ内容の短縮版がある)。

@@ -1,0 +1,229 @@
+{
+  "uid": "claude-code-start",
+  "title": "Claude Code はじめに",
+  "description": "Claude Code のダッシュボード群の入口と、場面別の見方",
+  "tags": [
+    "claude-code"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 0,
+  "schemaVersion": 41,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "",
+  "links": [
+    {
+      "type": "dashboards",
+      "title": "Claude Code",
+      "tags": [
+        "claude-code"
+      ],
+      "asDropdown": false,
+      "includeVars": false,
+      "keepTime": true,
+      "targetBlank": false,
+      "icon": "external link"
+    }
+  ],
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "このダッシュボード群の使い方",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 14,
+        "h": 11
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Claude Code が送ってくるテレメトリ (メトリクス・ログ・トレース) を見るためのダッシュボード群の入口。\n困りごとを下の場面から選び、書いてあるパネルを開く。詳しい版はリポジトリの `docs/observability/playbook.md`。\n\n| ダッシュボード | 使う場面 |\n|---|---|\n| [Claude Code raw](/d/claude-code-raw) | 何が届いているかを信号ごとにそのまま見る。属性名を調べるとき |\n| [Claude Code usage](/d/claude-code-usage) | コスト・トークン・ワーカー別の量 |\n| [Claude Code traces](/d/claude-code-traces) | 所要時間、ツール、hook、サブエージェントの内訳 |\n| [Claude Code improve](/d/claude-code-improve) | ハーネス (rule / skill / spec / モデル選択) を直す箇所を決める |\n"
+      }
+    },
+    {
+      "id": 2,
+      "type": "text",
+      "title": "用語",
+      "gridPos": {
+        "x": 14,
+        "y": 0,
+        "w": 10,
+        "h": 11
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "| 語 | 意味 |\n|---|---|\n| **メトリクス** | 一定間隔で送られる数値の累計 (コスト、トークン数)。Prometheus |\n| **ラベル** | 内訳を分ける名前と値の組 (`model=...`、`orca_worktree_name=...`) |\n| **ログ (イベント)** | 出来事 1 回につき 1 行 (依頼文、API 呼び出し、ツール実行)。Loki |\n| **トレース** | 1 依頼の処理全体を入れ子の区間の木にしたもの。Tempo |\n| **スパン** | トレースの 1 区間 (LLM 呼び出し 1 回、ツール実行 1 回)。所要時間と属性を持つ |\n"
+      }
+    },
+    {
+      "id": 3,
+      "type": "row",
+      "title": "場面別の見方 (こういうとき → 見るパネル → 分かること → 次にすること)",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 4,
+      "type": "text",
+      "title": "1. 今日いくら使ったか、どのワーカー・モデルが高いか",
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 12,
+        "h": 7
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**見る**: [usage](/d/claude-code-usage) の「今日のコスト」「モデル別コスト」「ワーカーごとの集計」\n\n**分かる**: 期間中のコストと、モデル別・ワーカー別の内訳\n\n**次に**: 高いワーカーの中の高い依頼を 2 で探す。Opus が大半なら 6 を検討する"
+      }
+    },
+    {
+      "id": 5,
+      "type": "text",
+      "title": "2. ある依頼がなぜ遅かったか・高かったか",
+      "gridPos": {
+        "x": 12,
+        "y": 12,
+        "w": 12,
+        "h": 7
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**見る**: [improve](/d/claude-code-improve) の「コストの高い依頼」。探すときは上の「依頼文」欄に語を入れる。依頼文をクリック →「トレースを開く」\n\n**分かる**: ウォーターフォールで、LLM 待ち (`llm_request`)・ツール実行 (`tool`)・許可待ち (`blocked_on_user`) のどれが長いか\n\n**次に**: LLM 呼び出しが多いなら spec に完了条件と読むファイルを書く。許可待ちが長いなら許可リストに入れる"
+      }
+    },
+    {
+      "id": 6,
+      "type": "text",
+      "title": "3. 同じコマンドの失敗が繰り返されている",
+      "gridPos": {
+        "x": 0,
+        "y": 19,
+        "w": 12,
+        "h": 7
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**見る**: [improve](/d/claude-code-improve) の「失敗したコマンド (回数の多い順)」「直近の失敗」\n\n**分かる**: 失敗したコマンド、回数、エラーの中身。同じものが並ぶなら試行錯誤している\n\n**次に**: 正しい手順を skill (リポジトリ固有なら rule か README) に書き足し、1 週間後に回数を見る"
+      }
+    },
+    {
+      "id": 7,
+      "type": "text",
+      "title": "4. 入れた skill が使われていない",
+      "gridPos": {
+        "x": 12,
+        "y": 19,
+        "w": 12,
+        "h": 7
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**見る**: [improve](/d/claude-code-improve) の「skill ごとの呼び出し回数」。生の行は [raw](/d/claude-code-raw?var-event=skill_activated) で `skill_activated`\n\n**分かる**: 表に無い skill は期間中に一度も起動していない\n\n**次に**: description を実際の依頼の言い回しに合わせて書き直す。数週間使われないなら外す"
+      }
+    },
+    {
+      "id": 8,
+      "type": "text",
+      "title": "5. キャッシュが効いていない",
+      "gridPos": {
+        "x": 0,
+        "y": 26,
+        "w": 12,
+        "h": 7
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**見る**: [improve](/d/claude-code-improve) の「キャッシュ読み出し割合」「ワーカー別」「推移」\n\n**分かる**: 入力トークンのうちキャッシュから読んだ割合。低いワーカーはプロンプトの先頭が毎回変わっている\n\n**次に**: 常時読み込みの rule / CLAUDE.md から毎回変わる内容を除き、小さくする。場面にだけ要る手順は skill へ"
+      }
+    },
+    {
+      "id": 9,
+      "type": "text",
+      "title": "6. Sonnet に回した作業が手戻りしていないか",
+      "gridPos": {
+        "x": 12,
+        "y": 26,
+        "w": 12,
+        "h": 7
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**見る**: [usage](/d/claude-code-usage) の「ワーカー × モデルのトークン」でモデルを確かめ、[improve](/d/claude-code-improve) の「ワーカーごとの依頼数と 1 依頼あたりの往復」を比べる\n\n**分かる**: Sonnet のワーカーだけ往復・失敗・依頼数が多いなら、やり直しが起きている\n\n**次に**: Opus に戻すか spec を細かくする。8 の手順で前後を比べる"
+      }
+    },
+    {
+      "id": 10,
+      "type": "text",
+      "title": "7. サブエージェントやリサーチが何をどの順で調べたか",
+      "gridPos": {
+        "x": 0,
+        "y": 33,
+        "w": 12,
+        "h": 7
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**見る**: [traces](/d/claude-code-traces) の「サブエージェントを含む依頼」→ Trace ID。個々の属性は [raw](/d/claude-code-raw?var-span=claude_code.tool) の「最近のトレース」の行を開く\n\n**分かる**: どのツールがどの順に何秒かかったか。`full_command`、`file_path` で中身が見える\n\n**次に**: 同じファイルを何度も読む・関係ない所を探すなら、調べる範囲と止める条件を指示に書く"
+      }
+    },
+    {
+      "id": 11,
+      "type": "text",
+      "title": "8. ハーネスを変えた前後で数字を比べる",
+      "gridPos": {
+        "x": 12,
+        "y": 33,
+        "w": 12,
+        "h": 7
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**見る**: [improve](/d/claude-code-improve) の「0. 比べる数字」\n\n**手順**: 変える前の期間を絶対時刻で選び、URL (`from=` / `to=` 入り) を控える → 1 か所だけ変える → 同じ長さが経ったら、タブを 2 つ開いて前後の期間で同じパネルを並べる。依頼が 10 件未満なら判断しない\n\n**次に**: 動かなければ戻す。変えた内容と日時をコミットに残す"
+      }
+    },
+    {
+      "id": 12,
+      "type": "text",
+      "title": "9. 新しい属性が届いているか確かめる",
+      "gridPos": {
+        "x": 0,
+        "y": 40,
+        "w": 12,
+        "h": 7
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**見る**: [raw](/d/claude-code-raw) の各節の「ラベル」「属性キー」の表\n\n**分かる**: Claude Code の版上げや環境変数の変更で増えたメトリクス・イベント・属性\n\n**次に**: 正確な属性名を確かめてからパネルを足す。ログでは `.` が `_` になる"
+      }
+    },
+    {
+      "id": 13,
+      "type": "text",
+      "title": "10. observe-share で人に見せるとき",
+      "gridPos": {
+        "x": 12,
+        "y": 40,
+        "w": 12,
+        "h": 7
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "URL とパスワードを知っている人は**全ダッシュボード**を見られる。依頼文・コマンド・ファイルパスもそのまま見える。秘密っぽい値は `<REDACTED>` に伏せているが正規表現頼みなので、見せる前に [raw](/d/claude-code-raw?var-event=user_prompt) で `user_prompt` と `tool_result` を確かめる。相手も admin なので編集できる。終わったら Ctrl-C で止める (`just observe-show-connection` で公開中か確かめられる)"
+      }
+    }
+  ]
+}
