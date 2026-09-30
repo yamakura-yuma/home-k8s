@@ -105,8 +105,8 @@ file provisioning はそのままでは読めない部分がある。
 | 15758・15759 | Persistent Volumes の 3 枚 | `kubelet_volume_stats_*` は kubelet 自身のメトリクスで、スクレイプ `kubernetes-nodes` が要る。このクラスタは PVC も使っていない (Tempo・Prometheus・Loki は hostPath) ので入れていない |
 | 15760 | Information 行 (Created by・Running on など) | 変数 `pod` が All のときは空。Pod を 1 つ選ぶと出る (上流の作り) |
 | 15762 | DNS Errors | 事象待ち (SERVFAIL・REFUSED の転送が無い) |
-| 15983 | Service Instance Details、Processors の incoming/outgoing items | 変数 `divider` が `service_instance_id` ラベルを前提にしている。OTLP で入れると `instance` になり、このラベルが無い |
-| 15983 | Processors の accepted/refused/dropped | Collector 0.161 はこの名前を出さない (`otelcol_processor_incoming_items`・`outgoing_items` に変わった) |
+| 15983 | Service Instance Details、Processors 1 段目 (incoming/outgoing items の Spans・Metric Points・Log Records) | 変数 `divider` が `service_instance_id` ラベルを前提にしている。OTLP で入れると `instance` になり、このラベルが無い |
+| 15983 | (空にはならない) Processors 2 段目の accepted/refused/dropped | Collector 0.161 は `otelcol_processor_accepted_*` などを出さないが、同じパネルの正規表現のクエリが `otelcol_processor_memory_limiter_accepted_*` を拾うので埋まる |
 | 15983 | enqueue_failed・send_failed・batch_size_trigger_send、Filter processors・Kubernetes 行 | 事象待ち、またはこの構成に部品 (filter・k8sattributes processor) が無い |
 | 25255 | Sessions (いつも 1)・Top Sessions by Cost (ラベル無しの 1 本)・Sessions by Terminal | `session_id` で数える作りだが、`OTEL_METRICS_INCLUDE_SESSION_ID=false` なのでラベルが無い。空ではなく誤った値になる。セッション数は `Claude Code usage` を見る |
 | 25255 | Top Users | 利用者が 1 人なので 1 本だけ |
