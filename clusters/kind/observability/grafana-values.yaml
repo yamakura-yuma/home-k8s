@@ -13,9 +13,56 @@ admin:
   userKey: admin-user
   passwordKey: admin-password
 
+# 共有相手に渡す閲覧用ユーザー viewer (Viewer ロール)。Grafana は永続化していないので、
+# Pod を作り直すと消える。そこで Grafana の横にサイドカーを置き、viewer が無ければ HTTP API で作る。
+# Grafana のイメージは distroless で sh が無く、postStart の exec では作れないため別コンテナにする。
+# パスワードは `just observe-up` が作る Secret grafana-viewer から読む。値はリポジトリに置かない。
+# サイドカーは作るだけで、パスワードを変えない。変えるのは `just observe-share` (起動のたびに作り直す)。
+# 新しい Pod では環境変数が Secret のいまの値になるので、作り直しても最後に渡したパスワードで入れる。
+# ここは chart が tpl に通すので、二重波括弧を書かないこと
+extraContainers: |
+  - name: viewer-user
+    image: curlimages/curl:8.16.0
+    env:
+      - name: ADMIN_USER
+        valueFrom:
+          secretKeyRef:
+            name: grafana-admin
+            key: admin-user
+      - name: ADMIN_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: grafana-admin
+            key: admin-password
+      - name: VIEWER_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: grafana-viewer
+            key: password
+    command:
+      - sh
+      - -c
+      - |
+        api=http://127.0.0.1:3000/api
+        while true; do
+          # 200 なら居る、404 なら作る。それ以外は Grafana がまだ起動していない
+          code=$(curl -s -o /dev/null -w '%{http_code}' -u "$ADMIN_USER:$ADMIN_PASSWORD" \
+            "$api/users/lookup?loginOrEmail=viewer")
+          if [ "$code" = 404 ]; then
+            # 新しいユーザーのロールは auto_assign_org_role (下の grafana.ini で Viewer)
+            printf '{"name":"viewer","login":"viewer","password":"%s"}' "$VIEWER_PASSWORD" \
+              | curl -sf -o /dev/null -u "$ADMIN_USER:$ADMIN_PASSWORD" \
+                  -H 'Content-Type: application/json' --data-binary @- "$api/admin/users" \
+              && echo "viewer を作った"
+          fi
+          sleep 10
+        done
+
 grafana.ini:
   auth.anonymous:
     enabled: false
+  users:
+    auto_assign_org_role: Viewer
   analytics:
     reporting_enabled: false
     check_for_updates: false

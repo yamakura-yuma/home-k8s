@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# just observe-show-connection の本体。引数: <パスワードファイル> <状態ファイル>
+# just observe-show-connection の本体。引数: <viewer のパスワードファイル> <状態ファイル>
 # observe-share が動いていれば公開 URL を、動いていなければ localhost:3000 を表示する。
+# 表示するのは共有相手に渡す viewer の資格情報。admin のものは just observe-show-admin で見る。
 # 状態ファイルは observe-share が公開中だけ置く。強制終了で残っていても、
 # 書かれた pid の cloudflared が生きていなければ停止中として扱う。
 set -euo pipefail
@@ -29,6 +30,6 @@ else
     echo "  URL:        http://localhost:3000"
 fi
 cat <<EOF2
-  ユーザー:   admin
+  ユーザー:   viewer
   パスワード: $(cat "$password_file")
 EOF2

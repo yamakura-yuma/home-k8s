@@ -1,19 +1,23 @@
 #!/usr/bin/env bash
-# just observe-share の本体。引数: <パスワードファイル> <ログファイル> <状態ファイル>
-# Grafana (localhost:3000) を Cloudflare Quick Tunnel で公開し、URL が外から引けて応答するように
-# なってから URL・ユーザー・パスワードだけを表示する。cloudflared と caddy のログはファイルへ流す。
+# just observe-share の本体。
+# 引数: <admin のパスワードファイル> <viewer のパスワードファイル> <namespace> <ログファイル> <状態ファイル>
+# viewer のパスワードを作り直してから、Grafana (localhost:3000) を Cloudflare Quick Tunnel で公開し、
+# URL が外から引けて応答するようになってから URL と viewer のユーザー・パスワードだけを表示する。
+# admin の資格情報は表示しない (共有相手に渡すのは閲覧用の viewer だけ)。cloudflared と caddy のログはファイルへ流す。
 # Ctrl-C (または TERM) で両方を止めてから抜ける。
 # 公開中は状態ファイルに URL と cloudflared の pid を書き、just observe-show-connection が読む。
 set -euo pipefail
-password_file="$1"
-log="$2"
-state="$3"
+admin_file="$1"
+viewer_file="$2"
+ns="$3"
+log="$4"
+state="$5"
 dir="$(cd "$(dirname "$0")" && pwd)"
 # cloudflared → caddy → Grafana。caddy がリダイレクト先の localhost:3000 を相対パスに直す
 export SHARE_PROXY_PORT=3001
 
-if [ ! -s "$password_file" ]; then
-    echo "$password_file が無い。先に just observe-up を打つ" >&2
+if [ ! -s "$admin_file" ] || [ ! -s "$viewer_file" ]; then
+    echo "$admin_file か $viewer_file が無い。先に just observe-up を打つ" >&2
     exit 1
 fi
 if ! command -v caddy >/dev/null; then
@@ -24,6 +28,8 @@ if ! curl -sf -o /dev/null --max-time 5 http://localhost:3000/api/health; then
     echo "Grafana (localhost:3000) が応答しない。just observe-up を打ったか確かめる" >&2
     exit 1
 fi
+# 前回の共有相手が今回の URL で入れないよう、共有のたびに viewer のパスワードを変える
+bash "$dir/grafana-viewer-rotate.sh" "$admin_file" "$viewer_file" "$ns"
 
 mkdir -p "$(dirname "$log")"
 : > "$log"
@@ -70,8 +76,8 @@ for _ in $(seq 120); do
         cat <<EOF
 Grafana を公開しました（Ctrl-C で停止）
   URL:        $url
-  ユーザー:   admin
-  パスワード: $(cat "$password_file")
+  ユーザー:   viewer
+  パスワード: $(cat "$viewer_file")
   ログ:       $log
 EOF
         # どちらかが止まったら (トンネルが切れたら) 抜ける
