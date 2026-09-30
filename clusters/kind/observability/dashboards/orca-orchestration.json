@@ -1,0 +1,2231 @@
+{
+  "uid": "orca-orchestration",
+  "title": "Orca orchestration",
+  "description": "coordinator が Orca でワーカーをどう回したか (Run / Task / ワーカー / メッセージ) と手戻り",
+  "tags": [
+    "claude-code",
+    "orca"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 41,
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "refresh": "",
+  "links": [
+    {
+      "type": "dashboards",
+      "title": "Claude Code",
+      "tags": [
+        "claude-code"
+      ],
+      "asDropdown": false,
+      "includeVars": false,
+      "keepTime": true,
+      "targetBlank": false,
+      "icon": "external link"
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "type": "query",
+        "name": "worker",
+        "label": "ワーカー",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "qryType": 1,
+          "query": "label_values(orca_dispatch_info, orca_worktree_name)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "definition": "label_values(orca_dispatch_info, orca_worktree_name)",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "sort": 1,
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      },
+      {
+        "type": "query",
+        "name": "run",
+        "label": "Run (タイムライン)",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "qryType": 3,
+          "query": "query_result(last_over_time(orca_run_info{job=\"home-k8s/orca\", orca_run_state=\"closed\"}[15m]))",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "definition": "query_result(last_over_time(orca_run_info{job=\"home-k8s/orca\", orca_run_state=\"closed\"}[15m]))",
+        "regex": "/orca_run_objective=\"(?<text>[^\"]*)\".*trace_id=\"(?<value>[0-9a-f]+)\"/",
+        "refresh": 2,
+        "includeAll": false,
+        "multi": false,
+        "sort": 0,
+        "description": "タイムラインに出す Run。トレースは終わった Run (coordinator が束縛していない、動いているワーカーが無い) だけにある"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "このダッシュボードの使い方",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 7
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "coordinator が Orca でワーカーをどう回したか (Run → Task → ワーカー (Dispatch) → メッセージ) と、**手戻り** (追加指示、worker_done までの時間、拒否・user_takeover) を見る。\nデータはホストの `orca-exporter` (systemd のユーザーユニット) が 30 秒ごとに `orca orchestration ... --json` を読んで送る。止まっていたら `just orca-exporter-status`。詳しくはリポジトリの `docs/observability/orca-orchestration.md`、困りごと別の見方は `playbook.md` の「手戻りを減らす」。\n\n- **追加指示** = coordinator からワーカーへの、返事ではないメッセージ (`orca orchestration send` の訂正・追加依頼)。`ask` への返事は数えない。**0 が理想**。1 以上は最初の依頼 (spec) に足りないものがあった印\n- 数字は Orca にいま残っている Run が元。右上の期間は「その期間に**出した**ワーカー」で絞る (メッセージの推移は送った時刻で絞る)\n- 上の「ワーカー」で絞ると全パネルが絞られる。ワーカー名は Claude Code 側の `orca_worktree_name` と同じなので、[improve](/d/claude-code-improve) や [usage](/d/claude-code-usage) にもそのまま持っていける"
+      }
+    },
+    {
+      "id": 2,
+      "type": "row",
+      "title": "1. 要約 (期間中に出したワーカー)",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 7,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "ワーカー数",
+      "description": "期間中に出したワーカー (Dispatch) の数。Run の数ではない",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "count(max by (orca_dispatch_id) (last_over_time(orca_dispatch_info{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\"}[$__range])) and on (orca_dispatch_id) (last_over_time(orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds})) or vector(0)",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "追加指示 (合計)",
+      "description": "coordinator からワーカーへの追加指示の合計。増えたら spec の書き方 (完了条件・範囲・前提) を疑う",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 8,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(last_over_time(orca_dispatch_followups{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\"}[$__range]) and on (orca_dispatch_id) (last_over_time(orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds})) or vector(0)",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "1 ワーカーあたりの追加指示",
+      "description": "追加指示 ÷ ワーカー数。0.5 を超えたら、spec の雛形 (完了条件・報告先・触ってよい範囲) を見直す",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "avg(last_over_time(orca_dispatch_followups{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\"}[$__range]) and on (orca_dispatch_id) (last_over_time(orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds}))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "worker_done までの時間 (中央値)",
+      "description": "ワーカーを出してから最初の worker_done (受理) までの中央値。伸びたら依頼が大きすぎないか (分けられないか)、モデルが遅くないかを疑う",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 8,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "quantile(0.5, last_over_time(orca_dispatch_time_to_done_seconds{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\"}[$__range]) and on (orca_dispatch_id) (last_over_time(orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds}))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "拒否された worker_done",
+      "description": "Orca が受け取らなかった worker_done (capability 失効など)。出たら、coordinator が先に release / 作り直しをしていないか (Orca の運用) を疑う",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 8,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(last_over_time(orca_dispatch_worker_done_rejected{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\"}[$__range]) and on (orca_dispatch_id) (last_over_time(orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds})) or vector(0)",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "user_takeover",
+      "description": "端末を人が引き取った (release されずに残った) ワーカー。多いのは、完了後に人が確かめる運用か、ワーカーが止まって人が入った印",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 12,
+        "w": 8,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "count(last_over_time(orca_dispatch_info{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\", orca_release_retained_reason=\"user_takeover\"}[15m]) and on (orca_dispatch_id) (last_over_time(orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds})) or vector(0)",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "exporter の最終送信",
+      "description": "orca-exporter が最後に Orca を読んで送れた時刻からの経過。数分以上なら `just orca-exporter-status` を見る",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 12,
+        "w": 8,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "time() - max(orca_exporter_last_success_seconds{job=\"home-k8s/orca\"})",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 120
+              },
+              {
+                "color": "red",
+                "value": 600
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "2. Run (目的ごとの流れ)",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 11,
+      "type": "table",
+      "title": "Run 一覧",
+      "description": "目的・開始・所要時間・Task 数。「Run」列を押すと下のタイムラインにその Run が出る。完了が少なく Task が多い Run は、分け方 (1 Task の大きさ) を疑う",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 17,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (orca_run_id, orca_run_objective, trace_id) (last_over_time(orca_run_info{job=\"home-k8s/orca\"}[15m]) and on (orca_run_id) (last_over_time(orca_run_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds}))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (orca_run_id) (last_over_time(orca_run_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) and on (orca_run_id) (last_over_time(orca_run_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds})) * 1000",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (orca_run_id) (last_over_time(orca_run_duration_seconds{job=\"home-k8s/orca\"}[$__range]) and on (orca_run_id) (last_over_time(orca_run_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds}))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (orca_run_id) (last_over_time(orca_run_tasks{job=\"home-k8s/orca\"}[$__range]) and on (orca_run_id) (last_over_time(orca_run_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds}))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "E",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (orca_run_id) (last_over_time(orca_run_tasks{job=\"home-k8s/orca\", orca_task_status=\"completed\"}[$__range]) and on (orca_run_id) (last_over_time(orca_run_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds}))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "F",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (orca_run_id) (last_over_time(orca_run_tasks{job=\"home-k8s/orca\", orca_task_status=\"failed\"}[$__range]) and on (orca_run_id) (last_over_time(orca_run_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds}))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "G",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "count by (orca_run_id) (max by (orca_run_id, orca_dispatch_id) (last_over_time(orca_dispatch_info{job=\"home-k8s/orca\"}[$__range])))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "H",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (orca_run_id) (last_over_time(orca_dispatch_followups{job=\"home-k8s/orca\"}[$__range]))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "orca_run_id",
+            "mode": "outerTabular"
+          }
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "filters": [
+              {
+                "fieldName": "orca_run_objective",
+                "config": {
+                  "id": "isNull",
+                  "options": {}
+                }
+              }
+            ],
+            "type": "exclude",
+            "match": "any"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Time 1": true,
+              "Time 2": true,
+              "Time 3": true,
+              "Time 4": true,
+              "Time 5": true,
+              "Time 6": true,
+              "Time 7": true,
+              "Time 8": true,
+              "__name__": true,
+              "job": true,
+              "Value #A": true
+            },
+            "indexByName": {
+              "orca_run_objective": 0,
+              "Value #B": 1,
+              "Value #C": 2,
+              "Value #D": 3,
+              "Value #E": 4,
+              "Value #F": 5,
+              "Value #G": 6,
+              "Value #H": 7,
+              "orca_run_id": 8
+            },
+            "renameByName": {
+              "orca_run_objective": "目的",
+              "Value #B": "開始",
+              "Value #C": "所要時間",
+              "Value #D": "Task",
+              "Value #E": "完了",
+              "Value #F": "失敗",
+              "Value #G": "ワーカー",
+              "Value #H": "追加指示",
+              "orca_run_id": "Run",
+              "trace_id": "trace_id"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "開始"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocalNoDateIfToday"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "所要時間"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "目的"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 520
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Run"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "この Run のタイムラインを下に出す",
+                    "url": "/d/orca-orchestration/orca-orchestration?${__url_time_range}&${worker:queryparam}&var-run=${__data.fields.trace_id}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "trace_id"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "開始",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 12,
+      "type": "traces",
+      "title": "Run のタイムライン",
+      "description": "上の「Run」で選んだ Run。親が Run、子が Task、孫がワーカー (Dispatch) で、メッセージはスパンのイベント (◆)。ワーカーの帯が長く ◆ (追加指示・question) が多いところが手戻り。Task / Run は終わってから送るので、動いている Run はまだ出ない (docs 参照)",
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 25,
+        "w": 24,
+        "h": 14
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "$run"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "table",
+      "title": "Run のトレース一覧 (Tempo)",
+      "description": "Tempo に届いた Run。Trace ID を押すと Explore で開く。Orca にある Run より少なければ、その Run はまだ終わっていない (coordinator が束縛中か、ワーカーが動いている)",
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 39,
+        "w": 24,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{resource.service.namespace=\"home-k8s\" && resource.service.name=\"orca\" && span.orca.span.kind=\"run\"}",
+          "limit": 50,
+          "tableType": "traces"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "row",
+      "title": "3. ワーカー別 (手戻り)",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 45,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 15,
+      "type": "table",
+      "title": "ワーカーごとの手戻り",
+      "description": "1 行 = 1 ワーカー (Dispatch)。追加指示・question が多い行の spec を読み返し、最初に書けなかった条件を spec の雛形に足す。heartbeat の最大間隔が 10 分を大きく超える行は、ワーカーが止まっていた (人の確認待ち・権限の確認) 可能性",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 46,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "last_over_time(orca_dispatch_info{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\"}[15m]) and on (orca_dispatch_id) (last_over_time(orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds})",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (orca_dispatch_id) (last_over_time(orca_dispatch_followups{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\"}[$__range]))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (orca_dispatch_id) (last_over_time(orca_dispatch_replies{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\"}[$__range]))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (orca_dispatch_id) (last_over_time(orca_dispatch_questions{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\"}[$__range]))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "E",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (orca_dispatch_id) (last_over_time(orca_dispatch_worker_done_rejected{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\"}[$__range]))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "F",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (orca_dispatch_id) (last_over_time(orca_dispatch_heartbeat_max_gap_seconds{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\"}[$__range]))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "G",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (orca_dispatch_id) (last_over_time(orca_dispatch_time_to_done_seconds{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\"}[$__range]))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "H",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (orca_dispatch_id) (last_over_time(orca_dispatch_duration_seconds{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\"}[$__range]))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "I",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (orca_dispatch_id) (last_over_time(orca_dispatch_start_time_seconds{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\"}[$__range])) * 1000",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "orca_dispatch_id",
+            "mode": "inner"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Time 1": true,
+              "Time 2": true,
+              "Time 3": true,
+              "Time 4": true,
+              "Time 5": true,
+              "Time 6": true,
+              "Time 7": true,
+              "Time 8": true,
+              "Time 9": true,
+              "__name__": true,
+              "job": true,
+              "Value #A": true,
+              "orca_task_id": true,
+              "orca_resource_ownership": true,
+              "orca_terminal_state": true,
+              "orca_dispatch_retry_of": true,
+              "orca_attention": true,
+              "orca_dispatch_termination_reason": true
+            },
+            "indexByName": {
+              "orca_worktree_name": 0,
+              "orca_model": 1,
+              "Value #I": 2,
+              "Value #B": 3,
+              "Value #D": 4,
+              "Value #C": 5,
+              "Value #E": 6,
+              "Value #G": 7,
+              "Value #H": 8,
+              "Value #F": 9,
+              "orca_dispatch_status": 10,
+              "orca_worker_state": 11,
+              "orca_release_state": 12,
+              "orca_release_retained_reason": 13,
+              "orca_run_id": 14,
+              "orca_dispatch_id": 15
+            },
+            "renameByName": {
+              "orca_worktree_name": "ワーカー",
+              "orca_model": "モデル",
+              "Value #I": "開始",
+              "Value #B": "追加指示",
+              "Value #C": "返事",
+              "Value #D": "question",
+              "Value #E": "拒否された worker_done",
+              "Value #F": "heartbeat 最大間隔",
+              "Value #G": "worker_done まで",
+              "Value #H": "所要時間",
+              "orca_dispatch_status": "Dispatch",
+              "orca_worker_state": "ワーカー状態",
+              "orca_release_state": "release",
+              "orca_release_retained_reason": "残った理由",
+              "orca_run_id": "Run",
+              "orca_dispatch_id": "Dispatch ID"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "開始"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocalNoDateIfToday"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "heartbeat 最大間隔"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "worker_done まで"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "所要時間"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "追加指示"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "transparent",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 3
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ワーカー"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "このワーカーの Claude Code (improve)",
+                    "url": "/d/claude-code-improve/claude-code-improve?${__url_time_range}&var-worker=${__value.raw}"
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 300
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "モデル"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 150
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "開始",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 16,
+      "type": "bargauge",
+      "title": "追加指示の多いワーカー",
+      "description": "ワーカーごとの追加指示 (上位 10)。上位に同じ種類の仕事 (調査・docs・ダッシュボード) が並ぶなら、その種類の spec の雛形を直す",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 56,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "topk(10, sum by (orca_worktree_name) (last_over_time(orca_dispatch_followups{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\"}[$__range]) and on (orca_dispatch_id) (last_over_time(orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds})) > 0)",
+          "legendFormat": "{{orca_worktree_name}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "color": {
+            "mode": "continuous-GrYlRd"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "namePlacement": "left",
+        "sizing": "auto"
+      }
+    },
+    {
+      "id": 17,
+      "type": "bargauge",
+      "title": "worker_done までの時間",
+      "description": "ワーカーごとの、出してから worker_done まで (上位 10)。長いものは依頼の大きさ (1 ワーカーに詰め込みすぎ) か、途中の人の確認待ちを疑う。heartbeat の間隔と合わせて見る",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 56,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "topk(10, max by (orca_worktree_name) (last_over_time(orca_dispatch_time_to_done_seconds{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\"}[$__range]) and on (orca_dispatch_id) (last_over_time(orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds})))",
+          "legendFormat": "{{orca_worktree_name}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "color": {
+            "mode": "continuous-GrYlRd"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "namePlacement": "left",
+        "sizing": "auto"
+      }
+    },
+    {
+      "id": 18,
+      "type": "bargauge",
+      "title": "heartbeat の途切れ (最大間隔)",
+      "description": "heartbeat 同士 (と開始・終了) の最大の間隔 (上位 10)。5 分ごとに送る約束なので、15 分を超えるものはワーカーが止まっていた (権限の確認・長いコマンド) か、heartbeat を忘れた。後者なら spec の雛形に heartbeat の一文があるか確かめる",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 56,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "topk(10, max by (orca_worktree_name) (last_over_time(orca_dispatch_heartbeat_max_gap_seconds{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\"}[$__range]) and on (orca_dispatch_id) (last_over_time(orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds})))",
+          "legendFormat": "{{orca_worktree_name}}",
+          "instant": true,
+          "range": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "color": {
+            "mode": "continuous-GrYlRd"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "namePlacement": "left",
+        "sizing": "auto"
+      }
+    },
+    {
+      "id": 19,
+      "type": "table",
+      "title": "拒否・失敗・user_takeover",
+      "description": "ワーカーの終わり方の内訳 (Dispatch の状態 × release の結果 × 残った理由)。failed / abandoned が出たら Task の spec と完了条件を、拒否された worker_done が出たら coordinator が先に作り直していないかを確かめる",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 64,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "count by (orca_dispatch_status, orca_worker_state, orca_release_state, orca_release_retained_reason) (last_over_time(orca_dispatch_info{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\"}[15m]) and on (orca_dispatch_id) (last_over_time(orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds}))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(last_over_time(orca_dispatch_worker_done_rejected{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\"}[$__range]) and on (orca_dispatch_id) (last_over_time(orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds})) or vector(0)",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "orca_dispatch_status": "Dispatch",
+              "orca_worker_state": "ワーカー状態",
+              "orca_release_state": "release",
+              "orca_release_retained_reason": "残った理由",
+              "Value #A": "ワーカー数",
+              "Value #B": "拒否された worker_done (合計)"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    },
+    {
+      "id": 20,
+      "type": "logs",
+      "title": "拒否されたメッセージ",
+      "description": "Orca が受け取らなかった worker_done / heartbeat。理由 (rejection_code) が capability 失効なら、ワーカーが止まる前に coordinator が stop / release した",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 64,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{service_namespace=\"home-k8s\", service_name=\"orca\"} | event_name=\"orca.message\" | orca_worktree_name=~\"$worker\" | orca_message_rejected=\"true\" | line_format \"{{.orca_worktree_name}} {{.orca_message_type}} {{.orca_message_rejection_code}}: {{.orca_message_subject}}\"",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "prettifyLogMessage": false
+      }
+    },
+    {
+      "id": 21,
+      "type": "row",
+      "title": "4. メッセージの流れ",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 71,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "メッセージ数の推移 (種別)",
+      "description": "送った時刻ごとの件数。heartbeat ばかりで worker_done が来ない時間帯は、ワーカーが長く動いている。status (追加指示) の山は手戻りの起きた時刻",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 72,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (orca_message_type) (count_over_time({service_namespace=\"home-k8s\", service_name=\"orca\"} | event_name=\"orca.message\" | orca_worktree_name=~\"$worker\" [$__auto]))",
+          "queryType": "range",
+          "legendFormat": "{{orca_message_type}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "stacking": {
+              "mode": "normal"
+            },
+            "fillOpacity": 80,
+            "lineWidth": 1
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 23,
+      "type": "timeseries",
+      "title": "追加指示と question の推移",
+      "description": "coordinator → ワーカーの追加指示と、ワーカー → coordinator の question。同じ時期に両方が多いなら、spec の曖昧さで往復している。ask への返事は含めない",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 72,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({service_namespace=\"home-k8s\", service_name=\"orca\"} | event_name=\"orca.message\" | orca_worktree_name=~\"$worker\" | orca_message_followup=\"true\" [$__auto]))",
+          "queryType": "range",
+          "legendFormat": "追加指示"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({service_namespace=\"home-k8s\", service_name=\"orca\"} | event_name=\"orca.message\" | orca_worktree_name=~\"$worker\" | orca_message_type=\"question\" [$__auto]))",
+          "queryType": "range",
+          "legendFormat": "question"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({service_namespace=\"home-k8s\", service_name=\"orca\"} | event_name=\"orca.message\" | orca_worktree_name=~\"$worker\" | orca_message_type=\"escalation\" [$__auto]))",
+          "queryType": "range",
+          "legendFormat": "escalation"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "stacking": {
+              "mode": "normal"
+            },
+            "fillOpacity": 80,
+            "lineWidth": 1
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 24,
+      "type": "timeseries",
+      "title": "送信 → 配達の遅れ (最大)",
+      "description": "メッセージを送ってから宛先に配達されるまで (種別ごとの最大)。数分を超えるなら、宛先の端末が止まっていた (coordinator が別の作業中、ワーカーが権限の確認待ち)",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 80,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "max by (orca_message_type) (max_over_time({service_namespace=\"home-k8s\", service_name=\"orca\"} | event_name=\"orca.message\" | orca_worktree_name=~\"$worker\" | orca_message_delivery_delay_seconds!=\"\" | unwrap orca_message_delivery_delay_seconds [$__auto]))",
+          "queryType": "range",
+          "legendFormat": "{{orca_message_type}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "points",
+            "pointSize": 6
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 25,
+      "type": "logs",
+      "title": "coordinator ↔ ワーカーのやりとり (heartbeat 以外)",
+      "description": "追加指示・question・返事・worker_done の件名と本文。追加指示の本文から、最初の spec に書けたはずの条件を拾う",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 80,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{service_namespace=\"home-k8s\", service_name=\"orca\"} | event_name=\"orca.message\" | orca_worktree_name=~\"$worker\" | orca_message_type!=\"heartbeat\" | line_format `[{{.orca_message_type}}{{if eq .orca_message_followup \"true\"}} 追加指示{{end}}] {{.orca_worktree_name}}: {{.orca_message_subject}} | {{__line__}}`",
+          "queryType": "range"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "prettifyLogMessage": false
+      }
+    },
+    {
+      "id": 26,
+      "type": "row",
+      "title": "5. Claude Code との突き合わせ (ワーカー名で結合)",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 88,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 27,
+      "type": "table",
+      "title": "ワーカーごとの手戻りとコスト",
+      "description": "Orca 側 (追加指示・question・所要時間) と Claude Code 側 (コスト・トークン・API 呼び出し・ツール失敗) をワーカー名で並べる。手戻りが多いワーカーがコストも高ければ、spec を直す効果が大きい。手戻りが少ないのにコストが高ければ、モデル選択か調べる範囲を疑う。片方だけの行は、期間外か Orca の外 (Claude だけ) のもの",
+      "datasource": {
+        "type": "datasource",
+        "uid": "-- Mixed --"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 89,
+        "w": 24,
+        "h": 12
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (orca_worktree_name) (last_over_time(orca_dispatch_followups{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\", orca_worktree_name!=\"\"}[$__range]) and on (orca_dispatch_id) (last_over_time(orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds}))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (orca_worktree_name) (last_over_time(orca_dispatch_questions{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\", orca_worktree_name!=\"\"}[$__range]) and on (orca_dispatch_id) (last_over_time(orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds}))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (orca_worktree_name) (last_over_time(orca_dispatch_duration_seconds{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\", orca_worktree_name!=\"\"}[$__range]) and on (orca_dispatch_id) (last_over_time(orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds}))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "count by (orca_worktree_name) (max by (orca_worktree_name, orca_dispatch_id) (last_over_time(orca_dispatch_info{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\", orca_worktree_name!=\"\"}[$__range])) and on (orca_dispatch_id) (last_over_time(orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds}))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "E",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (orca_worktree_name) (increase(claude_code_cost_usage_USD_total{orca_worktree_name=~\"$worker\", orca_worktree_name!=\"\"}[$__range] anchored))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "F",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (orca_worktree_name) (increase(claude_code_token_usage_tokens_total{orca_worktree_name=~\"$worker\", orca_worktree_name!=\"\"}[$__range] anchored))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "G",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "queryType": "instant",
+          "expr": "sum by (orca_worktree_name) (count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\", orca_worktree_name!=\"\" | event_name=\"api_request\" [$__range]))"
+        },
+        {
+          "refId": "H",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "queryType": "instant",
+          "expr": "sum by (orca_worktree_name) (count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\", orca_worktree_name!=\"\" | event_name=\"tool_result\" | success=\"false\" [$__range]))"
+        },
+        {
+          "refId": "I",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "topk by (orca_worktree_name) (1, sum by (orca_worktree_name, model) (increase(claude_code_cost_usage_USD_total{orca_worktree_name=~\"$worker\", orca_worktree_name!=\"\"}[$__range] anchored)))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "orca_worktree_name",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Time 1": true,
+              "Time 2": true,
+              "Time 3": true,
+              "Time 4": true,
+              "Time 5": true,
+              "Time 6": true,
+              "Time 7": true,
+              "Time 8": true,
+              "Time 9": true,
+              "Value #I": true
+            },
+            "indexByName": {
+              "orca_worktree_name": 0,
+              "Value #A": 1,
+              "Value #E": 2,
+              "Value #B": 3,
+              "Value #C": 4,
+              "Value #H": 5,
+              "Value #G": 6,
+              "Value #F": 7,
+              "model": 8,
+              "Value #D": 9
+            },
+            "renameByName": {
+              "orca_worktree_name": "ワーカー",
+              "model": "主なモデル (コスト最大)",
+              "Value #D": "Dispatch",
+              "Value #A": "追加指示",
+              "Value #B": "question",
+              "Value #C": "所要時間 (Orca)",
+              "Value #E": "コスト (USD)",
+              "Value #F": "トークン",
+              "Value #G": "API 呼び出し",
+              "Value #H": "ツール失敗"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "コスト (USD)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "所要時間 (Orca)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "トークン"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "追加指示"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "transparent",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 3
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ワーカー"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "このワーカーの Claude Code (improve)",
+                    "url": "/d/claude-code-improve/claude-code-improve?${__url_time_range}&var-worker=${__value.raw}"
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 300
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "追加指示",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 28,
+      "type": "table",
+      "title": "モデル別の手戻り",
+      "description": "ワーカーの主なモデル (Claude Code 側でコストが最大のモデル) ごとに、ワーカー数・追加指示・1 ワーカーあたりの追加指示とコスト。安いモデルに回した仕事の 1 ワーカーあたりの追加指示が高いなら、その種類の仕事はモデルを上げるか spec を細かくする",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 101,
+        "w": 24,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "count by (model) (sum by (orca_worktree_name) (max by (orca_worktree_name, orca_dispatch_id) (last_over_time(orca_dispatch_info{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\", orca_worktree_name!=\"\"}[$__range])) and on (orca_dispatch_id) (last_over_time(orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds})) * on (orca_worktree_name) group_left (model) (topk by (orca_worktree_name) (1, sum by (orca_worktree_name, model) (increase(claude_code_cost_usage_USD_total{orca_worktree_name=~\"$worker\", orca_worktree_name!=\"\"}[$__range] anchored))) * 0 + 1))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (model) (sum by (orca_worktree_name) (max by (orca_worktree_name, orca_dispatch_id) (last_over_time(orca_dispatch_followups{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\", orca_worktree_name!=\"\"}[$__range])) and on (orca_dispatch_id) (last_over_time(orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds})) * on (orca_worktree_name) group_left (model) (topk by (orca_worktree_name) (1, sum by (orca_worktree_name, model) (increase(claude_code_cost_usage_USD_total{orca_worktree_name=~\"$worker\", orca_worktree_name!=\"\"}[$__range] anchored))) * 0 + 1))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "avg by (model) (sum by (orca_worktree_name) (max by (orca_worktree_name, orca_dispatch_id) (last_over_time(orca_dispatch_followups{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\", orca_worktree_name!=\"\"}[$__range])) and on (orca_dispatch_id) (last_over_time(orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds})) * on (orca_worktree_name) group_left (model) (topk by (orca_worktree_name) (1, sum by (orca_worktree_name, model) (increase(claude_code_cost_usage_USD_total{orca_worktree_name=~\"$worker\", orca_worktree_name!=\"\"}[$__range] anchored))) * 0 + 1))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "avg by (model) (sum by (orca_worktree_name) (increase(claude_code_cost_usage_USD_total{orca_worktree_name=~\"$worker\", orca_worktree_name!=\"\"}[$__range] anchored)) * on (orca_worktree_name) group_left (model) (topk by (orca_worktree_name) (1, sum by (orca_worktree_name, model) (increase(claude_code_cost_usage_USD_total{orca_worktree_name=~\"$worker\", orca_worktree_name!=\"\"}[$__range] anchored))) * 0 + 1) and on (orca_worktree_name) sum by (orca_worktree_name) (max by (orca_worktree_name, orca_dispatch_id) (last_over_time(orca_dispatch_info{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\", orca_worktree_name!=\"\"}[$__range])) and on (orca_dispatch_id) (last_over_time(orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds})))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "E",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "avg by (model) (max by (orca_worktree_name) (last_over_time(orca_dispatch_time_to_done_seconds{job=\"home-k8s/orca\", orca_worktree_name=~\"$worker\", orca_worktree_name!=\"\"}[$__range]) and on (orca_dispatch_id) (last_over_time(orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds})) * on (orca_worktree_name) group_left (model) (topk by (orca_worktree_name) (1, sum by (orca_worktree_name, model) (increase(claude_code_cost_usage_USD_total{orca_worktree_name=~\"$worker\", orca_worktree_name!=\"\"}[$__range] anchored))) * 0 + 1))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "model": "主なモデル",
+              "Value #A": "ワーカー",
+              "Value #B": "追加指示",
+              "Value #C": "1 ワーカーあたりの追加指示",
+              "Value #D": "1 ワーカーあたりのコスト (USD)",
+              "Value #E": "worker_done まで (平均)"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "1 ワーカーあたりのコスト (USD)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "1 ワーカーあたりの追加指示"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "worker_done まで (平均)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      }
+    }
+  ]
+}

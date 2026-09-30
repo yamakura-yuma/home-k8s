@@ -25,6 +25,9 @@ loki:
     # OTLP のリソース属性・ログ属性は structured metadata として残す (Loki 3 の既定)
     allow_structured_metadata: true
     volume_enabled: true
+    # 古い時刻のログを受け取る上限。既定 (1w) では、orca-exporter が初回にまとめて送る
+    # 1 週間より前のメッセージが捨てられる。保存期間に揃える (docs/observability/orca-orchestration.md)
+    reject_old_samples_max_age: 336h
   # 保持期間を過ぎたログは compactor が消す
   compactor:
     retention_enabled: true

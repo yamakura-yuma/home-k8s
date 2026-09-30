@@ -44,7 +44,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "Claude Code が送ってくるテレメトリ (メトリクス・ログ・トレース) を見るためのダッシュボード群の入口。\n困りごとを下の場面から選び、書いてあるパネルを開く。詳しい版はリポジトリの `docs/observability/playbook.md`。\n\n| ダッシュボード | 使う場面 |\n|---|---|\n| [Claude Code raw](/d/claude-code-raw) | 何が届いているかを信号ごとにそのまま見る。属性名を調べるとき |\n| [Claude Code usage](/d/claude-code-usage) | コスト・トークン・ワーカー別の量 |\n| [Claude Code traces](/d/claude-code-traces) | 所要時間、ツール、hook、サブエージェントの内訳 |\n| [Claude Code improve](/d/claude-code-improve) | ハーネス (rule / skill / spec / モデル選択) を直す箇所を決める |\n| [Claude Code 設定項目別](/d/cc-settings) | OTel の設定 (環境変数) 1 つごとに、その設定で何が届くようになったかを全部見る。設定を変える前後の確認 |\n"
+        "content": "Claude Code が送ってくるテレメトリ (メトリクス・ログ・トレース) を見るためのダッシュボード群の入口。\n困りごとを下の場面から選び、書いてあるパネルを開く。詳しい版はリポジトリの `docs/observability/playbook.md`。\n\n| ダッシュボード | 使う場面 |\n|---|---|\n| [Claude Code raw](/d/claude-code-raw) | 何が届いているかを信号ごとにそのまま見る。属性名を調べるとき |\n| [Claude Code usage](/d/claude-code-usage) | コスト・トークン・ワーカー別の量 |\n| [Claude Code traces](/d/claude-code-traces) | 所要時間、ツール、hook、サブエージェントの内訳 |\n| [Claude Code improve](/d/claude-code-improve) | ハーネス (rule / skill / spec / モデル選択) を直す箇所を決める |\n| [Claude Code 設定項目別](/d/cc-settings) | OTel の設定 (環境変数) 1 つごとに、その設定で何が届くようになったかを全部見る。設定を変える前後の確認 |\n| [Orca orchestration](/d/orca-orchestration) | coordinator が Orca でワーカーをどう回したか。手戻り (追加指示の回数、worker_done までの時間、拒否・user_takeover) と、ワーカー別のコストとの突き合わせ |\n"
       }
     },
     {
@@ -223,6 +223,21 @@
       "options": {
         "mode": "markdown",
         "content": "URL とパスワードを知っている人は**全ダッシュボード**を見られる。依頼文・コマンド・ファイルパスもそのまま見える。秘密っぽい値は `<REDACTED>` に伏せているが正規表現頼みなので、見せる前に [raw](/d/claude-code-raw?var-event=user_prompt) で `user_prompt` と `tool_result` を確かめる。相手も admin なので編集できる。終わったら Ctrl-C で止める (`just observe-show-connection` で公開中か確かめられる)"
+      }
+    },
+    {
+      "id": 14,
+      "type": "text",
+      "title": "11. ワーカーの手戻りを減らしたい (追加指示・やり直しが多い)",
+      "gridPos": {
+        "x": 0,
+        "y": 47,
+        "w": 12,
+        "h": 7
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**見る**: [Orca orchestration](/d/orca-orchestration) の「1 ワーカーあたりの追加指示」と「ワーカーごとの手戻り」。\n**分かること**: どのワーカーに coordinator が後から指示を足したか (追加指示)、question で止まったか、worker_done までどれだけかかったか。「ワーカーごとの手戻りとコスト」で、手戻りが多いワーカーのコストも並ぶ。\n**次にすること**: 追加指示の本文 (「coordinator ↔ ワーカーのやりとり」) から、最初の spec に書けた条件を拾って spec の雛形に足す。安いモデルで手戻りが多いなら「モデル別の手戻り」を見てモデルを上げる。"
       }
     }
   ]

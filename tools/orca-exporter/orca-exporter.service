@@ -1,0 +1,16 @@
+# systemd のユーザーユニット。`just orca-exporter-install` が @EXPORTER@ と @ORCA_BIN@ を埋めて
+# ~/.config/systemd/user/orca-exporter.service に置く (docs/observability/orca-orchestration.md)。
+[Unit]
+Description=Orca orchestration -> OTLP exporter (home-k8s)
+After=default.target
+
+[Service]
+ExecStart=/usr/bin/python3 @EXPORTER@ --interval 30
+Environment=ORCA_BIN=@ORCA_BIN@
+Environment=OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+# Orca や Collector が居ないときは exporter の中で待つ。それ以外で落ちたら起こし直す
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=default.target

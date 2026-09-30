@@ -12,6 +12,15 @@ tempo:
         path: /var/tempo/traces
       wal:
         path: /var/tempo/wal
+        # 受け取った時刻から離れたスパンを、ブロックの時間範囲に入れる上限 (既定 2m)。
+        # 既定では orca-exporter が終わってから送る Task / Run (開始が数時間〜数日前) の範囲が
+        # 受け取った時刻に丸められ、検索でその時刻の範囲を指定しても見つからない。保存期間に揃える
+        ingestion_time_range_slack: 336h
+  # 新しいトレースを持つ live-store の WAL にも同じ上限を入れる (上の storage.trace.wal とは別の設定)
+  liveStore:
+    wal:
+      path: /var/tempo/live-store/traces
+      ingestion_time_range_slack: 336h
   # TraceQL metrics (ダッシュボードの集計) と検索・タグ一覧で引ける期間。保存期間 (336h) に揃える。
   # 既定 (metrics 24h、search 168h) のままだと Grafana の「Last 7 days」が端数の分だけ
   # 168h を超えて `time range exceeds the maximum` で失敗する。

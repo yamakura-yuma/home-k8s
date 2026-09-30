@@ -135,7 +135,10 @@ md = ("Claude Code の OTel 設定は環境変数 (dotfiles の `claude/telemetr
       "その下にその項目で届くようになった属性・ラベル・フィールドを **漏れなく** 表にした。\n\n"
       "| 環境変数 | いまの値 | 届くもの | ダッシュボード |\n|---|---|---|---|\n" +
       "\n".join(f"| `{e}` | {v} | {d} | [{u}](/d/{u}) |" for e, v, u, d in SETTINGS) +
-      "\n\n対応表の全文 (どの属性がどの設定で増えるか、実データで確かめたか) はリポジトリの `docs/observability/claude-code-settings.md`。")
+      "\n\n対応表の全文 (どの属性がどの設定で増えるか、実データで確かめたか) はリポジトリの `docs/observability/claude-code-settings.md`。"
+      "\n\nClaude Code の設定ではないが、`orca.worktree.name` で結合できる信号がもう 1 つある: Orca のオーケストレーション "
+      "(Run / Task / ワーカー / メッセージ) をホストの `orca-exporter` が送っている (`service_name=\"orca\"`)。"
+      "手戻り (追加指示の回数、worker_done までの時間) は [Orca orchestration](/d/orca-orchestration)。")
 b.add(text("設定項目別ダッシュボードの一覧", md), 24, 20)
 presence(b, "各設定で増えたものが届いているか (期間中の件数。0 = 届いていない)", [
     ("メトリクス系列 (METRICS_EXPORTER)", pc('{__name__=~"claude_code_.*"}')),
