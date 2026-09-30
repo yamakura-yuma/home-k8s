@@ -20,5 +20,8 @@ RUN curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/
         --no-confirm
 ENV PATH="${PATH}:/nix/var/nix/profiles/default/bin"
 
+# justfile (just/dev-shell) が「開発用コンテナの中」かどうかを見分ける印。
+ENV HOME_K8S_DEV=1
+
 WORKDIR /workspace
 CMD ["sleep", "infinity"]

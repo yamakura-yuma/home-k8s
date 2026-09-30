@@ -71,7 +71,7 @@ Prometheus には 2 つの feature flag を付けている。
 
 ## 手順
 
-開発用コンテナ (`just devcontainer shell`) の中で実行する。
+ホストでもコンテナ (`just devcontainer shell`) の中でも打てる。ホストで打つと自動で開発用コンテナの中で実行される (README の「ホストで打つか、コンテナで打つか」)。
 
 ```sh
 just kind-up        # クラスタ作成 (受け口のポートと保存先のマウントも作られる)
@@ -185,7 +185,7 @@ Grafana はログイン必須で、匿名アクセスは付けていない (閲�
 chart に Secret を作らせると `observe-up` のたびに乱数で作り直されて Pod が再起動するが、
 この形なら Secret の中身が変わらないので `observe-up` を打ち直しても Pod はそのまま残る。
 
-パスワードは開発用コンテナの中で `just observe-password` と打つと表示される。ファイルの
+パスワードは `just observe-password` と打つと表示される。ファイルの
 所有者はホストのユーザーにしてあるので、WSL2 のシェルから `cat` しても読める。
 変えたいときはファイルを消して `just observe-up` を打ち、Secret が変わったあとで
 `kubectl --context kind-study-kind -n observability rollout restart deploy/grafana` とする
@@ -211,7 +211,7 @@ UI からは編集できない。変えるときは `grafana-values.yaml` を直
 ## 別の PC から見る
 
 Cloudflare Quick Tunnel で Grafana だけを一時的に公開する。Cloudflare のアカウントは要らず、
-`https://<ランダム>.trycloudflare.com` の URL が発行される。開発用コンテナの中で次を打つ。
+`https://<ランダム>.trycloudflare.com` の URL が発行される。次を打つ (ホストから打ってよい)。
 
 ```
 just observe-share   # cloudflared tunnel --url http://localhost:3000 を前面で動かす
