@@ -29,10 +29,10 @@ just devcontainer up      # イメージをbuildし、開発用コンテナを�
 just devcontainer shell   # コンテナにシェルで入る
 just kind-up              # (コンテナ内で) kubeadmベースのマルチノードクラスタを起動
 kubectl --context kind-study-kind get nodes -o wide   # ノード状態を確認
-just observe-up           # (コンテナ内で) OTel Collector/Tempo/Grafana を入れる
+just observe-up           # (コンテナ内で) OTel Collector/Tempo/Prometheus/Loki/Grafana を入れる
 just observe-password     # (コンテナ内で) Grafana の admin パスワードを表示
 just observe-share        # (コンテナ内で) Grafana を一時的に trycloudflare.com で公開 (Ctrl-C で停止)
-just observe-down         # 観測スタックを消す (トレースはホストに残る)
+just observe-down         # 観測スタックを消す (トレース・メトリクス・ログはホストに残る)
 just kind-down             # クラスタを削除
 just devcontainer down    # 開発用コンテナを削除
 ```
@@ -42,5 +42,6 @@ kind自体は試験で問われないためクラスタの起動/削除は just 
 `kubectl --context kind-study-kind ...` を叩いて操作すること。
 
 利用可能なrecipe一覧は `just --list` で確認できる。資格取得のロードマップは
-`docs/certification/roadmap.md` を参照。Claude Code のトレースを見る観測スタックは
-`docs/observability/claude-code-traces.md` を参照。
+`docs/certification/roadmap.md` を参照。Claude Code のトレース・メトリクス・ログを見る
+観測スタックは `docs/observability/claude-code-traces.md`、ダッシュボードの見方は
+`docs/observability/claude-code-usage.md` を参照。

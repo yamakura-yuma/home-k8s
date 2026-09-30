@@ -1,0 +1,81 @@
+# prometheus-community/prometheus chart の values。
+# Claude Code のメトリクスを OTel Collector から OTLP (/api/v1/otlp) で受ける。
+# スクレイプはしない (クラスタ自体の監視はこのスタックの目的ではない)。
+# 保存は Tempo と同じく、kind の extraMounts で WSL2 ホストの
+# ~/.local/share/home-k8s/observability につながったローカルディレクトリに置く。
+server:
+  extraFlags:
+    - web.enable-lifecycle
+    # OTLP で送られたメトリクスを受ける (/api/v1/otlp/v1/metrics)
+    - web.enable-otlp-receiver
+    # OTLP の開始時刻 (StartTimeUnixNano) に 0 の点を入れる。短いセッションは点が 1〜2 個しか
+    # 無く、これが無いと increase() が最初の送信分 (多くは全量) を取りこぼす
+    - enable-feature=created-timestamp-zero-ingestion,promql-extended-range-selectors
+  retention: 14d # Tempo に揃える
+  # OTLP のリソース属性は既定では target_info にしか残らない。
+  # ワーカーごとに絞れるよう、Orca が付ける属性を各系列のラベルに昇格させる
+  # (ラベル名は . が _ になり orca_worktree_name などになる)。
+  otlp:
+    promote_resource_attributes:
+      - orca.worktree.id
+      - orca.worktree.name
+  # PVC ではなく hostPath に TSDB を置く。chart は storage-volume (emptyDir) を必ず
+  # マウントするが、--storage.tsdb.path をこちらに向けるので使われない
+  persistentVolume:
+    enabled: false
+  storagePath: /prometheus-data
+  extraVolumes:
+    - name: prometheus-data
+      hostPath:
+        path: /var/local/home-k8s/observability/prometheus
+        type: DirectoryOrCreate
+  extraVolumeMounts:
+    - name: prometheus-data
+      mountPath: /prometheus-data
+  # extraMounts を持つ worker にだけ置く (clusters/kind/kind-config.yaml の labels)
+  nodeSelector:
+    home-k8s/observability-storage: "true"
+  # hostPath は root 所有で作られるため、Prometheus の実行ユーザー (65534) に渡してから起動する
+  extraInitContainers:
+    - name: chown-prometheus-data
+      image: busybox:1.37
+      command: ["chown", "-R", "65534:65534", "/prometheus-data"]
+      securityContext:
+        runAsUser: 0
+        runAsNonRoot: false
+      volumeMounts:
+        - name: prometheus-data
+          mountPath: /prometheus-data
+
+# chart 既定のスクレイプ対象 (Kubernetes の各種メトリクス) は使わない
+scrapeConfigs:
+  prometheus:
+    enabled: false
+  kubernetes-api-servers:
+    enabled: false
+  kubernetes-nodes:
+    enabled: false
+  kubernetes-nodes-cadvisor:
+    enabled: false
+  kubernetes-service-endpoints:
+    enabled: false
+  kubernetes-service-endpoints-slow:
+    enabled: false
+  prometheus-pushgateway:
+    enabled: false
+  kubernetes-services:
+    enabled: false
+  kubernetes-pods:
+    enabled: false
+  kubernetes-pods-slow:
+    enabled: false
+
+# 同梱のサブチャートも使わない
+alertmanager:
+  enabled: false
+kube-state-metrics:
+  enabled: false
+prometheus-node-exporter:
+  enabled: false
+prometheus-pushgateway:
+  enabled: false
