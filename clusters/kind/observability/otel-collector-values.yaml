@@ -45,6 +45,26 @@ config:
     jaeger: null
     zipkin: null
     prometheus: null
+  processors:
+    # 秘密っぽい値を Tempo / Loki に入れる前に伏せる (docs/observability/claude-code-improve.md)。
+    # Claude Code は依頼文 (prompt)・ツールの詳細 (Bash のコマンド、ファイルパス)・応答文を
+    # 属性に入れて送るので、ログとスパンの属性の全部と、ログ本文に同じ規則を当てる。
+    # 規則は 3 本: PEM の秘密鍵ブロック / キーワードの後ろの値 (Authorization, Bearer,
+    # password) / 形で分かるトークン (sk-, ghp_, github_pat_, AKIA, xoxb- など)。
+    # $${1} は Collector の設定で $ を書く書き方で、キーワード部分を残して値だけを置き換える。
+    transform/redact:
+      error_mode: ignore
+      log_statements:
+        - replace_all_patterns(log.attributes, "value", "(?s)-----BEGIN[A-Z ]*PRIVATE KEY-----.*?(-----END[A-Z ]*PRIVATE KEY-----|$)", "<REDACTED>")
+        - replace_all_patterns(log.attributes, "value", "(?i)(authorization[\"']?\\s*[:=]\\s*[\"']?(?:(?:bearer|basic|token)\\s+)?|\\bbearer\\s+|--password[= ]\\s*|\\bpassword[\"']?\\s*[:=]\\s*[\"']?)[^\\s\"'\\\\,;&]+", "$${1}<REDACTED>")
+        - replace_all_patterns(log.attributes, "value", "\\b(sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|(AKIA|ASIA)[0-9A-Z]{16}|xox[abprs]-[A-Za-z0-9-]{10,})", "<REDACTED>")
+        - replace_pattern(log.body, "(?s)-----BEGIN[A-Z ]*PRIVATE KEY-----.*?(-----END[A-Z ]*PRIVATE KEY-----|$)", "<REDACTED>")
+        - replace_pattern(log.body, "(?i)(authorization[\"']?\\s*[:=]\\s*[\"']?(?:(?:bearer|basic|token)\\s+)?|\\bbearer\\s+|--password[= ]\\s*|\\bpassword[\"']?\\s*[:=]\\s*[\"']?)[^\\s\"'\\\\,;&]+", "$${1}<REDACTED>")
+        - replace_pattern(log.body, "\\b(sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|(AKIA|ASIA)[0-9A-Z]{16}|xox[abprs]-[A-Za-z0-9-]{10,})", "<REDACTED>")
+      trace_statements:
+        - replace_all_patterns(span.attributes, "value", "(?s)-----BEGIN[A-Z ]*PRIVATE KEY-----.*?(-----END[A-Z ]*PRIVATE KEY-----|$)", "<REDACTED>")
+        - replace_all_patterns(span.attributes, "value", "(?i)(authorization[\"']?\\s*[:=]\\s*[\"']?(?:(?:bearer|basic|token)\\s+)?|\\bbearer\\s+|--password[= ]\\s*|\\bpassword[\"']?\\s*[:=]\\s*[\"']?)[^\\s\"'\\\\,;&]+", "$${1}<REDACTED>")
+        - replace_all_patterns(span.attributes, "value", "\\b(sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|(AKIA|ASIA)[0-9A-Z]{16}|xox[abprs]-[A-Za-z0-9-]{10,})", "<REDACTED>")
   exporters:
     otlp_grpc/tempo:
       endpoint: tempo.observability.svc.cluster.local:4317
@@ -64,7 +84,7 @@ config:
     pipelines:
       traces:
         receivers: [otlp]
-        processors: [memory_limiter, batch]
+        processors: [memory_limiter, transform/redact, batch]
         exporters: [otlp_grpc/tempo]
       metrics:
         receivers: [otlp]
@@ -72,5 +92,5 @@ config:
         exporters: [otlp_http/prometheus]
       logs:
         receivers: [otlp]
-        processors: [memory_limiter, batch]
+        processors: [memory_limiter, transform/redact, batch]
         exporters: [otlp_http/loki]

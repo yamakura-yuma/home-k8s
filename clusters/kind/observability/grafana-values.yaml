@@ -32,6 +32,10 @@ datasources:
         isDefault: true
         editable: false
         jsonData:
+          # タグ一覧をダッシュボードの時間範囲 (最長 14 日) で引く。未設定だと時間範囲なしで引き、
+          # Tempo はごく最近のブロックのタグしか返さない。変数「ツール」が
+          # `Scope for tag span.tool_name not found` で失敗していた原因
+          timeRangeForTags: 1209600
           # スパンから、同じトレースの Claude Code イベント (Loki) へ飛ぶ。
           # イベントは trace_id を structured metadata として持つ
           tracesToLogsV2:

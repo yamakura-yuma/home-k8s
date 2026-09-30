@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# just observe-share の本体。引数: <パスワードファイル> <ログファイル>
+# just observe-share の本体。引数: <パスワードファイル> <ログファイル> <状態ファイル>
 # Grafana (localhost:3000) を Cloudflare Quick Tunnel で公開し、URL が外から引けて応答するように
 # なってから URL・ユーザー・パスワードだけを表示する。cloudflared と caddy のログはファイルへ流す。
 # Ctrl-C (または TERM) で両方を止めてから抜ける。
+# 公開中は状態ファイルに URL と cloudflared の pid を書き、just observe-show-connection が読む。
 set -euo pipefail
 password_file="$1"
 log="$2"
+state="$3"
 dir="$(cd "$(dirname "$0")" && pwd)"
 # cloudflared → caddy → Grafana。caddy がリダイレクト先の localhost:3000 を相対パスに直す
 export SHARE_PROXY_PORT=3001
@@ -28,6 +30,7 @@ mkdir -p "$(dirname "$log")"
 pids=()
 stop() {
     trap - INT TERM EXIT
+    rm -f "$state"
     [ ${#pids[@]} -gt 0 ] && kill "${pids[@]}" 2>/dev/null || true
     wait 2>/dev/null || true
     echo "停止しました (URL は無効になった)"
@@ -62,6 +65,8 @@ done
 # 手元のリゾルバに NXDOMAIN を覚えさせないよう、1.1.1.1 に DoH で引いて応答まで確かめる
 for _ in $(seq 120); do
     if curl -sf -o /dev/null --max-time 5 --doh-url https://1.1.1.1/dns-query "$url/api/health"; then
+        # 強制終了で残ったときに古い URL を出さないよう、pid も書いて生死を確かめられるようにする
+        printf 'url=%s\ncloudflared_pid=%s\n' "$url" "${pids[1]}" > "$state"
         cat <<EOF
 Grafana を公開しました（Ctrl-C で停止）
   URL:        $url

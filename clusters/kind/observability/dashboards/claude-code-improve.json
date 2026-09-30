@@ -1,0 +1,1937 @@
+{
+  "uid": "claude-code-improve",
+  "title": "Claude Code improve",
+  "description": "ハーネス (rule / skill / 指示の書き方 / モデル選択) のどこを直すかを決めるためのダッシュボード",
+  "tags": [
+    "claude-code",
+    "loki",
+    "prometheus"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 41,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "",
+  "links": [
+    {
+      "type": "dashboards",
+      "title": "Claude Code",
+      "tags": [
+        "claude-code"
+      ],
+      "asDropdown": false,
+      "includeVars": false,
+      "keepTime": true,
+      "targetBlank": false,
+      "icon": "external link"
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "type": "query",
+        "name": "worker",
+        "label": "ワーカー",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "qryType": 1,
+          "query": "label_values(claude_code_session_count_total, orca_worktree_name)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "definition": "label_values(claude_code_session_count_total, orca_worktree_name)",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "sort": 1,
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      },
+      {
+        "type": "textbox",
+        "name": "q",
+        "label": "依頼文",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "description": "依頼文に含まれる語 (正規表現)。空なら全部"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "text",
+      "title": "このダッシュボードの使い方",
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**困りごとを 1 つ決める → 下の数字を見る → ハーネス (rule / skill / 指示の書き方 / モデル選択) を 1 か所だけ変える → 同じ期間の長さで同じ数字を比べる。** 各パネルの (i) に「数字がどう動いたら何を疑うか」を書いた。依頼文とコマンドの秘密っぽい値 (トークン、パスワード、鍵) は Collector で `<REDACTED>` に伏せてから保存している。詳しくは リポジトリの `docs/observability/claude-code-improve.md`。"
+      },
+      "id": 1
+    },
+    {
+      "type": "row",
+      "title": "0. 比べる数字 (ハーネスを変える前と後で同じ長さの期間を選んで比べる)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "panels": [],
+      "id": 2
+    },
+    {
+      "type": "stat",
+      "title": "依頼数",
+      "description": "期間中の依頼 (user_prompt) の件数。下の「1 依頼あたり」の数字の分母",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"user_prompt\" [$__range]))",
+          "queryType": "instant"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "id": 3
+    },
+    {
+      "type": "stat",
+      "title": "1 依頼あたりのコスト",
+      "description": "期間中のコスト ÷ 依頼数 (USD)。上がったら、まずモデル選択 (Opus を使う場面) と、依頼文が曖昧で探索が長くなっていないかを疑う",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(sum_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"api_request\" | unwrap cost_usd [$__range])) / sum(count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"user_prompt\" [$__range]))",
+          "queryType": "instant"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 2,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "id": 4
+    },
+    {
+      "type": "stat",
+      "title": "1 依頼あたりの API 呼び出し",
+      "description": "api_request の件数 ÷ 依頼数。多いほど 1 つの依頼で往復している。上がったら指示の書き方 (完了条件が無い、範囲が広い) を疑う",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"api_request\" [$__range])) / sum(count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"user_prompt\" [$__range]))",
+          "queryType": "instant"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 2,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "id": 5
+    },
+    {
+      "type": "stat",
+      "title": "1 依頼あたりのツール呼び出し",
+      "description": "tool_result の件数 ÷ 依頼数。上がったら、場所を探す手順 (rule / skill に索引の使い方が書いてあるか) を疑う",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"tool_result\" [$__range])) / sum(count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"user_prompt\" [$__range]))",
+          "queryType": "instant"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 2,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "id": 6
+    },
+    {
+      "type": "stat",
+      "title": "ツールの失敗率",
+      "description": "tool_result のうち success=false の割合。上がったら下の「失敗したコマンド」で繰り返し失敗しているものを見て、rule か skill に正しいやり方を書く",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum(count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"tool_result\" | success=\"false\" [$__range])) / sum(count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"tool_result\" [$__range]))",
+          "queryType": "instant"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "id": 7
+    },
+    {
+      "type": "stat",
+      "title": "キャッシュ読み出し割合",
+      "description": "入力側トークンのうちキャッシュから読んだ割合 (Prometheus)。下がったら、会話の途中で CLAUDE.md や skill を読み替えていないか、モデルを頻繁に切り替えていないかを疑う",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 5
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(increase(claude_code_token_usage_tokens_total{orca_worktree_name=~\"$worker\", type=\"cacheRead\"}[$__range] anchored)) / sum(increase(claude_code_token_usage_tokens_total{orca_worktree_name=~\"$worker\", type=~\"input|cacheRead|cacheCreation\"}[$__range] anchored))",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "none",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "id": 8
+    },
+    {
+      "type": "row",
+      "title": "1. コストの高い依頼",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "panels": [],
+      "id": 9
+    },
+    {
+      "type": "table",
+      "title": "コストの高い依頼 (上位 20)",
+      "description": "依頼 (prompt.id) ごとに api_request のコストを合計した上位。依頼文をクリックするとトレースか Loki のイベントに飛べる。上位が「調べて」「確認して」のような短い依頼なら指示の書き方 (範囲と完了条件) を、Opus ばかりならモデル選択を、API 呼び出しが多いのに成果が小さいなら rule / skill に手順が足りないことを疑う。",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 24,
+        "x": 0,
+        "y": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (prompt_id) (sum_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"api_request\" | unwrap cost_usd [$__range]))",
+          "queryType": "instant"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "count by (prompt_id, prompt, trace_id, w) (count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"user_prompt\" | prompt=~\"(?is).*$q.*\" | label_format w=`{{ or .orca_worktree_name \"(Orca の外)\" }}` | label_format prompt=`{{ .prompt | replace \"\\n\" \" \" | trunc 200 }}` [$__range]))",
+          "queryType": "instant"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "topk(1, sum by (prompt_id, model) (sum_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"api_request\" | unwrap cost_usd [$__range]))) by (prompt_id)",
+          "queryType": "instant"
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (prompt_id) (count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"api_request\" [$__range]))",
+          "queryType": "instant"
+        },
+        {
+          "refId": "E",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (prompt_id) (count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"tool_result\" [$__range]))",
+          "queryType": "instant"
+        },
+        {
+          "refId": "F",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "(max_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | prompt_id!=\"\" | unwrap observed_timestamp [$__range]) by (prompt_id) - min_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | prompt_id!=\"\" | unwrap observed_timestamp [$__range]) by (prompt_id)) / 1e9",
+          "queryType": "instant"
+        },
+        {
+          "refId": "G",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "min_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | prompt_id!=\"\" | unwrap observed_timestamp [$__range]) by (prompt_id) / 1e6",
+          "queryType": "instant"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "exclude",
+            "match": "any",
+            "filters": [
+              {
+                "fieldName": "trace_id",
+                "config": {
+                  "id": "isNull",
+                  "options": {}
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value #B": true,
+              "Value #C": true
+            },
+            "indexByName": {
+              "Value #G": 0,
+              "prompt": 1,
+              "w": 2,
+              "model": 3,
+              "Value #A": 4,
+              "Value #F": 5,
+              "Value #D": 6,
+              "Value #E": 7,
+              "trace_id": 8,
+              "prompt_id": 9
+            },
+            "renameByName": {
+              "Value #G": "開始",
+              "prompt": "依頼文",
+              "w": "ワーカー",
+              "model": "モデル",
+              "Value #A": "コスト (USD)",
+              "Value #F": "所要時間",
+              "Value #D": "API 呼び出し",
+              "Value #E": "ツール呼び出し"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "コスト (USD)",
+                "desc": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "limit",
+          "options": {
+            "limitField": 20
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "開始"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              },
+              {
+                "id": "custom.width",
+                "value": 150
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "依頼文"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "トレースを開く",
+                    "url": "",
+                    "internal": {
+                      "datasourceUid": "tempo",
+                      "datasourceName": "Tempo",
+                      "query": {
+                        "queryType": "traceql",
+                        "query": "${__data.fields.trace_id}"
+                      }
+                    }
+                  },
+                  {
+                    "title": "この依頼のイベントを Loki で見る",
+                    "url": "",
+                    "internal": {
+                      "datasourceUid": "loki",
+                      "datasourceName": "Loki",
+                      "query": {
+                        "expr": "{service_name=\"claude-code\"} | prompt_id=\"${__data.fields.prompt_id}\""
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 400
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ワーカー"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 220
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "モデル"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "コスト (USD)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-GrYlRd"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "所要時間"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "API 呼び出し"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ツール呼び出し"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "trace_id"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "トレースを開く",
+                    "url": "",
+                    "internal": {
+                      "datasourceUid": "tempo",
+                      "datasourceName": "Tempo",
+                      "query": {
+                        "queryType": "traceql",
+                        "query": "${__data.fields.trace_id}"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 130
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "prompt_id"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "id": 10
+    },
+    {
+      "type": "row",
+      "title": "2. 繰り返し失敗しているコマンド",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      },
+      "panels": [],
+      "id": 11
+    },
+    {
+      "type": "table",
+      "title": "失敗したコマンド (回数の多い順)",
+      "description": "tool_result の success=false を、ツールと中身 (Bash のコマンド、ファイルパス、skill 名、MCP のツール名) でまとめた。同じものが 2 回以上並ぶなら、エージェントが正しいやり方を知らない。rule か skill に正しいコマンドを書くか、hook で先に止める。許可の却下 (reject) もここに出る。",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 14,
+        "x": 0,
+        "y": 22
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (tool_name, detail) (count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"tool_result\" | success=\"false\" | line_format \"{{.tool_input}}\" | json path=\"file_path\" | line_format \"{{.tool_parameters}}\" | json cmd=\"full_command\", skill=\"skill_name\", srv=\"mcp_server_name\", mt=\"mcp_tool_name\" | drop __error__, __error_details__ | label_format detail=`{{ if .srv }}{{ .srv }} / {{ .mt }}{{ else }}{{ or .cmd .skill .path \"(詳細なし)\" | replace \"\\n\" \" \" | trunc 200 }}{{ end }}` [$__range]))",
+          "queryType": "instant"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "Value #A": 0,
+              "tool_name": 1,
+              "detail": 2
+            },
+            "renameByName": {
+              "Value #A": "失敗回数",
+              "tool_name": "ツール",
+              "detail": "中身"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "失敗回数",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "失敗回数"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 80
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "transparent",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 2
+                    },
+                    {
+                      "color": "red",
+                      "value": 5
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ツール"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "中身"
+            },
+            "properties": [
+              {
+                "id": "custom.wrapText",
+                "value": true
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "id": 12
+    },
+    {
+      "type": "logs",
+      "title": "直近の失敗 (行を開くとトレースへ)",
+      "description": "失敗した tool_result を新しい順に。エラーの種類 (error) と中身を並べる。行を開いて「トレースを開く」でその前後のやりとりを見られる",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 10,
+        "x": 14,
+        "y": 22
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "queryType": "range",
+          "expr": "{service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"tool_result\" | success=\"false\" | line_format \"{{.tool_input}}\" | json path=\"file_path\" | line_format \"{{.tool_parameters}}\" | json cmd=\"full_command\", skill=\"skill_name\", srv=\"mcp_server_name\", mt=\"mcp_tool_name\" | drop __error__, __error_details__ | label_format detail=`{{ if .srv }}{{ .srv }} / {{ .mt }}{{ else }}{{ or .cmd .skill .path \"(詳細なし)\" | replace \"\\n\" \" \" | trunc 200 }}{{ end }}` | label_format w=`{{ or .orca_worktree_name \"(Orca の外)\" }}` | line_format `[{{.w}}] {{.tool_name}}: {{.detail}}  ({{.error}})`"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none"
+      },
+      "id": 13
+    },
+    {
+      "type": "row",
+      "title": "3. skill / MCP の使われ方",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "panels": [],
+      "id": 14
+    },
+    {
+      "type": "bargauge",
+      "title": "skill ごとの呼び出し回数",
+      "description": "Skill ツールで読み込まれた回数を skill 名ごとに。入れたのにここに出ない skill は、description が依頼の言葉と合っていないか、rule と役割が重なっている。消すか description を書き直す",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 0,
+        "y": 33
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (skill) (count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"tool_result\" | tool_name=\"Skill\" | line_format \"{{.tool_parameters}}\" | json skill=\"skill_name\" | drop __error__, __error_details__ | skill!=\"\" [$__range]))",
+          "queryType": "instant",
+          "legendFormat": "{{skill}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "valueMode": "text",
+        "namePlacement": "top",
+        "text": {
+          "titleSize": 13,
+          "valueSize": 16
+        },
+        "maxVizHeight": 28,
+        "sizing": "manual",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      },
+      "id": 15
+    },
+    {
+      "type": "bargauge",
+      "title": "MCP ツールごとの呼び出し回数",
+      "description": "MCP サーバー / ツールごとの呼び出し回数。少ないのに毎回つなぐサーバーは、起動時間とツール定義のトークンだけを払っている",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 8,
+        "y": 33
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (srv, mt) (count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"tool_result\" | tool_name=\"mcp_tool\" | line_format \"{{.tool_parameters}}\" | json srv=\"mcp_server_name\", mt=\"mcp_tool_name\" | drop __error__, __error_details__ | srv!=\"\" [$__range]))",
+          "queryType": "instant",
+          "legendFormat": "{{srv}} / {{mt}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "purple"
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "valueMode": "text",
+        "namePlacement": "top",
+        "text": {
+          "titleSize": 13,
+          "valueSize": 16
+        },
+        "maxVizHeight": 28,
+        "sizing": "manual",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": true
+        }
+      },
+      "id": 16
+    },
+    {
+      "type": "table",
+      "title": "つないだ MCP サーバーと呼び出し回数",
+      "description": "起動時に接続した MCP サーバーと、実際に呼んだ回数。呼び出しが空欄 (0) のサーバーは「入れたのに使われない」。外すか、使う場面を rule / skill に書く",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 33
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (server) (count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"mcp_server_connection\" | status=\"connected\" | server_name!=\"\" | label_format server=`{{.server_name}}` [$__range]))",
+          "queryType": "instant"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (server) (count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"tool_result\" | tool_name=\"mcp_tool\" | line_format \"{{.tool_parameters}}\" | json server=\"mcp_server_name\" | drop __error__, __error_details__ | server!=\"\" [$__range]))",
+          "queryType": "instant"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "server": "サーバー",
+              "Value #A": "接続回数",
+              "Value #B": "呼び出し回数"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "呼び出し回数",
+                "desc": false
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "noValue": "0"
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "id": 17
+    },
+    {
+      "type": "row",
+      "title": "4. 手戻りの目安 (ワーカー別)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 42
+      },
+      "panels": [],
+      "id": 18
+    },
+    {
+      "type": "table",
+      "title": "ワーカーごとの依頼数と 1 依頼あたりの往復",
+      "description": "ワーカー (Orca の worktree) ごとの依頼数と、1 依頼あたりの API 呼び出し・ツール呼び出し・コスト。1 つのワーカーで依頼数が多いのは、最初の依頼 (spec) で伝わらず追加の指示をしている印。spec の書き方を疑う。1 依頼あたりの往復が他より多いワーカーは、そのリポジトリの CLAUDE.md や rule が足りていない",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 43
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (w) (count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"user_prompt\" | label_format w=`{{ or .orca_worktree_name \"(Orca の外)\" }}` [$__range]))",
+          "queryType": "instant"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (w) (count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"api_request\" | label_format w=`{{ or .orca_worktree_name \"(Orca の外)\" }}` [$__range])) / sum by (w) (count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"user_prompt\" | label_format w=`{{ or .orca_worktree_name \"(Orca の外)\" }}` [$__range]))",
+          "queryType": "instant"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (w) (count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"tool_result\" | label_format w=`{{ or .orca_worktree_name \"(Orca の外)\" }}` [$__range])) / sum by (w) (count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"user_prompt\" | label_format w=`{{ or .orca_worktree_name \"(Orca の外)\" }}` [$__range]))",
+          "queryType": "instant"
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (w) (count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"tool_result\" | success=\"false\" | label_format w=`{{ or .orca_worktree_name \"(Orca の外)\" }}` [$__range]))",
+          "queryType": "instant"
+        },
+        {
+          "refId": "E",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (w) (sum_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"api_request\" | label_format w=`{{ or .orca_worktree_name \"(Orca の外)\" }}` | unwrap cost_usd [$__range])) / sum by (w) (count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"user_prompt\" | label_format w=`{{ or .orca_worktree_name \"(Orca の外)\" }}` [$__range]))",
+          "queryType": "instant"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "w": "ワーカー",
+              "Value #A": "依頼数",
+              "Value #B": "API 呼び出し / 依頼",
+              "Value #C": "ツール呼び出し / 依頼",
+              "Value #D": "ツールの失敗",
+              "Value #E": "コスト / 依頼"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "依頼数",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 1,
+          "noValue": "0",
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "依頼数"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ツールの失敗"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "コスト / 依頼"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "API 呼び出し / 依頼"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-GrYlRd"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ツール呼び出し / 依頼"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-GrYlRd"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "id": 19
+    },
+    {
+      "type": "row",
+      "title": "5. キャッシュ読み出し (ワーカー別)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      },
+      "panels": [],
+      "id": 20
+    },
+    {
+      "type": "bargauge",
+      "title": "ワーカー別のキャッシュ読み出し割合",
+      "description": "入力側トークン (input + cacheRead + cacheCreation) のうちキャッシュから読んだ割合をワーカーごとに。8 割を下回るワーカーは、短いセッションを何度も立ち上げている (spec を分けすぎ) か、途中でモデルや system prompt が変わっている。CLAUDE.md や rule を頻繁に書き換えてもキャッシュが切れる",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 10,
+        "x": 0,
+        "y": 53
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "label_replace(sum by (orca_worktree_name) (increase(claude_code_token_usage_tokens_total{orca_worktree_name=~\"$worker\", type=\"cacheRead\"}[$__range] anchored)) / sum by (orca_worktree_name) (increase(claude_code_token_usage_tokens_total{orca_worktree_name=~\"$worker\", type=~\"input|cacheRead|cacheCreation\"}[$__range] anchored)), \"orca_worktree_name\", \"(Orca の外)\", \"orca_worktree_name\", \"\")",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{orca_worktree_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 1,
+          "min": 0,
+          "max": 1,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.6
+              },
+              {
+                "color": "green",
+                "value": 0.8
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "left",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "values": false
+        }
+      },
+      "id": 21
+    },
+    {
+      "type": "timeseries",
+      "title": "キャッシュ読み出し割合の推移",
+      "description": "1 時間ごとのキャッシュ読み出し割合 (全ワーカー)。ハーネスを変えた時刻の前後で下がっていないかを見る",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 14,
+        "x": 10,
+        "y": 53
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (model) (increase(claude_code_token_usage_tokens_total{orca_worktree_name=~\"$worker\", type=\"cacheRead\"}[1h] anchored)) / sum by (model) (increase(claude_code_token_usage_tokens_total{orca_worktree_name=~\"$worker\", type=~\"input|cacheRead|cacheCreation\"}[1h] anchored))",
+          "instant": false,
+          "range": true,
+          "legendFormat": "{{model}}"
+        }
+      ],
+      "interval": "1h",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "always",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "id": 22
+    },
+    {
+      "type": "row",
+      "title": "6. 依頼文の検索 (上の「依頼文」欄に語を入れる)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 62
+      },
+      "panels": [],
+      "id": 23
+    },
+    {
+      "type": "table",
+      "title": "依頼文の検索結果 (新しい順)",
+      "description": "上の「依頼文」欄に入れた語 (正規表現、大文字小文字は区別しない) を含む依頼。似た依頼のコストと往復を並べて比べ、安く済んだ書き方を rule / skill の例に取り込む。依頼文をクリックするとトレースへ",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 63
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (prompt_id) (sum_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"api_request\" | unwrap cost_usd [$__range]))",
+          "queryType": "instant"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "count by (prompt_id, prompt, trace_id, w) (count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"user_prompt\" | prompt=~\"(?is).*$q.*\" | label_format w=`{{ or .orca_worktree_name \"(Orca の外)\" }}` | label_format prompt=`{{ .prompt | replace \"\\n\" \" \" | trunc 1000 }}` [$__range]))",
+          "queryType": "instant"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "topk(1, sum by (prompt_id, model) (sum_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"api_request\" | unwrap cost_usd [$__range]))) by (prompt_id)",
+          "queryType": "instant"
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (prompt_id) (count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"api_request\" [$__range]))",
+          "queryType": "instant"
+        },
+        {
+          "refId": "E",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "sum by (prompt_id) (count_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | event_name=\"tool_result\" [$__range]))",
+          "queryType": "instant"
+        },
+        {
+          "refId": "F",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "(max_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | prompt_id!=\"\" | unwrap observed_timestamp [$__range]) by (prompt_id) - min_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | prompt_id!=\"\" | unwrap observed_timestamp [$__range]) by (prompt_id)) / 1e9",
+          "queryType": "instant"
+        },
+        {
+          "refId": "G",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "min_over_time({service_name=\"claude-code\"} | orca_worktree_name=~\"$worker\" | prompt_id!=\"\" | unwrap observed_timestamp [$__range]) by (prompt_id) / 1e6",
+          "queryType": "instant"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "exclude",
+            "match": "any",
+            "filters": [
+              {
+                "fieldName": "trace_id",
+                "config": {
+                  "id": "isNull",
+                  "options": {}
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value #B": true,
+              "Value #C": true
+            },
+            "indexByName": {
+              "Value #G": 0,
+              "prompt": 1,
+              "w": 2,
+              "model": 3,
+              "Value #A": 4,
+              "Value #F": 5,
+              "Value #D": 6,
+              "Value #E": 7,
+              "trace_id": 8,
+              "prompt_id": 9
+            },
+            "renameByName": {
+              "Value #G": "開始",
+              "prompt": "依頼文",
+              "w": "ワーカー",
+              "model": "モデル",
+              "Value #A": "コスト (USD)",
+              "Value #F": "所要時間",
+              "Value #D": "API 呼び出し",
+              "Value #E": "ツール呼び出し"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "開始",
+                "desc": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "limit",
+          "options": {
+            "limitField": 100
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "開始"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              },
+              {
+                "id": "custom.width",
+                "value": 150
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "依頼文"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "トレースを開く",
+                    "url": "",
+                    "internal": {
+                      "datasourceUid": "tempo",
+                      "datasourceName": "Tempo",
+                      "query": {
+                        "queryType": "traceql",
+                        "query": "${__data.fields.trace_id}"
+                      }
+                    }
+                  },
+                  {
+                    "title": "この依頼のイベントを Loki で見る",
+                    "url": "",
+                    "internal": {
+                      "datasourceUid": "loki",
+                      "datasourceName": "Loki",
+                      "query": {
+                        "expr": "{service_name=\"claude-code\"} | prompt_id=\"${__data.fields.prompt_id}\""
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.wrapText",
+                "value": true
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 400
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ワーカー"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 220
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "モデル"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 170
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "コスト (USD)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "gradient"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-GrYlRd"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "所要時間"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "API 呼び出し"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ツール呼び出し"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "trace_id"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "トレースを開く",
+                    "url": "",
+                    "internal": {
+                      "datasourceUid": "tempo",
+                      "datasourceName": "Tempo",
+                      "query": {
+                        "queryType": "traceql",
+                        "query": "${__data.fields.trace_id}"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 130
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "prompt_id"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "id": 24
+    }
+  ]
+}
