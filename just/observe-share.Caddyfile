@@ -1,0 +1,17 @@
+# just observe-share が cloudflared と Grafana の間に挟むリバースプロキシ。
+# Grafana の root_url は http://localhost:3000/ のままなので、短縮リンク (/goto/<uid>) などの
+# リダイレクトは Location: http://localhost:3000/... を返す。別の PC のブラウザではそれが
+# その PC 自身を指して開けないため、ここで相対パスに書き換える。
+# Host ヘッダはそのまま Grafana に渡す (Grafana のログイン時の Origin 確認が Host と比べるため)。
+{
+	admin off
+	auto_https off
+}
+
+# ホスト名で振り分けない (trycloudflare の名前は起動ごとに変わる)。待ち受けは 127.0.0.1 だけ
+http://:{$SHARE_PROXY_PORT} {
+	bind 127.0.0.1
+	reverse_proxy localhost:3000 {
+		header_down Location ^http://localhost:3000/ /
+	}
+}

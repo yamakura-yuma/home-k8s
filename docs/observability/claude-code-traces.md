@@ -214,12 +214,16 @@ Cloudflare Quick Tunnel で Grafana だけを一時的に公開する。Cloudfla
 `https://<ランダム>.trycloudflare.com` の URL が発行される。次を打つ (ホストから打ってよい)。
 
 ```
-just observe-share   # cloudflared tunnel --url http://localhost:3000 を前面で動かす
+$ just observe-share
+Grafana を公開しました（Ctrl-C で停止）
+  URL:        https://xxxx.trycloudflare.com
+  ユーザー:   admin
+  パスワード: <値>
+  ログ:       /home/<you>/.local/share/home-k8s/observability/observe-share.log
 ```
 
-ログに出る `https://....trycloudflare.com` を別の PC のブラウザで開き、`admin` と
-`just observe-password` のパスワードでログインする。Ctrl-C で cloudflared を止めると URL は
-無効になり、次に打つと別の URL になる。
+表示された URL を別の PC のブラウザで開き、表示されたユーザーとパスワードでログインする。
+Ctrl-C で止めると URL は無効になり、次に打つと別の URL になる。
 
 - 公開するのは Grafana (3000) だけで、OTLP の受け口 (4318 / 4317) は出さない。
   cloudflared は外から localhost:3000 に向かう接続を 1 本張るだけで、ホストのポートを開ける
@@ -229,6 +233,52 @@ just observe-share   # cloudflared tunnel --url http://localhost:3000 を前面�
 - 使い終わったら必ず止める。開きっぱなしにしない。
 - Quick Tunnel は試用向けで、稼働の保証は無い (同時リクエスト数の上限もある)。
   長く使う場合は Cloudflare のアカウントで名前付きトンネルと Access を組む。
+
+### 仕組み (`just/observe-share.sh`)
+
+```
+別の PC のブラウザ ──https──▶ *.trycloudflare.com ──▶ cloudflared ──▶ caddy (127.0.0.1:3001) ──▶ Grafana (localhost:3000)
+                                                  └──────── 開発用コンテナ ────────┘
+```
+
+1. caddy と cloudflared を裏で起動し、2 つのログは `observe-share.log` (リポジトリの外、
+   起動のたびに上書き) に流す。画面には出さない。
+2. ログから URL を拾い、その URL の `/api/health` が外から応答するまで待つ。
+3. 応答したら URL・ユーザー・パスワードを表示し、どちらかのプロセスが止まるか Ctrl-C を
+   受けるまで待つ。抜けるときは両方を止める (`--grace-period 1s` で、開いたままのブラウザの
+   接続を 30 秒待たない)。
+
+#### URL が応答するまで待つ理由
+
+cloudflared が URL を出した時点では、その名前はまだ DNS に無い (実測で URL の表示から 3〜5 秒
+後に引けるようになった)。出てすぐ開くと NXDOMAIN になり、それがブラウザや DNS にキャッシュ
+される (`trycloudflare.com` の SOA の否定キャッシュは 60 秒)。そのあいだは正しい URL でも
+開けない。待つときの名前解決は `curl --doh-url https://1.1.1.1/dns-query` で行い、手元の
+リゾルバには NXDOMAIN を覚えさせない。
+
+#### caddy を挟む理由 (root_url を変えない)
+
+Grafana の `server.root_url` は既定の `http://localhost:3000/` のままにしている。Grafana は
+ログイン画面への転送などは相対パスで返すが、共有の「Copy link」が作る短縮リンク
+(`/goto/<uid>`) の転送先は `root_url` から作る (`Location: http://localhost:3000/d/...`)。
+別の PC ではその localhost は自分自身なので、`ERR_CONNECTION_REFUSED` で開けない。
+
+caddy は `Location` の `http://localhost:3000/` を `/` に書き換えるだけで、Host ヘッダは
+そのまま Grafana に渡す (Grafana はログインの POST の Origin を Host と比べる)。
+Grafana Live の WebSocket もそのまま通る。設定は `just/observe-share.Caddyfile`。
+
+ほかの方法は次の理由で採らなかった。
+
+- `root_url` を公開 URL にする: URL は起動ごとに変わるので、share のたびに Grafana を
+  再起動し、終わったら戻すためにもう一度再起動することになる。`observe-up` で不要に再起動
+  しない性質を崩し、share を強制終了すると公開 URL の設定が残る。
+- `root_url = /` (相対) にする: 短縮リンクが `invalid app URL configuration` で開けなくなる
+  (Grafana 13.2.3 で確認)。
+
+公開中も localhost:3000 は従来どおり Grafana に直接つながり、caddy を通らない。
+`observe-share` でブラウザから確かめた項目 (ログイン、2 つのダッシュボード、ダッシュボード
+リンク、ログ→トレース、短縮リンク) は、`--network host` を付けないコンテナのヘッドレス
+Chrome (= localhost:3000 に届かない別の PC と同じ条件) で通した。
 
 ## ダッシュボード
 

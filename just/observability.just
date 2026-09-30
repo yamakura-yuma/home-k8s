@@ -6,6 +6,8 @@ observe_ns := "observability"
 observe_values := "clusters/kind/observability"
 # Grafana の admin パスワード。リポジトリの外 (WSL2 ホスト側) に置き、2 回目以降は再利用する
 grafana_password_file := env_var("HOME") + "/.local/share/home-k8s/observability/grafana-admin-password"
+# observe-share の cloudflared と caddy のログ (起動のたびに上書きする)
+share_log_file := env_var("HOME") + "/.local/share/home-k8s/observability/observe-share.log"
 
 # 観測スタックを入れる (既にあれば values を反映し直す)
 observe-up: _grafana-admin-secret
@@ -40,10 +42,10 @@ observe-down:
 observe-password:
     @cat {{grafana_password_file}}; echo
 
-# 表示される https://*.trycloudflare.com を開く。Ctrl-C で止めれば URL は無効になる。
-# Grafana (localhost:3000) だけを Cloudflare Quick Tunnel で一時的に公開する
+# Grafana (localhost:3000) だけを Cloudflare Quick Tunnel で一時的に公開する。
+# URL が開けるようになってから URL とパスワードを表示する。Ctrl-C で止めれば URL は無効になる
 observe-share:
-    cloudflared tunnel --no-autoupdate --url http://localhost:3000
+    @bash just/observe-share.sh "{{grafana_password_file}}" "{{share_log_file}}"
 
 # admin パスワードを (無ければ生成して) Secret grafana-admin に入れる。
 # 中身が同じなら apply は何も変えないので、Grafana の Pod は再起動しない

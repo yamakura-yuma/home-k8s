@@ -32,7 +32,7 @@ just kind-up              # kubeadmベースのマルチノードクラスタを
 kubectl --context kind-study-kind get nodes -o wide   # ノード状態を確認
 just observe-up           # OTel Collector/Tempo/Prometheus/Loki/Grafana を入れる
 just observe-password     # Grafana の admin パスワードを表示
-just observe-share        # Grafana を一時的に trycloudflare.com で公開 (Ctrl-C で停止)
+just observe-share        # Grafana を一時的に trycloudflare.com で公開し、URL とパスワードを表示 (Ctrl-C で停止)
 just observe-down         # 観測スタックを消す (トレース・メトリクス・ログはホストに残る)
 just kind-down             # クラスタを削除
 just devcontainer down    # 開発用コンテナを削除
