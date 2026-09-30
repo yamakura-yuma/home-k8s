@@ -1,0 +1,1196 @@
+{
+ "uid": "cc-setting-traces",
+ "title": "設定: CLAUDE_CODE_ENHANCED_TELEMETRY_BETA + OTEL_TRACES_EXPORTER",
+ "description": "トレースで届くものすべて",
+ "tags": [
+  "claude-code-setting"
+ ],
+ "timezone": "browser",
+ "editable": true,
+ "graphTooltip": 1,
+ "schemaVersion": 41,
+ "time": {
+  "from": "now-7d",
+  "to": "now"
+ },
+ "refresh": "",
+ "links": [
+  {
+   "type": "link",
+   "title": "設定項目別の一覧",
+   "url": "/d/cc-settings",
+   "icon": "dashboard",
+   "keepTime": true,
+   "targetBlank": false,
+   "asDropdown": false,
+   "includeVars": false,
+   "tags": []
+  },
+  {
+   "type": "dashboards",
+   "title": "設定項目別",
+   "tags": [
+    "claude-code-setting"
+   ],
+   "asDropdown": true,
+   "includeVars": false,
+   "keepTime": true,
+   "targetBlank": false,
+   "icon": "external link"
+  },
+  {
+   "type": "dashboards",
+   "title": "Claude Code",
+   "tags": [
+    "claude-code"
+   ],
+   "asDropdown": true,
+   "includeVars": false,
+   "keepTime": true,
+   "targetBlank": false,
+   "icon": "external link"
+  }
+ ],
+ "templating": {
+  "list": []
+ },
+ "panels": [
+  {
+   "type": "text",
+   "title": "この設定について",
+   "options": {
+    "mode": "markdown",
+    "content": "**環境変数**: `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA` と `OTEL_TRACES_EXPORTER`\n\n**いまの値**: `1` / `otlp`\n\n**何が届くようになるか (公式)**: トレース (beta)。依頼 1 回が `claude_code.interaction` の木になり、その下に `claude_code.llm_request` (API 呼び出し)、`claude_code.tool` (ツール呼び出し) とその子の `claude_code.tool.blocked_on_user` (許可待ち) / `claude_code.tool.execution` (実行) が付く。サブエージェントのスパンは親の `claude_code.tool` の下に入る。`claude_code.hook` は `ENABLE_BETA_TRACING_DETAILED=1` のときだけ。スパンイベントは再試行の `gen_ai.request.attempt` と、`OTEL_LOG_TOOL_CONTENT=1` のときの `tool.output`。\n\n**止めると消えるもの**: Tempo のスパンすべて。traces ダッシュボードのウォーターフォール、所要時間の p50 / p95、ログからトレースへのリンクが消える。\n\n**何が分かる・何に使えるか**: 依頼の中で何がどの順に何秒かかったか。遅い依頼がモデル待ちか、ツール待ちか、許可待ちかを分ける。\n\n**公式と実データの突き合わせ**: スパン名・属性は実データで確認。`claude_code.hook` は公式では detailed beta tracing が要るが、オンにしていないのに数件届いている (出どころ未確認)。公式の表に無い属性 (`queued_sends` など) も実データにあれば下の表に出る。"
+   },
+   "id": 1,
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 12
+   }
+  },
+  {
+   "type": "row",
+   "title": "スパン名ごとの件数",
+   "collapsed": false,
+   "panels": [],
+   "id": 2,
+   "gridPos": {
+    "x": 0,
+    "y": 12,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "table",
+   "title": "公式のスパン名 × 届いた件数",
+   "description": "TraceQL `count_over_time() by (name)` の期間合計。0 = 届いていない。",
+   "datasource": {
+    "type": "yesoreyeram-infinity-datasource",
+    "uid": "backend-api"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://tempo.observability.svc.cluster.local:3200/api/metrics/query",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "q",
+        "value": "{resource.service.name=\"claude-code\"} | count_over_time() by (name)"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       }
+      ]
+     },
+     "root_selector": "( $s := series; $names := $s.labels[key=\"name\"].value.stringValue; $doc := [\"claude_code.interaction\", \"claude_code.llm_request\", \"claude_code.tool\", \"claude_code.tool.blocked_on_user\", \"claude_code.tool.execution\", \"claude_code.hook\"]; $append($doc, $names[$not($ in $doc)]).( $n := $; {\"span\": $n, \"doc\": $n in $doc ? \"公式\" : \"公式に無い\", \"count\": $sum($s[labels[key=\"name\"].value.stringValue = $n].value)} ) )",
+     "columns": []
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm",
+    "sortBy": [
+     {
+      "displayName": "件数",
+      "desc": true
+     }
+    ]
+   },
+   "transformations": [
+    {
+     "id": "organize",
+     "options": {
+      "renameByName": {
+       "span": "スパン名",
+       "doc": "出どころ",
+       "count": "件数"
+      },
+      "excludeByName": {},
+      "indexByName": {}
+     }
+    }
+   ],
+   "id": 3,
+   "gridPos": {
+    "x": 0,
+    "y": 13,
+    "w": 9,
+    "h": 9
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "スパン名ごとの件数の推移",
+   "description": "",
+   "datasource": {
+    "type": "tempo",
+    "uid": "tempo"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "tempo",
+      "uid": "tempo"
+     },
+     "queryType": "traceql",
+     "query": "{resource.service.name=\"claude-code\"} | count_over_time() by (name)",
+     "metricsQueryType": "range",
+     "tableType": "traces",
+     "limit": 20
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "drawStyle": "bars",
+      "lineWidth": 1,
+      "fillOpacity": 60,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "normal",
+       "group": "A"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "sum"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "id": 4,
+   "gridPos": {
+    "x": 9,
+    "y": 13,
+    "w": 15,
+    "h": 9
+   }
+  },
+  {
+   "type": "row",
+   "title": "全スパン名 × 全属性",
+   "collapsed": false,
+   "panels": [],
+   "id": 5,
+   "gridPos": {
+    "x": 0,
+    "y": 22,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "table",
+   "title": "スパン名 × 属性キー (縦持ち)",
+   "description": "Tempo のタグ一覧 API (`/api/v2/search/tags?q={name=\"...\"}&scope=span`) を公式のスパン名ごとに引いた。行が無いスパン名 = 期間中に届いていない。",
+   "datasource": {
+    "type": "yesoreyeram-infinity-datasource",
+    "uid": "backend-api"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://tempo.observability.svc.cluster.local:3200/api/v2/search/tags",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "q",
+        "value": "{name=\"claude_code.interaction\"}"
+       },
+       {
+        "key": "scope",
+        "value": "span"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       }
+      ]
+     },
+     "root_selector": "scopes.( $s := name; $map(tags, function($x){ {\"span\": \"claude_code.interaction\", \"scope\": $s, \"key\": $x} }) )",
+     "columns": []
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://tempo.observability.svc.cluster.local:3200/api/v2/search/tags",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "q",
+        "value": "{name=\"claude_code.llm_request\"}"
+       },
+       {
+        "key": "scope",
+        "value": "span"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       }
+      ]
+     },
+     "root_selector": "scopes.( $s := name; $map(tags, function($x){ {\"span\": \"claude_code.llm_request\", \"scope\": $s, \"key\": $x} }) )",
+     "columns": []
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://tempo.observability.svc.cluster.local:3200/api/v2/search/tags",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "q",
+        "value": "{name=\"claude_code.tool\"}"
+       },
+       {
+        "key": "scope",
+        "value": "span"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       }
+      ]
+     },
+     "root_selector": "scopes.( $s := name; $map(tags, function($x){ {\"span\": \"claude_code.tool\", \"scope\": $s, \"key\": $x} }) )",
+     "columns": []
+    },
+    {
+     "refId": "D",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://tempo.observability.svc.cluster.local:3200/api/v2/search/tags",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "q",
+        "value": "{name=\"claude_code.tool.blocked_on_user\"}"
+       },
+       {
+        "key": "scope",
+        "value": "span"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       }
+      ]
+     },
+     "root_selector": "scopes.( $s := name; $map(tags, function($x){ {\"span\": \"claude_code.tool.blocked_on_user\", \"scope\": $s, \"key\": $x} }) )",
+     "columns": []
+    },
+    {
+     "refId": "E",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://tempo.observability.svc.cluster.local:3200/api/v2/search/tags",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "q",
+        "value": "{name=\"claude_code.tool.execution\"}"
+       },
+       {
+        "key": "scope",
+        "value": "span"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       }
+      ]
+     },
+     "root_selector": "scopes.( $s := name; $map(tags, function($x){ {\"span\": \"claude_code.tool.execution\", \"scope\": $s, \"key\": $x} }) )",
+     "columns": []
+    },
+    {
+     "refId": "F",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://tempo.observability.svc.cluster.local:3200/api/v2/search/tags",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "q",
+        "value": "{name=\"claude_code.hook\"}"
+       },
+       {
+        "key": "scope",
+        "value": "span"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       }
+      ]
+     },
+     "root_selector": "scopes.( $s := name; $map(tags, function($x){ {\"span\": \"claude_code.hook\", \"scope\": $s, \"key\": $x} }) )",
+     "columns": []
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "transformations": [
+    {
+     "id": "merge",
+     "options": {}
+    },
+    {
+     "id": "organize",
+     "options": {
+      "renameByName": {
+       "span": "スパン名",
+       "scope": "scope",
+       "key": "属性キー"
+      },
+      "excludeByName": {},
+      "indexByName": {
+       "span": 0,
+       "scope": 1,
+       "key": 2
+      }
+     }
+    },
+    {
+     "id": "sortBy",
+     "options": {
+      "sort": [
+       {
+        "field": "スパン名",
+        "desc": false
+       }
+      ]
+     }
+    }
+   ],
+   "id": 6,
+   "gridPos": {
+    "x": 0,
+    "y": 23,
+    "w": 9,
+    "h": 16
+   }
+  },
+  {
+   "type": "table",
+   "title": "スパン名 × 属性キー (表の形)",
+   "description": "行 = 属性キー、列 = スパン名。セルに span と出ているところが、そのスパンに付いている属性。",
+   "datasource": {
+    "type": "yesoreyeram-infinity-datasource",
+    "uid": "backend-api"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://tempo.observability.svc.cluster.local:3200/api/v2/search/tags",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "q",
+        "value": "{name=\"claude_code.interaction\"}"
+       },
+       {
+        "key": "scope",
+        "value": "span"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       }
+      ]
+     },
+     "root_selector": "scopes.( $s := name; $map(tags, function($x){ {\"span\": \"claude_code.interaction\", \"scope\": $s, \"key\": $x} }) )",
+     "columns": []
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://tempo.observability.svc.cluster.local:3200/api/v2/search/tags",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "q",
+        "value": "{name=\"claude_code.llm_request\"}"
+       },
+       {
+        "key": "scope",
+        "value": "span"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       }
+      ]
+     },
+     "root_selector": "scopes.( $s := name; $map(tags, function($x){ {\"span\": \"claude_code.llm_request\", \"scope\": $s, \"key\": $x} }) )",
+     "columns": []
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://tempo.observability.svc.cluster.local:3200/api/v2/search/tags",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "q",
+        "value": "{name=\"claude_code.tool\"}"
+       },
+       {
+        "key": "scope",
+        "value": "span"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       }
+      ]
+     },
+     "root_selector": "scopes.( $s := name; $map(tags, function($x){ {\"span\": \"claude_code.tool\", \"scope\": $s, \"key\": $x} }) )",
+     "columns": []
+    },
+    {
+     "refId": "D",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://tempo.observability.svc.cluster.local:3200/api/v2/search/tags",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "q",
+        "value": "{name=\"claude_code.tool.blocked_on_user\"}"
+       },
+       {
+        "key": "scope",
+        "value": "span"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       }
+      ]
+     },
+     "root_selector": "scopes.( $s := name; $map(tags, function($x){ {\"span\": \"claude_code.tool.blocked_on_user\", \"scope\": $s, \"key\": $x} }) )",
+     "columns": []
+    },
+    {
+     "refId": "E",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://tempo.observability.svc.cluster.local:3200/api/v2/search/tags",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "q",
+        "value": "{name=\"claude_code.tool.execution\"}"
+       },
+       {
+        "key": "scope",
+        "value": "span"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       }
+      ]
+     },
+     "root_selector": "scopes.( $s := name; $map(tags, function($x){ {\"span\": \"claude_code.tool.execution\", \"scope\": $s, \"key\": $x} }) )",
+     "columns": []
+    },
+    {
+     "refId": "F",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://tempo.observability.svc.cluster.local:3200/api/v2/search/tags",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "q",
+        "value": "{name=\"claude_code.hook\"}"
+       },
+       {
+        "key": "scope",
+        "value": "span"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       }
+      ]
+     },
+     "root_selector": "scopes.( $s := name; $map(tags, function($x){ {\"span\": \"claude_code.hook\", \"scope\": $s, \"key\": $x} }) )",
+     "columns": []
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byRegexp",
+       "options": ".*"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 120
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "key\\span"
+      },
+      "properties": [
+       {
+        "id": "custom.width",
+        "value": 230
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "transformations": [
+    {
+     "id": "merge",
+     "options": {}
+    },
+    {
+     "id": "groupingToMatrix",
+     "options": {
+      "columnField": "span",
+      "rowField": "key",
+      "valueField": "scope",
+      "emptyValue": "empty"
+     }
+    },
+    {
+     "id": "renameByRegex",
+     "options": {
+      "regex": "^claude_code\\.(.*)$",
+      "renamePattern": "$1"
+     }
+    }
+   ],
+   "id": 7,
+   "gridPos": {
+    "x": 9,
+    "y": 23,
+    "w": 15,
+    "h": 16
+   }
+  },
+  {
+   "type": "row",
+   "title": "スパンイベントとリンク",
+   "collapsed": false,
+   "panels": [],
+   "id": 8,
+   "gridPos": {
+    "x": 0,
+    "y": 39,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "table",
+   "title": "スパンイベントの種類と件数",
+   "description": "`gen_ai.request.attempt` = API の再試行 1 回ごと、`tool.output` = ツールの出力 (`OTEL_LOG_TOOL_CONTENT`)。",
+   "datasource": {
+    "type": "tempo",
+    "uid": "tempo"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "tempo",
+      "uid": "tempo"
+     },
+     "queryType": "traceql",
+     "query": "{event:name != nil} | count_over_time() by (event:name)",
+     "metricsQueryType": "instant",
+     "tableType": "traces",
+     "limit": 20
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "transformations": [
+    {
+     "id": "reduce",
+     "options": {
+      "reducers": [
+       "sum"
+      ],
+      "mode": "seriesToRows",
+      "includeTimeField": false
+     }
+    },
+    {
+     "id": "organize",
+     "options": {
+      "renameByName": {
+       "Field": "イベント名",
+       "Total": "件数"
+      },
+      "excludeByName": {},
+      "indexByName": {}
+     }
+    }
+   ],
+   "id": 9,
+   "gridPos": {
+    "x": 0,
+    "y": 40,
+    "w": 8,
+    "h": 8
+   }
+  },
+  {
+   "type": "table",
+   "title": "スパンイベントの属性キー",
+   "description": "Tempo のタグ一覧 API を scope=event で引いた。",
+   "datasource": {
+    "type": "yesoreyeram-infinity-datasource",
+    "uid": "backend-api"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://tempo.observability.svc.cluster.local:3200/api/v2/search/tags",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "q",
+        "value": "{event:name=\"gen_ai.request.attempt\"}"
+       },
+       {
+        "key": "scope",
+        "value": "event"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       }
+      ]
+     },
+     "root_selector": "$map(scopes.tags, function($x){ {\"event\": \"gen_ai.request.attempt\", \"key\": $x} })",
+     "columns": []
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://tempo.observability.svc.cluster.local:3200/api/v2/search/tags",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "q",
+        "value": "{event:name=\"tool.output\"}"
+       },
+       {
+        "key": "scope",
+        "value": "event"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       }
+      ]
+     },
+     "root_selector": "$map(scopes.tags, function($x){ {\"event\": \"tool.output\", \"key\": $x} })",
+     "columns": []
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "transformations": [
+    {
+     "id": "merge",
+     "options": {}
+    }
+   ],
+   "id": 10,
+   "gridPos": {
+    "x": 8,
+    "y": 40,
+    "w": 8,
+    "h": 8
+   }
+  },
+  {
+   "type": "table",
+   "title": "リンクの属性キー",
+   "description": "`llm_request` は API 側のトレース (`traceresponse`) へのリンクを持つ。",
+   "datasource": {
+    "type": "yesoreyeram-infinity-datasource",
+    "uid": "backend-api"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://tempo.observability.svc.cluster.local:3200/api/v2/search/tags",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "scope",
+        "value": "link"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       }
+      ]
+     },
+     "root_selector": "$map(scopes.tags, function($x){ {\"key\": $x} })",
+     "columns": []
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "transformations": [],
+   "id": 11,
+   "gridPos": {
+    "x": 16,
+    "y": 40,
+    "w": 8,
+    "h": 8
+   }
+  },
+  {
+   "type": "table",
+   "title": "最近のスパンイベント (gen_ai.request.attempt)",
+   "description": "再試行があったリクエスト。",
+   "datasource": {
+    "type": "tempo",
+    "uid": "tempo"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "tempo",
+      "uid": "tempo"
+     },
+     "queryType": "traceql",
+     "query": "{event:name=\"gen_ai.request.attempt\"} | select(event.attempt, span.model)",
+     "limit": 30,
+     "spss": 3,
+     "tableType": "spans"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "transformations": [],
+   "id": 12,
+   "gridPos": {
+    "x": 0,
+    "y": 48,
+    "w": 24,
+    "h": 8
+   }
+  },
+  {
+   "type": "row",
+   "title": "スパン名ごとの所要時間",
+   "collapsed": false,
+   "panels": [],
+   "id": 13,
+   "gridPos": {
+    "x": 0,
+    "y": 56,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "所要時間 p50 / p95 (スパン名ごと)",
+   "description": "",
+   "datasource": {
+    "type": "tempo",
+    "uid": "tempo"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "tempo",
+      "uid": "tempo"
+     },
+     "queryType": "traceql",
+     "query": "{resource.service.name=\"claude-code\"} | quantile_over_time(duration, .5, .95) by (name)",
+     "metricsQueryType": "range",
+     "tableType": "traces",
+     "limit": 20
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 1,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "none",
+       "group": "A"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "sum"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "id": 14,
+   "gridPos": {
+    "x": 0,
+    "y": 57,
+    "w": 24,
+    "h": 8
+   }
+  }
+ ]
+}

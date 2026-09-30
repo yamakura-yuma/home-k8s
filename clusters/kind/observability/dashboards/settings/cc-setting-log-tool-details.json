@@ -1,0 +1,2594 @@
+{
+ "uid": "cc-setting-log-tool-details",
+ "title": "設定: OTEL_LOG_TOOL_DETAILS",
+ "description": "ツールの詳細 (コマンド・パス・skill / MCP 名・入力) で届くもの",
+ "tags": [
+  "claude-code-setting"
+ ],
+ "timezone": "browser",
+ "editable": true,
+ "graphTooltip": 1,
+ "schemaVersion": 41,
+ "time": {
+  "from": "now-7d",
+  "to": "now"
+ },
+ "refresh": "",
+ "links": [
+  {
+   "type": "link",
+   "title": "設定項目別の一覧",
+   "url": "/d/cc-settings",
+   "icon": "dashboard",
+   "keepTime": true,
+   "targetBlank": false,
+   "asDropdown": false,
+   "includeVars": false,
+   "tags": []
+  },
+  {
+   "type": "dashboards",
+   "title": "設定項目別",
+   "tags": [
+    "claude-code-setting"
+   ],
+   "asDropdown": true,
+   "includeVars": false,
+   "keepTime": true,
+   "targetBlank": false,
+   "icon": "external link"
+  },
+  {
+   "type": "dashboards",
+   "title": "Claude Code",
+   "tags": [
+    "claude-code"
+   ],
+   "asDropdown": true,
+   "includeVars": false,
+   "keepTime": true,
+   "targetBlank": false,
+   "icon": "external link"
+  }
+ ],
+ "templating": {
+  "list": []
+ },
+ "panels": [
+  {
+   "type": "text",
+   "title": "この設定について",
+   "options": {
+    "mode": "markdown",
+    "content": "**環境変数**: `OTEL_LOG_TOOL_DETAILS`\n\n**いまの値**: `1`\n\n**何が届くようになるか (公式)**: ツールの引数と名前を送る。`tool_result` / `tool_decision` の `tool_parameters` (Bash の `bash_command` / `full_command` / `timeout` / `description`、MCP の `mcp_server_name` / `mcp_tool_name`、Skill の `skill_name`、Agent の `subagent_type`)、`tool_result` の `tool_input` (引数全体の JSON、4K 字まで) と `error` (失敗の全文) と git commit 時の `vcs.ref.head.*`。スパン `claude_code.tool` の `file_path` / `full_command` / `skill_name` / `subagent_type`。`user_prompt` の `command_name` (カスタム・MCP コマンドの実名)。コスト・トークンのメトリクスと `api_request` の `skill.name` / `mcp_server.name` / `mcp_tool.name` / `agent.name` / `plugin.name` の実名 (オフなら `custom` / `third-party`)。`mcp_server_connection` の `server_name`、`hook_registered` の `hook_matcher`、`skill_activated` の実名。\n\n**止めると消えるもの**: 上の属性すべて。improve の「失敗の多いコマンド」、skill / MCP の呼び出し回数、ファイルパスが消える。\n\n**何が分かる・何に使えるか**: どのコマンドが失敗を繰り返しているか、どのファイルを何度読んでいるか、どの skill / MCP ツールが使われているか。\n\n**公式と実データの突き合わせ**: 下の件数で実データを確認。スパン属性と tool_parameters は公式どおり。`tool_input` のキーはツールごとの引数そのもの (下の表)。metric の `mcp_server_name` に `custom` が残っているのは、この設定より前 (または v2.1.273 より前) の系列 (推定)。"
+   },
+   "id": 1,
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 12
+   }
+  },
+  {
+   "type": "row",
+   "title": "この設定で増える属性が届いた件数",
+   "collapsed": false,
+   "panels": [],
+   "id": 2,
+   "gridPos": {
+    "x": 0,
+    "y": 12,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum(count_over_time({service_name=\"claude-code\"} | event_name=\"tool_result\" | tool_parameters!=\"\" [$__range])) or vector(0)",
+     "queryType": "instant"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "tool_result.tool_parameters"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 3,
+   "gridPos": {
+    "x": 0,
+    "y": 13,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum(count_over_time({service_name=\"claude-code\"} | event_name=\"tool_decision\" | tool_parameters!=\"\" [$__range])) or vector(0)",
+     "queryType": "instant"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "tool_decision.tool_parameters"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 4,
+   "gridPos": {
+    "x": 6,
+    "y": 13,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum(count_over_time({service_name=\"claude-code\"} | event_name=\"tool_result\" | tool_input!=\"\" [$__range])) or vector(0)",
+     "queryType": "instant"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "tool_result.tool_input"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 5,
+   "gridPos": {
+    "x": 12,
+    "y": 13,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum(count_over_time({service_name=\"claude-code\"} | event_name=\"tool_result\" | error!=\"\" [$__range])) or vector(0)",
+     "queryType": "instant"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "tool_result.error (全文)"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 6,
+   "gridPos": {
+    "x": 18,
+    "y": 13,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum(count_over_time({service_name=\"claude-code\"} | event_name=\"tool_result\" | vcs_ref_head_revision!=\"\" [$__range])) or vector(0)",
+     "queryType": "instant"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "tool_result.vcs_ref_head_*"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 7,
+   "gridPos": {
+    "x": 0,
+    "y": 17,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum(count_over_time({service_name=\"claude-code\"} | event_name=\"user_prompt\" | command_name!=\"\" [$__range])) or vector(0)",
+     "queryType": "instant"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "user_prompt.command_name"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 8,
+   "gridPos": {
+    "x": 6,
+    "y": 17,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum(count_over_time({service_name=\"claude-code\"} | event_name=\"api_request\" | skill_name!=\"\" [$__range])) or vector(0)",
+     "queryType": "instant"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "api_request.skill_name"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 9,
+   "gridPos": {
+    "x": 12,
+    "y": 17,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum(count_over_time({service_name=\"claude-code\"} | event_name=\"api_request\" | mcp_server_name!=\"\" [$__range])) or vector(0)",
+     "queryType": "instant"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "api_request.mcp_server_name"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 10,
+   "gridPos": {
+    "x": 18,
+    "y": 17,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum(count_over_time({service_name=\"claude-code\"} | event_name=\"api_request\" | agent_name!=\"\" [$__range])) or vector(0)",
+     "queryType": "instant"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "api_request.agent_name"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 11,
+   "gridPos": {
+    "x": 0,
+    "y": 21,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum(count_over_time({service_name=\"claude-code\"} | event_name=\"skill_activated\" [$__range])) or vector(0)",
+     "queryType": "instant"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "skill_activated"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 12,
+   "gridPos": {
+    "x": 6,
+    "y": 21,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum(count_over_time({service_name=\"claude-code\"} | event_name=\"mcp_server_connection\" | server_name!=\"\" [$__range])) or vector(0)",
+     "queryType": "instant"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "mcp_server_connection.server_name"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 13,
+   "gridPos": {
+    "x": 12,
+    "y": 21,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum(count_over_time({service_name=\"claude-code\"} | event_name=\"hook_registered\" | hook_matcher!=\"\" [$__range])) or vector(0)",
+     "queryType": "instant"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "hook_registered.hook_matcher"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 14,
+   "gridPos": {
+    "x": 18,
+    "y": 21,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "tempo",
+    "uid": "tempo"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "tempo",
+      "uid": "tempo"
+     },
+     "queryType": "traceql",
+     "query": "{name=\"claude_code.tool\" && span.full_command != nil} | count_over_time()",
+     "metricsQueryType": "instant",
+     "tableType": "traces",
+     "limit": 20
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "span tool.full_command"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 15,
+   "gridPos": {
+    "x": 0,
+    "y": 25,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "tempo",
+    "uid": "tempo"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "tempo",
+      "uid": "tempo"
+     },
+     "queryType": "traceql",
+     "query": "{name=\"claude_code.tool\" && span.file_path != nil} | count_over_time()",
+     "metricsQueryType": "instant",
+     "tableType": "traces",
+     "limit": 20
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "span tool.file_path"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 16,
+   "gridPos": {
+    "x": 6,
+    "y": 25,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "tempo",
+    "uid": "tempo"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "tempo",
+      "uid": "tempo"
+     },
+     "queryType": "traceql",
+     "query": "{name=\"claude_code.tool\" && span.skill_name != nil} | count_over_time()",
+     "metricsQueryType": "instant",
+     "tableType": "traces",
+     "limit": 20
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "span tool.skill_name"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 17,
+   "gridPos": {
+    "x": 12,
+    "y": 25,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "tempo",
+    "uid": "tempo"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "tempo",
+      "uid": "tempo"
+     },
+     "queryType": "traceql",
+     "query": "{name=\"claude_code.tool\" && span.subagent_type != nil} | count_over_time()",
+     "metricsQueryType": "instant",
+     "tableType": "traces",
+     "limit": 20
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "span tool.subagent_type"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 18,
+   "gridPos": {
+    "x": 18,
+    "y": 25,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "count(last_over_time({__name__=~\"claude_code_(cost|token).*\", skill_name!=\"\"}[$__range])) or vector(0)",
+     "legendFormat": "__auto",
+     "instant": true,
+     "range": false,
+     "format": "time_series"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "metric の skill_name 系列"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 19,
+   "gridPos": {
+    "x": 0,
+    "y": 29,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "count(last_over_time({__name__=~\"claude_code_(cost|token).*\", mcp_server_name!=\"\"}[$__range])) or vector(0)",
+     "legendFormat": "__auto",
+     "instant": true,
+     "range": false,
+     "format": "time_series"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "metric の mcp_server_name 系列"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 20,
+   "gridPos": {
+    "x": 6,
+    "y": 29,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "count(last_over_time({__name__=~\"claude_code_(cost|token).*\", agent_name!=\"\"}[$__range])) or vector(0)",
+     "legendFormat": "__auto",
+     "instant": true,
+     "range": false,
+     "format": "time_series"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "metric の agent_name 系列"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 21,
+   "gridPos": {
+    "x": 12,
+    "y": 29,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "row",
+   "title": "ツール × 引数のキー (tool_parameters と tool_input の中身を展開)",
+   "collapsed": false,
+   "panels": [],
+   "id": 22,
+   "gridPos": {
+    "x": 0,
+    "y": 33,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "table",
+   "title": "ツール × tool_parameters のキー",
+   "description": "tool_parameters (JSON) のキー名を抜き出し、イベント・ツールごとにどのキーが何件入っていたかを数えた。",
+   "datasource": {
+    "type": "yesoreyeram-infinity-datasource",
+    "uid": "backend-api"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://loki.observability.svc.cluster.local:3100/loki/api/v1/query_range",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "query",
+        "value": "sum by (event_name, tool_name, keys) (count_over_time({service_name=\"claude-code\"} | tool_parameters!=\"\" | label_format keys=`{{ regexReplaceAll \"\\\"([^\\\"]+)\\\":(\\\"(\\\\\\\\.|[^\\\"\\\\\\\\])*\\\"|[^,}]*)[,}]?\" .tool_parameters \"${1} \" }}` [5m]))"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       },
+       {
+        "key": "step",
+        "value": "300"
+       }
+      ]
+     },
+     "root_selector": "( $rows := data.result.( $m := metric; $n := $sum(values.$number($[1])); $map($filter($split($replace($string($m.keys), \"{\", \"\"), \" \"), function($x){ $x != \"\" and $x != \"}\" }), function($x){ {\"event\": $m.event_name, \"tool\": $m.tool_name, \"key\": $x, \"n\": $n} }) ); $distinct($rows.(event & \"|\" & tool & \"|\" & key)).( $k := $; $g := $rows[(event & \"|\" & tool & \"|\" & key) = $k]; {\"event\": $g[0].event, \"tool\": $g[0].tool, \"key\": $g[0].key, \"count\": $sum($g.n)} ) )",
+     "columns": []
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm",
+    "sortBy": [
+     {
+      "displayName": "件数",
+      "desc": true
+     }
+    ]
+   },
+   "transformations": [
+    {
+     "id": "organize",
+     "options": {
+      "renameByName": {
+       "event": "イベント",
+       "tool": "ツール",
+       "key": "キー",
+       "count": "件数"
+      },
+      "excludeByName": {},
+      "indexByName": {
+       "event": 0,
+       "tool": 1,
+       "key": 2,
+       "count": 3
+      }
+     }
+    }
+   ],
+   "id": 23,
+   "gridPos": {
+    "x": 0,
+    "y": 34,
+    "w": 12,
+    "h": 10
+   }
+  },
+  {
+   "type": "table",
+   "title": "ツール × tool_input のキー",
+   "description": "tool_input (ツールに渡した引数の JSON) の 1 段目のキー。ツールの引数そのものなので、ツールごとに違う。",
+   "datasource": {
+    "type": "yesoreyeram-infinity-datasource",
+    "uid": "backend-api"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://loki.observability.svc.cluster.local:3100/loki/api/v1/query_range",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "query",
+        "value": "sum by (event_name, tool_name, keys) (count_over_time({service_name=\"claude-code\"} | event_name=\"tool_result\" | tool_input!=\"\" | label_format keys=`{{ regexReplaceAll \"\\\"([^\\\"]+)\\\":(\\\"(\\\\\\\\.|[^\\\"\\\\\\\\])*\\\"|[^,}]*)[,}]?\" .tool_input \"${1} \" }}` [5m]))"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       },
+       {
+        "key": "step",
+        "value": "300"
+       }
+      ]
+     },
+     "root_selector": "( $rows := data.result.( $m := metric; $n := $sum(values.$number($[1])); $map($filter($split($replace($string($m.keys), \"{\", \"\"), \" \"), function($x){ $x != \"\" and $x != \"}\" }), function($x){ {\"event\": $m.event_name, \"tool\": $m.tool_name, \"key\": $x, \"n\": $n} }) ); $distinct($rows.(event & \"|\" & tool & \"|\" & key)).( $k := $; $g := $rows[(event & \"|\" & tool & \"|\" & key) = $k]; {\"event\": $g[0].event, \"tool\": $g[0].tool, \"key\": $g[0].key, \"count\": $sum($g.n)} ) )",
+     "columns": []
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm",
+    "sortBy": [
+     {
+      "displayName": "件数",
+      "desc": true
+     }
+    ]
+   },
+   "transformations": [
+    {
+     "id": "organize",
+     "options": {
+      "renameByName": {
+       "event": "イベント",
+       "tool": "ツール",
+       "key": "キー",
+       "count": "件数"
+      },
+      "excludeByName": {
+       "event": true
+      },
+      "indexByName": {
+       "tool": 0,
+       "key": 1,
+       "count": 2
+      }
+     }
+    }
+   ],
+   "id": 24,
+   "gridPos": {
+    "x": 12,
+    "y": 34,
+    "w": 12,
+    "h": 10
+   }
+  },
+  {
+   "type": "row",
+   "title": "コマンド・ファイルパス",
+   "collapsed": false,
+   "panels": [],
+   "id": 25,
+   "gridPos": {
+    "x": 0,
+    "y": 44,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "table",
+   "title": "Bash のコマンド (多い順、失敗数つき)",
+   "description": "tool_parameters.bash_command (最初の 300 字)。",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum by (cmd) (count_over_time({service_name=\"claude-code\"} | event_name=\"tool_result\" | tool_name=\"Bash\" | line_format `{{.tool_parameters}}` | json cmd=\"bash_command\" | label_format cmd=`{{ .cmd | replace \"\\n\" \" \" | trunc 300 }}` [$__range]))",
+     "queryType": "instant"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum by (cmd) (count_over_time({service_name=\"claude-code\"} | event_name=\"tool_result\" | tool_name=\"Bash\" | success=\"false\" | line_format `{{.tool_parameters}}` | json cmd=\"bash_command\" | label_format cmd=`{{ .cmd | replace \"\\n\" \" \" | trunc 300 }}` [$__range]))",
+     "queryType": "instant"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "コマンド"
+      },
+      "properties": [
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "auto",
+         "wrapText": true
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm",
+    "sortBy": [
+     {
+      "displayName": "回数",
+      "desc": true
+     }
+    ]
+   },
+   "transformations": [
+    {
+     "id": "merge",
+     "options": {}
+    },
+    {
+     "id": "organize",
+     "options": {
+      "renameByName": {
+       "cmd": "コマンド",
+       "Value #A": "回数",
+       "Value #B": "失敗"
+      },
+      "excludeByName": {
+       "Time": true
+      },
+      "indexByName": {}
+     }
+    }
+   ],
+   "id": 26,
+   "gridPos": {
+    "x": 0,
+    "y": 45,
+    "w": 12,
+    "h": 12
+   }
+  },
+  {
+   "type": "table",
+   "title": "ファイルパス (Read / Edit / Write など、多い順)",
+   "description": "tool_input.file_path。",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum by (tool_name, path) (count_over_time({service_name=\"claude-code\"} | event_name=\"tool_result\" | tool_input=~\".*file_path.*\" | line_format `{{.tool_input}}` | json path=\"file_path\" [$__range]))",
+     "queryType": "instant"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "ファイルパス"
+      },
+      "properties": [
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "auto",
+         "wrapText": true
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm",
+    "sortBy": [
+     {
+      "displayName": "回数",
+      "desc": true
+     }
+    ]
+   },
+   "transformations": [
+    {
+     "id": "organize",
+     "options": {
+      "renameByName": {
+       "tool_name": "ツール",
+       "path": "ファイルパス",
+       "Value": "回数",
+       "Value #A": "回数"
+      },
+      "excludeByName": {
+       "Time": true
+      },
+      "indexByName": {}
+     }
+    }
+   ],
+   "id": 27,
+   "gridPos": {
+    "x": 12,
+    "y": 45,
+    "w": 12,
+    "h": 12
+   }
+  },
+  {
+   "type": "row",
+   "title": "skill・MCP・サブエージェント・git",
+   "collapsed": false,
+   "panels": [],
+   "id": 28,
+   "gridPos": {
+    "x": 0,
+    "y": 57,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "table",
+   "title": "skill 名 (出どころ別)",
+   "description": "Skill ツールの呼び出し、skill_activated イベント、skill 中の API 呼び出し数、skill 中のコスト。",
+   "datasource": {
+    "type": "datasource",
+    "uid": "-- Mixed --"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum by (skill_name) (count_over_time({service_name=\"claude-code\"} | event_name=\"tool_result\" | tool_name=\"Skill\" | line_format `{{.tool_parameters}}` | json skill_name [$__range]))",
+     "queryType": "instant"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum by (skill_name) (count_over_time({service_name=\"claude-code\"} | event_name=\"skill_activated\" [$__range]))",
+     "queryType": "instant"
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum by (skill_name) (count_over_time({service_name=\"claude-code\"} | event_name=\"api_request\" | skill_name!=\"\" [$__range]))",
+     "queryType": "instant"
+    },
+    {
+     "refId": "D",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (skill_name) (increase(claude_code_cost_usage_USD_total{skill_name!=\"\"}[$__range]))",
+     "legendFormat": "__auto",
+     "instant": true,
+     "range": false,
+     "format": "table"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "コスト (USD)"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "currencyUSD"
+       },
+       {
+        "id": "decimals",
+        "value": 3
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "transformations": [
+    {
+     "id": "merge",
+     "options": {}
+    },
+    {
+     "id": "organize",
+     "options": {
+      "renameByName": {
+       "skill_name": "skill",
+       "Value #A": "Skill ツール",
+       "Value #B": "skill_activated",
+       "Value #C": "API 呼び出し",
+       "Value #D": "コスト (USD)"
+      },
+      "excludeByName": {
+       "Time": true
+      },
+      "indexByName": {}
+     }
+    }
+   ],
+   "id": 29,
+   "gridPos": {
+    "x": 0,
+    "y": 58,
+    "w": 12,
+    "h": 8
+   }
+  },
+  {
+   "type": "table",
+   "title": "MCP サーバー / ツール (出どころ別)",
+   "description": "tool_result の tool_parameters、api_request の属性、コストのメトリクスのラベル。`custom` = 実名が伏せられた値。",
+   "datasource": {
+    "type": "datasource",
+    "uid": "-- Mixed --"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum by (mcp_server_name, mcp_tool_name) (count_over_time({service_name=\"claude-code\"} | event_name=\"tool_result\" | tool_name=\"mcp_tool\" | line_format `{{.tool_parameters}}` | json mcp_server_name, mcp_tool_name [$__range]))",
+     "queryType": "instant"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum by (mcp_server_name, mcp_tool_name) (count_over_time({service_name=\"claude-code\"} | event_name=\"api_request\" | mcp_server_name!=\"\" [$__range]))",
+     "queryType": "instant"
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (mcp_server_name, mcp_tool_name) (increase(claude_code_cost_usage_USD_total{mcp_server_name!=\"\"}[$__range]))",
+     "legendFormat": "__auto",
+     "instant": true,
+     "range": false,
+     "format": "table"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "コスト (USD)"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "currencyUSD"
+       },
+       {
+        "id": "decimals",
+        "value": 3
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "transformations": [
+    {
+     "id": "merge",
+     "options": {}
+    },
+    {
+     "id": "organize",
+     "options": {
+      "renameByName": {
+       "mcp_server_name": "サーバー",
+       "mcp_tool_name": "ツール",
+       "Value #A": "呼び出し",
+       "Value #B": "結果を読んだ API 呼び出し",
+       "Value #C": "コスト (USD)"
+      },
+      "excludeByName": {
+       "Time": true
+      },
+      "indexByName": {}
+     }
+    }
+   ],
+   "id": 30,
+   "gridPos": {
+    "x": 12,
+    "y": 58,
+    "w": 12,
+    "h": 8
+   }
+  },
+  {
+   "type": "table",
+   "title": "サブエージェント・skill (スパン属性)",
+   "description": "スパン `claude_code.tool` の subagent_type / skill_name。",
+   "datasource": {
+    "type": "tempo",
+    "uid": "tempo"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "tempo",
+      "uid": "tempo"
+     },
+     "queryType": "traceql",
+     "query": "{name=\"claude_code.tool\" && (span.subagent_type != nil || span.skill_name != nil)} | count_over_time() by (span.tool_name, span.subagent_type, span.skill_name)",
+     "metricsQueryType": "instant",
+     "tableType": "traces",
+     "limit": 20
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "transformations": [
+    {
+     "id": "reduce",
+     "options": {
+      "reducers": [
+       "sum"
+      ],
+      "mode": "seriesToRows",
+      "includeTimeField": false
+     }
+    },
+    {
+     "id": "organize",
+     "options": {
+      "renameByName": {
+       "Field": "組",
+       "Total": "件数"
+      },
+      "excludeByName": {},
+      "indexByName": {}
+     }
+    }
+   ],
+   "id": 31,
+   "gridPos": {
+    "x": 0,
+    "y": 66,
+    "w": 12,
+    "h": 7
+   }
+  },
+  {
+   "type": "table",
+   "title": "git commit (vcs_ref_head_*、tool_parameters の git_commit_id)",
+   "description": "Bash で git commit が成功したときだけ付く。",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum by (vcs_ref_head_name, vcs_ref_head_revision, vcs_repository_name) (count_over_time({service_name=\"claude-code\"} | event_name=\"tool_result\" | vcs_ref_head_revision!=\"\" [$__range]))",
+     "queryType": "instant"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "transformations": [
+    {
+     "id": "organize",
+     "options": {
+      "renameByName": {
+       "Value": "件数",
+       "Value #A": "件数"
+      },
+      "excludeByName": {
+       "Time": true
+      },
+      "indexByName": {}
+     }
+    }
+   ],
+   "id": 32,
+   "gridPos": {
+    "x": 12,
+    "y": 66,
+    "w": 12,
+    "h": 7
+   }
+  },
+  {
+   "type": "row",
+   "title": "失敗の全文 (tool_result.error)",
+   "collapsed": false,
+   "panels": [],
+   "id": 33,
+   "gridPos": {
+    "x": 0,
+    "y": 73,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "table",
+   "title": "ツールの失敗 (新しい順、最大 100 件)",
+   "description": "`error_type` は常に届く分類、`error` はこの設定で届く全文。",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "{service_name=\"claude-code\"} | event_name=\"tool_result\" | error!=\"\" | keep tool_name, error_type, error, orca_worktree_name, tool_parameters",
+     "queryType": "range",
+     "maxLines": 100
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "時刻"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "dateTimeAsLocal"
+       },
+       {
+        "id": "custom.width",
+        "value": 150
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "error"
+      },
+      "properties": [
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "auto",
+         "wrapText": true
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "tool_parameters"
+      },
+      "properties": [
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "auto",
+         "wrapText": true
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "transformations": [
+    {
+     "id": "extractFields",
+     "options": {
+      "source": "labels",
+      "format": "auto",
+      "replace": false,
+      "keepTime": true
+     }
+    },
+    {
+     "id": "organize",
+     "options": {
+      "renameByName": {
+       "Time": "時刻"
+      },
+      "excludeByName": {
+       "labels": true,
+       "Line": true,
+       "tsNs": true,
+       "labelTypes": true,
+       "id": true,
+       "service_name": true,
+       "detected_level": true
+      },
+      "indexByName": {}
+     }
+    }
+   ],
+   "id": 34,
+   "gridPos": {
+    "x": 0,
+    "y": 74,
+    "w": 24,
+    "h": 10
+   }
+  }
+ ]
+}

@@ -65,3 +65,5 @@ kind自体は試験で問われないためクラスタの起動/削除は just 
 `docs/observability/claude-code-usage.md`、ハーネスの直し方は
 `docs/observability/claude-code-improve.md` を参照。困りごとからどのダッシュボードを見るかは
 `docs/observability/playbook.md` (Grafana のホーム「Claude Code はじめに」にも同じ内容の短縮版がある)。
+OTel の設定 (環境変数) ごとに何が届くかは `docs/observability/claude-code-settings.md`
+(Grafana のフォルダ「Claude Code 設定項目別」)。

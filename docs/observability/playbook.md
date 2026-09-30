@@ -5,7 +5,8 @@ Grafana のダッシュボードを、困りごとから引くための手引き
 同じ内容を短くしたものが、Grafana の「Claude Code はじめに」(`/d/claude-code-start`) にある。
 観測スタックの構成は [claude-code-traces.md](claude-code-traces.md)、各ダッシュボードの
 パネルの意味は [claude-code-usage.md](claude-code-usage.md) と
-[claude-code-improve.md](claude-code-improve.md) にまとめている。
+[claude-code-improve.md](claude-code-improve.md) にまとめている。OTel の設定 (環境変数) ごとに何が届くかは
+[claude-code-settings.md](claude-code-settings.md) と、Grafana のフォルダ「Claude Code 設定項目別」(`/d/cc-settings`)。
 
 ## 用語
 
@@ -26,6 +27,7 @@ Grafana のダッシュボードを、困りごとから引くための手引き
 | Claude Code usage (`/d/claude-code-usage`) | コスト・トークン・ワーカー別の量 |
 | Claude Code traces (`/d/claude-code-traces`) | 所要時間、ツール、hook、サブエージェントの内訳 |
 | Claude Code improve (`/d/claude-code-improve`) | ハーネスを直す箇所を決める。依頼ごとのコスト、失敗したコマンド、skill の使われ方 |
+| Claude Code 設定項目別 (`/d/cc-settings` から各設定へ) | OTel の設定 1 つごとに、その設定で届くようになった属性・ラベルを全部見る。設定を変える前後に使う |
 
 どのダッシュボードも右上の期間で集計範囲が変わる。上部の「Claude Code」リンクで互いに
 行き来でき、期間は引き継がれる。
@@ -125,6 +127,8 @@ Grafana のダッシュボードを、困りごとから引くための手引き
 - 次にすること: 使いたい属性の正確な名前をここで確かめてから、usage / traces / improve に
   パネルを足す。ログの属性はドット区切りが `_` に置き換わる (`orca.worktree.name` → `orca_worktree_name`)。
   トレースでは元の名前のまま `span.` か `resource.` を付けて書く。
+- 環境変数を足した・外したときは、設定項目別のダッシュボード (`/d/cc-settings`) の該当する 1 枚を開く。
+  先頭のタイルがその設定で増える属性の件数で、0 なら届いていない。オフの項目は `/d/cc-setting-off` にまとめてある。
 
 ### 10. observe-share で人に見せるとき
 

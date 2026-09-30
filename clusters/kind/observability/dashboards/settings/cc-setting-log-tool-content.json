@@ -1,0 +1,1065 @@
+{
+ "uid": "cc-setting-log-tool-content",
+ "title": "設定: OTEL_LOG_TOOL_CONTENT",
+ "description": "ツール出力の中身 (tool.output) で届くもの",
+ "tags": [
+  "claude-code-setting"
+ ],
+ "timezone": "browser",
+ "editable": true,
+ "graphTooltip": 1,
+ "schemaVersion": 41,
+ "time": {
+  "from": "now-7d",
+  "to": "now"
+ },
+ "refresh": "",
+ "links": [
+  {
+   "type": "link",
+   "title": "設定項目別の一覧",
+   "url": "/d/cc-settings",
+   "icon": "dashboard",
+   "keepTime": true,
+   "targetBlank": false,
+   "asDropdown": false,
+   "includeVars": false,
+   "tags": []
+  },
+  {
+   "type": "dashboards",
+   "title": "設定項目別",
+   "tags": [
+    "claude-code-setting"
+   ],
+   "asDropdown": true,
+   "includeVars": false,
+   "keepTime": true,
+   "targetBlank": false,
+   "icon": "external link"
+  },
+  {
+   "type": "dashboards",
+   "title": "Claude Code",
+   "tags": [
+    "claude-code"
+   ],
+   "asDropdown": true,
+   "includeVars": false,
+   "keepTime": true,
+   "targetBlank": false,
+   "icon": "external link"
+  }
+ ],
+ "templating": {
+  "list": []
+ },
+ "panels": [
+  {
+   "type": "text",
+   "title": "この設定について",
+   "options": {
+    "mode": "markdown",
+    "content": "**環境変数**: `OTEL_LOG_TOOL_CONTENT`\n\n**いまの値**: `1` (dotfiles で有効化中。まだ settings.json に入っていなければ、下の件数は検証で `claude -p` に付けた回だけ)\n\n**何が届くようになるか (公式)**: トレースが要る。スパン `claude_code.tool` にスパンイベント `tool.output` を付け、Read の `content`、Bash の `output`、MCP / WebFetch / WebSearch の `output` (v2.1.283 以降) を 60 KB まで入れる。Edit (`diff`) と Write (`content`) と、`file_path` / `bash_command` は `OTEL_LOG_TOOL_DETAILS=1` も要る。60 KB で切ったときは `<属性>_truncated` と `<属性>_original_length` が付く。detailed beta tracing のときは tool スパンの `new_context` もこれで出る。\n\n**止めると消えるもの**: `tool.output` スパンイベントすべて (ツールの出力の中身)。ツールの呼び出し回数・結果の大きさ (`tool_result_size_bytes`) は残る。\n\n**何が分かる・何に使えるか**: ツールが実際に何を返したか (コマンドの出力、読んだファイルの中身)。失敗していないのに結果がおかしい、巨大な出力で文脈を食っている、を確かめる。\n\n**公式と実データの突き合わせ**: Read / Bash / Edit / Write / MCP で実データを確認 (検証の `claude -p`)。**Loki のイベントには出ない** (スパンイベントだけ)。"
+   },
+   "id": 1,
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 12
+   }
+  },
+  {
+   "type": "row",
+   "title": "tool.output が届いているか",
+   "collapsed": false,
+   "panels": [],
+   "id": 2,
+   "gridPos": {
+    "x": 0,
+    "y": 12,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "tempo",
+    "uid": "tempo"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "tempo",
+      "uid": "tempo"
+     },
+     "queryType": "traceql",
+     "query": "{event:name=\"tool.output\"} | count_over_time()",
+     "metricsQueryType": "instant",
+     "tableType": "traces",
+     "limit": 20
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "tool.output (全体)"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 3,
+   "gridPos": {
+    "x": 0,
+    "y": 13,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "tempo",
+    "uid": "tempo"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "tempo",
+      "uid": "tempo"
+     },
+     "queryType": "traceql",
+     "query": "{event:name=\"tool.output\" && event.output != nil} | count_over_time()",
+     "metricsQueryType": "instant",
+     "tableType": "traces",
+     "limit": 20
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "output あり (Bash / MCP / Web)"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 4,
+   "gridPos": {
+    "x": 6,
+    "y": 13,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "tempo",
+    "uid": "tempo"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "tempo",
+      "uid": "tempo"
+     },
+     "queryType": "traceql",
+     "query": "{event:name=\"tool.output\" && event.content != nil} | count_over_time()",
+     "metricsQueryType": "instant",
+     "tableType": "traces",
+     "limit": 20
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "content あり (Read / Write)"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 5,
+   "gridPos": {
+    "x": 12,
+    "y": 13,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "tempo",
+    "uid": "tempo"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "tempo",
+      "uid": "tempo"
+     },
+     "queryType": "traceql",
+     "query": "{event:name=\"tool.output\" && event.diff != nil} | count_over_time()",
+     "metricsQueryType": "instant",
+     "tableType": "traces",
+     "limit": 20
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "diff あり (Edit)"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 6,
+   "gridPos": {
+    "x": 18,
+    "y": 13,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "tempo",
+    "uid": "tempo"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "tempo",
+      "uid": "tempo"
+     },
+     "queryType": "traceql",
+     "query": "{event:name=\"tool.output\" && (event.output_truncated = true || event.content_truncated = true || event.diff_truncated = true)} | count_over_time()",
+     "metricsQueryType": "instant",
+     "tableType": "traces",
+     "limit": 20
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "切り詰めあり"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 7,
+   "gridPos": {
+    "x": 0,
+    "y": 17,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "row",
+   "title": "ツール別の件数と属性",
+   "collapsed": false,
+   "panels": [],
+   "id": 8,
+   "gridPos": {
+    "x": 0,
+    "y": 21,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "table",
+   "title": "ツール別の tool.output 件数",
+   "description": "",
+   "datasource": {
+    "type": "tempo",
+    "uid": "tempo"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "tempo",
+      "uid": "tempo"
+     },
+     "queryType": "traceql",
+     "query": "{event:name=\"tool.output\"} | count_over_time() by (span.tool_name)",
+     "metricsQueryType": "instant",
+     "tableType": "traces",
+     "limit": 20
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm",
+    "sortBy": [
+     {
+      "displayName": "件数",
+      "desc": true
+     }
+    ]
+   },
+   "transformations": [
+    {
+     "id": "reduce",
+     "options": {
+      "reducers": [
+       "sum"
+      ],
+      "mode": "seriesToRows",
+      "includeTimeField": false
+     }
+    },
+    {
+     "id": "extractFields",
+     "options": {
+      "source": "Field",
+      "format": "regexp",
+      "regExp": "/tool_name=\"?([^\"}]+)\"?/",
+      "replace": false
+     }
+    },
+    {
+     "id": "organize",
+     "options": {
+      "renameByName": {
+       "Field": "ツール",
+       "Total": "件数"
+      },
+      "excludeByName": {},
+      "indexByName": {}
+     }
+    }
+   ],
+   "id": 9,
+   "gridPos": {
+    "x": 0,
+    "y": 22,
+    "w": 8,
+    "h": 8
+   }
+  },
+  {
+   "type": "table",
+   "title": "tool.output の属性キー",
+   "description": "公式の属性: content / output / diff / file_path / bash_command と、切ったときの *_truncated / *_original_length。",
+   "datasource": {
+    "type": "yesoreyeram-infinity-datasource",
+    "uid": "backend-api"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://tempo.observability.svc.cluster.local:3200/api/v2/search/tags",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "q",
+        "value": "{event:name=\"tool.output\"}"
+       },
+       {
+        "key": "scope",
+        "value": "event"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       }
+      ]
+     },
+     "root_selector": "$map(scopes.tags, function($x){ {\"key\": $x} })",
+     "columns": []
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "transformations": [],
+   "id": 10,
+   "gridPos": {
+    "x": 8,
+    "y": 22,
+    "w": 6,
+    "h": 8
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "tool.output の件数の推移 (ツール別)",
+   "description": "",
+   "datasource": {
+    "type": "tempo",
+    "uid": "tempo"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "tempo",
+      "uid": "tempo"
+     },
+     "queryType": "traceql",
+     "query": "{event:name=\"tool.output\"} | count_over_time() by (span.tool_name)",
+     "metricsQueryType": "range",
+     "tableType": "traces",
+     "limit": 20
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "drawStyle": "bars",
+      "lineWidth": 1,
+      "fillOpacity": 60,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "normal",
+       "group": "A"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "sum"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "id": 11,
+   "gridPos": {
+    "x": 14,
+    "y": 22,
+    "w": 10,
+    "h": 8
+   }
+  },
+  {
+   "type": "row",
+   "title": "tool.output の中身の一覧",
+   "collapsed": false,
+   "panels": [],
+   "id": 12,
+   "gridPos": {
+    "x": 0,
+    "y": 30,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "table",
+   "title": "tool.output の一覧 (長さ・切り詰めつき、先頭 300 字)",
+   "description": "Tempo の検索 API で tool.output を持つスパンを引き、スパンイベントの属性を 1 行にした。長さ = 届いた文字数、元の長さ = 切り詰め前 (切ったときだけ)。",
+   "datasource": {
+    "type": "yesoreyeram-infinity-datasource",
+    "uid": "backend-api"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://tempo.observability.svc.cluster.local:3200/api/search",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "q",
+        "value": "{event:name=\"tool.output\"} | select(span.tool_name, event.output, event.content, event.diff, event.file_path, event.bash_command, event.output_truncated, event.output_original_length, event.content_truncated, event.content_original_length, event.diff_truncated, event.diff_original_length)"
+       },
+       {
+        "key": "limit",
+        "value": "100"
+       },
+       {
+        "key": "spss",
+        "value": "50"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       }
+      ]
+     },
+     "root_selector": "traces.( $t := traceID; spanSets.spans.( $a := $merge(attributes.{key: value.*}); $body := $a.output ? $a.output : ($a.content ? $a.content : $a.diff); {\"time\": $number(startTimeUnixNano) / 1000000, \"tool\": $a.tool_name, \"attr\": $a.output ? \"output\" : ($a.content ? \"content\" : ($a.diff ? \"diff\" : \"\")), \"length\": $length($string($body)), \"original_length\": $a.output_original_length ? $a.output_original_length : ($a.content_original_length ? $a.content_original_length : $a.diff_original_length), \"truncated\": ($a.output_truncated or $a.content_truncated or $a.diff_truncated) ? \"切り詰め\" : \"\", \"file_path\": $a.file_path, \"bash_command\": $a.bash_command, \"preview\": $substring($string($body), 0, 300), \"trace_id\": $t} ) )",
+     "columns": []
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "時刻"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "dateTimeAsLocal"
+       },
+       {
+        "id": "custom.width",
+        "value": 150
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "中身 (先頭 300 字)"
+      },
+      "properties": [
+       {
+        "id": "custom.minWidth",
+        "value": 400
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "trace_id"
+      },
+      "properties": [
+       {
+        "id": "links",
+        "value": [
+         {
+          "title": "トレースを開く",
+          "url": "",
+          "internal": {
+           "datasourceUid": "tempo",
+           "datasourceName": "Tempo",
+           "query": {
+            "queryType": "traceql",
+            "query": "${__value.raw}"
+           }
+          }
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "中身 (先頭 300 字)"
+      },
+      "properties": [
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "auto",
+         "wrapText": true
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "bash_command"
+      },
+      "properties": [
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "auto",
+         "wrapText": true
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "transformations": [
+    {
+     "id": "organize",
+     "options": {
+      "renameByName": {
+       "time": "時刻",
+       "tool": "ツール",
+       "attr": "属性",
+       "length": "長さ",
+       "original_length": "元の長さ",
+       "truncated": "切り詰め",
+       "file_path": "file_path",
+       "bash_command": "bash_command",
+       "preview": "中身 (先頭 300 字)"
+      },
+      "excludeByName": {},
+      "indexByName": {
+       "time": 0,
+       "tool": 1,
+       "attr": 2,
+       "length": 3,
+       "original_length": 4,
+       "truncated": 5,
+       "file_path": 6,
+       "bash_command": 7,
+       "preview": 8,
+       "trace_id": 9
+      }
+     }
+    },
+    {
+     "id": "sortBy",
+     "options": {
+      "sort": [
+       {
+        "field": "時刻",
+        "desc": true
+       }
+      ]
+     }
+    }
+   ],
+   "id": 13,
+   "gridPos": {
+    "x": 0,
+    "y": 31,
+    "w": 24,
+    "h": 14
+   }
+  },
+  {
+   "type": "table",
+   "title": "ツール別の長さ (届いた文字数)",
+   "description": "直近 100 トレースぶん。",
+   "datasource": {
+    "type": "yesoreyeram-infinity-datasource",
+    "uid": "backend-api"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "backend-api"
+     },
+     "type": "json",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "http://tempo.observability.svc.cluster.local:3200/api/search",
+     "url_options": {
+      "method": "GET",
+      "params": [
+       {
+        "key": "q",
+        "value": "{event:name=\"tool.output\"} | select(span.tool_name, event.output, event.content, event.diff, event.file_path, event.bash_command, event.output_truncated, event.output_original_length, event.content_truncated, event.content_original_length, event.diff_truncated, event.diff_original_length)"
+       },
+       {
+        "key": "limit",
+        "value": "100"
+       },
+       {
+        "key": "spss",
+        "value": "50"
+       },
+       {
+        "key": "start",
+        "value": "${__from:date:seconds}"
+       },
+       {
+        "key": "end",
+        "value": "${__to:date:seconds}"
+       }
+      ]
+     },
+     "root_selector": "( $rows := traces.spanSets.spans.( $a := $merge(attributes.{key: value.*}); {\"tool\": $a.tool_name, \"len\": $length($string($a.output ? $a.output : ($a.content ? $a.content : $a.diff))), \"tr\": ($a.output_truncated or $a.content_truncated or $a.diff_truncated) ? 1 : 0} ); $distinct($rows.tool).( $k := $; $g := $rows[tool = $k]; {\"tool\": $k, \"n\": $count($g), \"avg\": $round($average($g.len)), \"max\": $max($g.len), \"truncated\": $sum($g.tr)} ) )",
+     "columns": []
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm",
+    "sortBy": [
+     {
+      "displayName": "件数",
+      "desc": true
+     }
+    ]
+   },
+   "transformations": [
+    {
+     "id": "organize",
+     "options": {
+      "renameByName": {
+       "tool": "ツール",
+       "n": "件数",
+       "avg": "平均長",
+       "max": "最大長",
+       "truncated": "切り詰め"
+      },
+      "excludeByName": {},
+      "indexByName": {
+       "tool": 0,
+       "n": 1,
+       "avg": 2,
+       "max": 3,
+       "truncated": 4
+      }
+     }
+    }
+   ],
+   "id": 14,
+   "gridPos": {
+    "x": 0,
+    "y": 45,
+    "w": 24,
+    "h": 7
+   }
+  }
+ ]
+}
