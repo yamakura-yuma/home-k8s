@@ -31,3 +31,19 @@ datasources:
         url: http://tempo.observability.svc.cluster.local:3200
         isDefault: true
         editable: false
+
+# ダッシュボードは JSON をリポジトリに置き、provisioning で読み込む。
+# 中身は `just observe-up` が --set-file で dashboards.default.<名前>.json に流し込む
+# (chart が ConfigMap にして下の path へマウントする)。
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+      - name: default
+        orgId: 1
+        type: file
+        disableDeletion: true
+        # UI での変更は保存できても Pod の再起動で消える。直すときは JSON を編集する
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards/default

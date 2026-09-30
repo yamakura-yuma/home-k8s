@@ -95,6 +95,17 @@ export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
 この状態で `claude -p "hello"` を実行すると、`claude_code.interaction` をルートに
 `claude_code.llm_request` が子スパンとしてぶら下がったトレースが Tempo に入る。
 
+`claude_code.hook` スパンは上の設定だけでは出ない。Claude Code 2.1.285 では hook の
+スパンを詳細トレース側でしか作っておらず、次の 2 つも要る。
+
+```sh
+export ENABLE_BETA_TRACING_DETAILED=1
+export BETA_TRACING_ENDPOINT=http://localhost:4318
+```
+
+詳細トレースでは llm_request に `system_prompt_hash` や `tools` (ツール名とハッシュ) が
+増える。プロンプト本文は伏せ字のままだった (2.1.285 で確認)。
+
 ## 永続化の仕組み
 
 トレースはオブジェクトストレージではなく、Tempo の `local` backend でファイルとして
@@ -135,3 +146,88 @@ Admin 権限で有効にし、ログイン画面を出さない設定にして�
 UI からは編集できない。変えるときは `grafana-values.yaml` を直して `just observe-up`
 を打ち直す。Grafana 自体は永続化していないので、UI で作ったダッシュボードは Pod の
 再起動で消える。
+
+## ダッシュボード
+
+`just observe-up` で Grafana にダッシュボード「Claude Code traces」
+(<http://localhost:3000/d/claude-code-traces>) が入る。定義は
+`clusters/kind/observability/dashboards/claude-code-traces.json` で、UI で直しても Pod の
+再起動で消えるので、変えるときは JSON を編集して `just observe-up` を打ち直す。
+
+### 読み込みの仕組み
+
+chart の `dashboardProviders` で `/var/lib/grafana/dashboards/default` を読むプロバイダを
+作り、`observe-up` が `--set-file dashboards.default.claude-code-traces.json=<JSON>` で
+JSON を values に流し込む。chart はそれを ConfigMap にしてそのディレクトリにマウントする。
+sidecar (ラベル付き ConfigMap を拾うコンテナ) は、ダッシュボードが 1 枚で ConfigMap を
+自分で書く必要も無いので使っていない。values に JSON を直書きしないのは、ファイルのままなら
+Grafana の Export / Import とそのまま行き来できるため。
+
+### 集計の方式
+
+パネルはすべて Tempo に TraceQL metrics (`count_over_time()`、`quantile_over_time()`、
+`sum_over_time()`) を投げて、保存済みのトレースからその場で集計する。metrics-generator
+(スパンから Prometheus 形式のメトリクスを作って remote write する機能) は使わない。
+
+- metrics-generator の出力先となる Prometheus がこのスタックに無い。
+- Tempo 3.0 の単一バイナリ構成は、追加の設定なしで TraceQL metrics に答えられる
+  (local-blocks プロセッサの有効化は不要だった)。
+- 件数が少ない (1 日に数十トレース) ので、クエリのたびに全スパンを読んでも速い。
+
+変えた設定は 1 つで、Tempo の `query_frontend.metrics.max_duration` を既定の 24h から
+168h に広げた (`tempo-values.yaml`)。既定のままだと時間範囲を 24h より長くすると
+`metrics query time range exceeds the maximum allowed duration` で失敗する。
+
+### 属性名の注意
+
+Claude Code はスパンの種類を `span.type` という名前の属性で出している。TraceQL の
+`span.type` は「スパンスコープの属性 `type`」と解釈されるため一致しない。この属性を
+使うなら `span."span.type"` と書く必要がある。ダッシュボードでは代わりにスパン名
+(`name`) で絞っている。
+
+実データで伏せ字でなく使えた属性は次のとおり。
+
+| スパン | 使える属性 |
+|---|---|
+| interaction | `user_prompt_length`、`interaction.sequence` (`user_prompt` は `<REDACTED>`) |
+| llm_request | `model`、`input_tokens`、`output_tokens`、`cache_read_tokens`、`cache_creation_tokens`、`success`、`attempt`、`ttft_ms`、`stop_reason`、`query_source_safe`、`agent_id` (サブエージェント内のみ) |
+| tool | `tool_name`、`tool_name_safe` (MCP ツールは `mcp_other`)、`bash_command_class`、`bash_argv0` |
+| tool.blocked_on_user | `decision` (accept / reject / unknown)、`source` |
+| tool.execution | `success` |
+| hook | `hook_event`、`hook_name` (`PreToolUse:Bash` のようにマッチャー付き)、`num_hooks`、`num_success`、`num_blocking` |
+
+### パネルと TraceQL
+
+時系列パネルは range クエリ、棒グラフと数値のパネルは instant クエリ (期間全体を 1 つの値に
+まとめる) にしている。
+
+| # | パネル | TraceQL |
+|---|---|---|
+| 1 | 依頼の件数 | `{name="claude_code.interaction"} \| count_over_time()` |
+| 2 | 依頼と LLM リクエストの所要時間 | `{name=~"claude_code.(interaction\|llm_request)"} \| quantile_over_time(duration, .5, .95) by (name)` |
+| 3 | モデル別のトークン量 | `{name="claude_code.llm_request"} \| sum_over_time(span.input_tokens) by (span.model)` (output / cache_read / cache_creation も同形) |
+| 3 | キャッシュ読み出し割合 | 上の input / cache_read / cache_creation を instant で取り、Grafana の式で `cache_read / (input + cache_read + cache_creation)` |
+| 4 | ツール別の呼び出し回数 | `{name="claude_code.tool"} \| count_over_time() by (span.tool_name)` |
+| 4 | ツール別の所要時間 | `{name="claude_code.tool"} \| quantile_over_time(duration, .95) by (span.tool_name)` |
+| 4 | 許可待ちと実行 | `{name="claude_code.tool" && span.tool_name=~"$tool"} > {name=~"claude_code.tool.(blocked_on_user\|execution)"} \| quantile_over_time(duration, .95) by (name)` |
+| 5 | hook 別の所要時間 | `{name="claude_code.hook"} \| quantile_over_time(duration, .95) by (span.hook_name)` |
+| 6 | サブエージェントの起動数・所要時間 | `{name="claude_code.tool" && span.tool_name=~"Agent\|Task"} \| count_over_time()` (所要時間は `quantile_over_time(duration, .5, .95)`) |
+| 6 | 種別ごとの LLM リクエスト数 | `{name="claude_code.llm_request" && span.agent_id != nil} \| count_over_time() by (span.query_source_safe)` |
+| 7 | 最近の依頼 | `{name="claude_code.interaction"}` (Table 表示の検索結果) |
+| 7 | サブエージェントを含む依頼 | `{name="claude_code.tool" && span.tool_name=~"Agent\|Task"}` |
+
+見方の補足。
+
+- 4 の許可待ちと実行: 子スパン (`blocked_on_user`、`execution`) は `tool_name` を持たない。
+  親子演算子 `>` で親の `tool` スパンを条件にし、上部の変数「ツール」で絞る。許可が設定
+  (`source=config`) で自動に通る場合、許可待ちは数ミリ秒になる。
+- 6 のサブエージェント: Agent ツールのスパンの下 (`tool` → `tool.execution`) にサブエージェント
+  の `llm_request` と `tool` がぶら下がる。サブエージェント内の `llm_request` と `tool` には
+  `agent_id` が付き、`query_source_safe` が `agent.builtin.Explore` のように種別を表す。
+- 7 の表: Trace ID をクリックすると、同じ Tempo データソースでトレースのウォーターフォールが開く。
+- 3 のトークン量: 種類ごとに 1 パネルに分けている。Tempo データソースは返すフレームの
+  refId を系列名 (モデル名) で上書きするため、1 パネルに複数クエリを置くと Grafana の
+  「クエリごとに名前を付ける」上書き (`byFrameRefID`) が効かず、どの系列がどのトークンか
+  区別できなくなる。
+- `quantile_over_time()` の値は Tempo が 2 のべき乗のバケットで近似するため、概算になる
+  (たとえば 0.537 s や 68.7 s のような値が出る)。

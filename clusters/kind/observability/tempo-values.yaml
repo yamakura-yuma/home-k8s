@@ -12,6 +12,11 @@ tempo:
         path: /var/tempo/traces
       wal:
         path: /var/tempo/wal
+  # TraceQL metrics (ダッシュボードの集計) で引ける期間。既定の 24h では
+  # 週単位で見られないため、検索 (search.max_duration の既定 168h) に揃える。
+  queryFrontend:
+    metrics:
+      max_duration: 168h
   extraVolumeMounts:
     - name: tempo-data
       mountPath: /var/tempo

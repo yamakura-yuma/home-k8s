@@ -18,7 +18,8 @@ observe-up:
     helm upgrade --install grafana grafana \
         --repo https://grafana-community.github.io/helm-charts --version 13.2.7 \
         --kube-context kind-study-kind --namespace {{observe_ns}} \
-        --values {{observe_values}}/grafana-values.yaml --wait
+        --values {{observe_values}}/grafana-values.yaml \
+        --set-file 'dashboards.default.claude-code-traces.json={{observe_values}}/dashboards/claude-code-traces.json' --wait
 
 # 観測スタックを消す (保存済みのトレースはホスト側に残る)
 observe-down:
