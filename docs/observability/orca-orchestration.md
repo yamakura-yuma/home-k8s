@@ -28,7 +28,7 @@ just orca-exporter-uninstall  # 止めて消す。送信済みの状態は残す
 
 - ユニットはこの checkout の `orca_exporter.py` を直接指す。worktree で入れたら、main に戻ってから入れ直す。
 - 状態は `~/.local/share/home-k8s/observability/orca-exporter/state.json` (リポジトリの外)。
-  送ったログのキー、送ったスパンのキー、Task の前回の状態、終わった Dispatch の詳細を持つ。
+  送ったログのキー、送ったスパンのキー、Task の前回の状態、終わった Dispatch の詳細、Run ごとの coordinator の worktree 名 (`run_coordinator`) を持つ。
   このディレクトリの親は開発用コンテナ (root) が作るので、install は状態のディレクトリだけを
   `docker run` 経由で自分の持ち物として作る。
 - Orca の relay が居ない、Collector が止まっているときは、その回を飛ばして 30 秒後にやり直す (プロセスは落ちない)。
@@ -52,6 +52,7 @@ just orca-exporter-uninstall  # 止めて消す。送信済みの状態は残す
 | コマンド | 取るもの |
 |---|---|
 | `run-list` | Run (目的、作った時刻、束縛中の coordinator) |
+| `terminal list` (`orchestration` の外) | 端末の handle と、属する worktree。`run-list` の coordinator の handle を worktree 名に引き直す (`orca_run_coordinator_worktree`) |
 | `task-list --run <id>` | Task (状態、作った・終わった時刻、担当の Dispatch、結果) |
 | `inbox --limit 100000` | 全宛先のメッセージ (種別、件名、本文、payload、送信・配達の時刻、スレッド) |
 | `worker-list --run <id>` | ワーカーの端末の扱い (worktree、release の結果、残った理由) |
@@ -93,7 +94,7 @@ exporter が止まると系列は 5 分で途切れる。ダッシュボード�
 
 | メトリクス | 値 | ラベル (共通の属性のほか) |
 |---|---|---|
-| `orca_run_info` | 1 | `orca_run_objective`、`trace_id`、`orca_run_state` (`open` / `closed`) |
+| `orca_run_info` | 1 | `orca_run_objective`、`trace_id`、`orca_run_state` (`open` / `closed`)、`orca_run_coordinator_worktree` (下) |
 | `orca_run_start_time_seconds` / `orca_run_duration_seconds` | 作った時刻 / 最後の動きまで | |
 | `orca_run_tasks` | Task 数 | `orca_task_status` |
 | `orca_dispatch_info` | 1 | `orca_dispatch_status`、`orca_worker_state`、`orca_terminal_state`、`orca_release_state`、`orca_release_retained_reason` (`user_takeover` など)、`orca_attention` |
@@ -138,13 +139,71 @@ Tempo の `ingestion_time_range_slack` (既定 2 分) を保存期間と同じ 3
 (`tempo-values.yaml`)。既定のままだと、数日前に始まった Run のスパンのブロックが受け取った時刻の範囲に
 丸められ、その Run の時刻を指定した検索で見つからない。
 
+### Run の coordinator の worktree (`orca_run_coordinator_worktree`)
+
+話題チャット方式のトークン・コストを話題別に集計するためのラベル。Run を持っている coordinator がどの
+worktree で動いているかを worktree 名 (パスの basename) で持つ。話題チャットなら `coordinator-chat-<topic>`、
+main chat が回した Run なら `coordinator`。
+
+- 取り方: `run-list` の `coordinator_handle` を `terminal list` の handle → `worktreeId` で引く。
+  handle は Run を閉じると空になり、main chat が作った Run を `run-use` で話題チャットに渡すと別の端末の handle に変わる。
+  そのため、**引けた最後の値** を状態ファイルの `run_coordinator` に残し、引けない間はそれを使う (最初の値ではない)。
+- 付かないもの: このラベルを入れる前に閉じた Run は handle が既に空で、遡って付けられない。ラベルなしのまま出る。
+  `terminal list` が失敗した回は、残した値だけで送る (他の信号は止めない)。
+- 系列: Run ごとに 1 値なので、`orca_run_info` の濃度は増えない。`claude_code_*` の側には何も足さない。
+
+## 話題別・役割別の集計 (ダッシュボードの節 6)
+
+Claude Code 側の属性は増やさない。集計側 (PromQL) で次のように結ぶ。
+
+| 知りたいもの | 決め方 |
+|---|---|
+| 役割 | worktree 名 (`orca_worktree_name`): `coordinator` = **main-chat**、`coordinator-chat-<topic>` = **topic-chat** (話題チャット)、それ以外 = **worker** |
+| ワーカー → Run | `orca_dispatch_start_time_seconds` (worktree ごとに最新の Dispatch) の `orca_run_id` |
+| Run → 話題 | `orca_run_info` の `orca_run_coordinator_worktree` が `coordinator-chat-<topic>` なら `<topic>` |
+| 話題の合計 | 話題チャット本体 (`coordinator-chat-<topic>` の worktree) + その話題の Run のワーカー |
+
+**前提** (崩れると判定が外れる): 話題チャットの worktree が `coordinator-chat-<topic>` (dotfiles の `open-topic-chat` が
+`chat-<topic>` で作り、Orca が repo 名 `coordinator` を前に付ける)、main chat が `coordinator` の元 checkout。
+名前の規約を変えるときは、ダッシュボード生成元 (`dashboards/orca-orchestration.py` の節 6) の正規表現も直す。
+崩れたら、`orca.chat.role` / `orca.topic` を起動時の環境変数で付ける方式 (発生元で属性を付ける) に切り替える。
+
+話題に割れないもの:
+
+- ラベルを入れる前に閉じた Run、`terminal list` で引けなかった Run: `(不明)`。
+- main chat が直接回した Run (coordinator の worktree が `coordinator`): `(main-chat 直)`。
+- 話題チャットを経ない coordinator の分。旧方式では 1 つのセッションが複数の話題を回すので、**話題には割らず、
+  期間単位で比べる**。
+
+### 旧方式との比べ方
+
+話題チャット方式への切り替え (dotfiles PR #37 のマージ、2026-10-01 04:22 JST) の前後を、同じ長さの期間で比べる。
+
+- **調整コスト比** = 調整コスト ÷ ワーカーのコスト。調整コストは、新方式は main-chat + topic-chat、旧方式は
+  `coordinator`。旧方式の `coordinator` は、worktree 名が付く前 (または `~` から開いたセッション) は
+  `orca_worktree_name=""` で `vcs_repository_name="coordinator"` になっているので、それも足す。ダッシュボードの
+  「調整コスト比の日次」が日ごとに出す。
+- **Dispatch 1 件あたりの調整コスト** = 調整コスト ÷ 期間中に出した Dispatch の数。
+- ワーカー分の Run ごとのコストは、旧 Run (coordinator の worktree が `coordinator`) でも同じ式で出る。
+
+注意:
+
+- ワーカー分は `rate` を 1 分刻みで足した `increase` の近似。短いセッションでは誤差が出る。
+  重くなったら Prometheus の recording rule に移す。
+- 同じ worktree が複数の Run に出されたときは「最新の Dispatch の Run」に寄せる。Run をまたいで並行に使うと誤る。
+- 古い Dispatch の `orca_dispatch_start_time_seconds` が消える (Prometheus の保持 14 日) と、古い期間のワーカーは Run に寄せられない。
+- `coordinator-auto-*` (定期トリアージの自動実行) はワーカーに数える。
+- 切り替え前の `orca_worktree_name=""` に、桁の外れた `vcs_repository_name="home-k8s"` のコストが入っていることがある。
+  旧方式の期間に入るときは、カウンタの異常か確かめてから比べる。
+
 ## 二重送信を防ぐしくみ
 
 - ログ: キー (`msg:<id>`、`task:<id>:<状態>`、`dispatch:<id>:<状態>`) を状態に残し、送ったものは送らない。
   200 件ずつ送り、送れた分だけを状態に書く。
 - スパン: キー (`run:<id>`、`task:<id>`、`dispatch:<id>`) を同じように残す。スパン ID も Run / Task / Dispatch の
   id のハッシュなので、万一送り直しても Tempo が同じスパンとして捨てる。
-- メトリクス: 毎回数え直すので、キーは要らない。
+- メトリクス: 毎回数え直すので、キーは要らない。ただし `orca_run_coordinator_worktree` だけは Run を閉じると取れなくなるので、
+  Run ごとの最後に引けた値を状態ファイルの `run_coordinator` に残す。
 
 状態ファイルを消すと全部を送り直し、Loki には同じイベントが 2 行入る。やり直したいときは状態を消す前に
 Loki の削除 API (`/loki/api/v1/delete`、`{service_namespace="home-k8s", service_name="orca"}`) で消す。
@@ -171,11 +230,15 @@ Loki は同じストリームの最新の行より 1 時間以上古い行も捨
 | 3. ワーカー別 | ワーカーごとの手戻り (1 行 = 1 Dispatch)、追加指示・worker_done までの時間・heartbeat の途切れの上位、終わり方の内訳、拒否されたメッセージ | Prometheus / Loki |
 | 4. メッセージの流れ | 種別ごとの件数の推移、追加指示と question の推移、送信→配達の遅れ、やりとりの本文 | Loki |
 | 5. Claude Code との突き合わせ | ワーカーごとの手戻りとコスト (Orca の追加指示・question・所要時間 × Claude のコスト・トークン・API 呼び出し・ツール失敗)、モデル別の手戻り | Prometheus + Loki (Mixed) |
+| 6. 話題別・役割別 | 調整コスト・ワーカーのコスト・調整コスト比・Dispatch 1 件あたりの調整コスト、話題ごとのコストとトークン (話題チャット本体 + その Run のワーカー)、役割 × モデル、調整コスト比と役割別コストの日次 | Prometheus |
 
 期間 (右上) は「その期間に出したワーカー」で絞る。Run 一覧は「その期間に作った Run」。メッセージの推移は送った時刻。
 「モデル別の手戻り」のモデルは、Claude Code 側でそのワーカーのコストが最も大きいモデル (Orca の `worker-show`
 は古い Dispatch だとモデルを返さないため)。Claude Code のテレメトリを入れる前のワーカーは突き合わせの表で
 Claude 側が空になる。
+
+節 6 は期間 (右上) だけで絞り、上の「ワーカー」の絞り込みは効かない。増えた `terminal list` 呼び出しは 30 秒に 1 回で、
+`run-list` などと同じく読むだけ。
 
 ## 実データで分かったこと
 

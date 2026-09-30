@@ -303,6 +303,119 @@ panel("table", "モデル別の手戻り", "ワーカーの主なモデル (Clau
       options={"showHeader": True, "cellHeight": "sm"})
 y[0] += 8
 
+
+# ---- 6. 話題別・役割別 ------------------------------------------------------------------
+# 役割は worktree 名で決める (coordinator = main-chat、coordinator-chat-<topic> = 話題チャット、それ以外 = ワーカー)。
+# 話題は Run の coordinator の worktree 名 (orca_run_info の orca_run_coordinator_worktree) から取る。docs/observability/orca-orchestration.md
+row("6. 話題別・役割別 (トークン・コスト)")
+panels.append({"id": pid(), "type": "text", "title": "読み方 (前提)",
+               "gridPos": {"x": 0, "y": y[0], "w": 24, "h": 4},
+               "options": {"mode": "markdown", "content": """役割は Orca の worktree 名で決める: `coordinator` = **main-chat**、`coordinator-chat-<topic>` = **topic-chat** (話題チャット)、それ以外 = **worker**。この名前の規約が崩れると判定が外れる。
+話題ごとの合計 = 話題チャット本体 + その話題の Run のワーカー。ワーカーは「その時点で最新の Dispatch の Run」に寄せ、Run の話題は `orca_run_info` の `orca_run_coordinator_worktree` で決める。ラベルが付く前に閉じた Run と、main-chat が直接回した Run は話題に割れず、`(不明)` / `(main-chat 直)` に入る。
+旧方式 (1 つの coordinator が複数の話題を回す) は話題に割れない。**期間単位の「調整コスト比」** で前後を比べる (旧は `coordinator` と、worktree 名が空で `vcs_repository_name="coordinator"` のもの)。期間は右上 (ワーカーの絞り込みは効かない)"""}})
+y[0] += 4
+
+COORD = "coordinator|coordinator-chat-.+"
+COST, TOK = "claude_code_cost_usage_USD_total", "claude_code_token_usage_tokens_total"
+TYPES = [("input", "input"), ("output", "output"), ("cacheRead", "cache 読み"), ("cacheCreation", "cache 作成")]
+
+
+def by_run(metric, sel=""):
+    """ワーカーの消費を Run ごとに。ワーカーは「その時点で最新の Dispatch」の Run に寄せる (同じ worktree が複数の Run に出ることがあるため)。
+    rate を 1 分刻みで足した近似 (increase ではない)"""
+    return (f'sum by (orca_run_id) (sum_over_time((sum by (orca_worktree_name) (rate({metric}{{{sel}}}[5m])) '
+            f'* on (orca_worktree_name) group_left (orca_run_id) (0 * topk by (orca_worktree_name) (1, orca_dispatch_start_time_seconds) + 1))[$__range:1m]) * 60)')
+
+
+# Run → 話題。Run ごとに最新の orca_run_coordinator_worktree を 1 つ選ぶ (run-use で渡した Run はラベルが変わる)。
+# label_replace は後のものが勝つ: (不明) → main-chat 直 → 話題名
+RUN_TOPIC = ('label_replace(label_replace(label_replace('
+             '(0 * topk by (orca_run_id) (1, max_over_time(timestamp(orca_run_info)[$__range:1m])) + 1), '
+             '"orca_topic", "(不明)", "orca_run_coordinator_worktree", ".*"), '
+             '"orca_topic", "(main-chat 直)", "orca_run_coordinator_worktree", "coordinator"), '
+             '"orca_topic", "$1", "orca_run_coordinator_worktree", "coordinator-chat-(.+)")')
+
+
+def by_topic(metric, sel=""):
+    """話題ごと = ワーカー分 (W) + 話題チャット本体 (C)。片方しか無い話題も残す"""
+    w = f'sum by (orca_topic) ({by_run(metric, sel)} * on (orca_run_id) group_left (orca_topic) {RUN_TOPIC})'
+    c_sel = ", ".join(['orca_worktree_name=~"coordinator-chat-.+"'] + ([sel] if sel else []))
+    c = (f'sum by (orca_topic) (label_replace(increase({metric}{{{c_sel}}}[$__range]), '
+         '"orca_topic", "$1", "orca_worktree_name", "coordinator-chat-(.+)"))')
+    return f'({w} + {c}) or {w} or {c}'
+
+
+def by_role(metric, sel=""):
+    """役割 × モデル。label_replace は後のものが勝つ"""
+    s = ", ".join(['orca_worktree_name!=""'] + ([sel] if sel else []))
+    return ('sum by (role, model) (label_replace(label_replace(label_replace('
+            f'sum by (orca_worktree_name, model) (increase({metric}{{{s}}}[$__range])), '
+            '"role", "worker", "orca_worktree_name", ".+"), '
+            '"role", "topic-chat", "orca_worktree_name", "coordinator-chat-.+"), '
+            '"role", "main-chat", "orca_worktree_name", "coordinator"))')
+
+
+def coord_cost(win):
+    """調整コスト = main-chat + topic-chat。旧方式は worktree 名が空で vcs_repository_name=coordinator のものも足す"""
+    return (f'((sum(increase({COST}{{orca_worktree_name=~"{COORD}"}}[{win}])) or vector(0)) + '
+            f'(sum(increase({COST}{{orca_worktree_name="", vcs_repository_name="coordinator"}}[{win}])) or vector(0)))')
+
+
+def worker_cost(win):
+    return f'sum(increase({COST}{{orca_worktree_name!="", orca_worktree_name!~"{COORD}"}}[{win}]))'
+
+
+NEW_DISPATCH = f'count(last_over_time(orca_dispatch_start_time_seconds[$__range]) >= {FROM})'
+stat("調整コスト (USD)", "main-chat + topic-chat (旧方式は coordinator) の期間中のコスト", 0, 6,
+     prom("A", coord_cost("$__range")), unit="currencyUSD", decimals=2)
+stat("ワーカーのコスト (USD)", "ワーカー (coordinator 以外の worktree) の期間中のコスト", 6, 6,
+     prom("A", worker_cost("$__range")), unit="currencyUSD", decimals=2)
+stat("調整コスト比", "調整コスト ÷ ワーカーのコスト。話題チャット方式に切り替えた前後で比べる。下がれば、調整にかかるコストが仕事に対して減った",
+     12, 6, prom("A", f'{coord_cost("$__range")} / {worker_cost("$__range")}'), decimals=2)
+stat("Dispatch 1 件あたりの調整コスト (USD)", "調整コスト ÷ 期間中に出したワーカー (Dispatch) の数",
+     18, 6, prom("A", f'{coord_cost("$__range")} / {NEW_DISPATCH}'), unit="currencyUSD", decimals=2)
+y[0] += 4
+
+
+def table6(title, desc, h, expr_of, keys, ren, sort):
+    """instant の table を merge して、コスト・トークン (型別) の列に並べる"""
+    t = [prom("A", expr_of(COST))] + [prom(chr(ord("B") + i), expr_of(TOK, f'type="{ty}"')) for i, (ty, _) in enumerate(TYPES)]
+    rename = {**ren, "Value #A": "コスト (USD)",
+              **{f"Value #{chr(ord('B') + i)}": f"{lab} (token)" for i, (_, lab) in enumerate(TYPES)}}
+    over = [by_name("コスト (USD)", [{"id": "unit", "value": "currencyUSD"}, {"id": "decimals", "value": 2}])]
+    over += [by_name(f"{lab} (token)", [{"id": "unit", "value": "short"}, {"id": "decimals", "value": 0}]) for _, lab in TYPES]
+    panel("table", title, desc, 0, 24, h, t, PROM,
+          transformations=[{"id": "merge", "options": {}},
+                           {"id": "organize", "options": {"excludeByName": {"Time": True}, "renameByName": rename,
+                                                          "indexByName": {k: i for i, k in enumerate(keys + ["コスト (USD)"] + [f"{lab} (token)" for _, lab in TYPES])}}}],
+          fieldConfig={"defaults": {"unit": "short"}, "overrides": over},
+          options={"showHeader": True, "cellHeight": "sm", "sortBy": [{"displayName": sort, "desc": True}]})
+    y[0] += h
+
+
+table6("話題ごとのコストとトークン", "話題 = 話題チャット本体 + その話題の Run のワーカー。ワーカー分は rate を足した近似で、短いセッションでは誤差が出る。"
+       "`(不明)` は Run の話題が分からないもの (ラベルが付く前に閉じた Run など)、`(main-chat 直)` は main-chat が直接回した Run。話題チャット本体しかない話題 (ワーカーを出していない) も出る。"
+       "cache 読みはコストが小さくトークンは大きくなりやすいので、コストで見比べる", 10, by_topic, ["orca_topic"],
+       {"orca_topic": "話題"}, "コスト (USD)")
+table6("役割 × モデル別のコストとトークン", "役割は worktree 名で決める。main-chat = `coordinator`、topic-chat = `coordinator-chat-<topic>`、worker = それ以外。"
+       "main-chat に Opus が入っていれば、main-chat を Sonnet で開く約束が守られていない", 8, by_role, ["role", "model"],
+       {"role": "役割", "model": "モデル"}, "コスト (USD)")
+DAILY = {"interval": "1d"}
+panel("timeseries", "調整コスト比の日次", "日ごと (UTC) の 調整コスト ÷ ワーカーのコスト。切り替え (dotfiles PR #37 のマージ) の前後で比べる。旧方式は `coordinator` (と worktree 名が空で `vcs_repository_name=\"coordinator\"`) を調整コストに数える。"
+      "分母のワーカーが少ない日は比が跳ねる",
+      0, 12, 8, [{**prom("A", f'{coord_cost("1d")} / {worker_cost("1d")}', instant=False, legend="調整コスト比"), **DAILY}], PROM,
+      fieldConfig={"defaults": {"custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 10, "showPoints": "always"}, "unit": "short", "min": 0}, "overrides": []},
+      options={"legend": {"displayMode": "list", "placement": "bottom", "showLegend": True}, "tooltip": {"mode": "multi", "sort": "desc"}})
+panel("timeseries", "役割別のコストの日次", "日ごと (UTC) のコストを役割別に積む。旧方式の coordinator (worktree 名が空) は「main-chat (worktree 名なし)」",
+      12, 12, 8, [{**prom("A", f'sum by (role) (label_replace(label_replace(label_replace(sum by (orca_worktree_name) (increase({COST}{{orca_worktree_name!=""}}[1d])), '
+                          '"role", "worker", "orca_worktree_name", ".+"), "role", "topic-chat", "orca_worktree_name", "coordinator-chat-.+"), "role", "main-chat", "orca_worktree_name", "coordinator"))',
+                          instant=False, legend="{{role}}"), **DAILY},
+                  {**prom("B", f'label_replace(sum(increase({COST}{{orca_worktree_name="", vcs_repository_name="coordinator"}}[1d])), "role", "main-chat (worktree 名なし)", "", "")',
+                          instant=False, legend="{{role}}"), **DAILY}], PROM,
+      fieldConfig={"defaults": {"custom": {"drawStyle": "bars", "stacking": {"mode": "normal"}, "fillOpacity": 80, "lineWidth": 1}, "unit": "currencyUSD"}, "overrides": []},
+      options={"legend": {"displayMode": "list", "placement": "bottom", "showLegend": True}, "tooltip": {"mode": "multi", "sort": "desc"}})
+y[0] += 8
+
 dash = {
     "uid": "orca-orchestration",
     "title": "Orca orchestration",
