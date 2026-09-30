@@ -172,12 +172,20 @@ UID 10001 になる。PVC は使わない (kind の local-path は PVC を消す
 ## Grafana の認証
 
 Grafana はログイン必須で、匿名アクセスは付けていない (閲覧のみの匿名も無い)。
-下の「別の PC から見る」で外に出すことがあるため。ユーザー名は `admin`、パスワードは
-次のように決まる。
+下の「別の PC から見る」で外に出すことがあるため。ユーザーは 2 つある。
 
-1. `just observe-up` が最初に `~/.local/share/home-k8s/observability/grafana-admin-password`
-   (WSL2 ホスト側、パーミッション 600) を見る。無ければ `openssl rand` で 32 文字の値を作って
-   保存し、あればそれを使う。リポジトリには置かない。
+| ユーザー | ロール | 使う人 | パスワードのファイル | 表示するコマンド |
+| --- | --- | --- | --- | --- |
+| `admin` | Admin | 自分 (ダッシュボードの編集、Explore) | `grafana-admin-password` | `just observe-show-admin` |
+| `viewer` | Viewer | 共有相手 (ダッシュボードを見るだけ) | `grafana-viewer-password` | `just observe-show-connection` |
+
+ファイルはどちらも `~/.local/share/home-k8s/observability/` (WSL2 ホスト側、パーミッション 600) に
+置き、リポジトリには置かない。viewer はダッシュボードを見られるが、保存・編集と Explore はできない。
+
+admin のパスワードは次のように決まる。
+
+1. `just observe-up` が最初に `grafana-admin-password` を見る。無ければ `openssl rand` で
+   32 文字の値を作って保存し、あればそれを使う。
 2. その値を Secret `observability/grafana-admin` (`admin-user` / `admin-password`) に
    `kubectl apply` で入れる。
 3. chart の `admin.existingSecret: grafana-admin` で、Grafana はこの Secret を環境変数として読む。
@@ -185,9 +193,19 @@ Grafana はログイン必須で、匿名アクセスは付けていない (閲�
 chart に Secret を作らせると `observe-up` のたびに乱数で作り直されて Pod が再起動するが、
 この形なら Secret の中身が変わらないので `observe-up` を打ち直しても Pod はそのまま残る。
 
-パスワードは `just observe-show-connection` と打つと、接続先の URL と一緒に表示される。ファイルの
-所有者はホストのユーザーにしてあるので、WSL2 のシェルから `cat` しても読める。
-変えたいときはファイルを消して `just observe-up` を打ち、Secret が変わったあとで
+viewer も同じく、`observe-up` が `grafana-viewer-password` を (無ければ作って) Secret
+`observability/grafana-viewer` (`password`) に入れる。Grafana には viewer を最初から作る設定が
+無いので、Grafana の Pod にサイドカー `viewer-user` (curl のイメージ) を足し、10 秒ごとに
+admin で `/api/users/lookup?loginOrEmail=viewer` を引いて、404 なら `/api/admin/users` で作る。
+ロールは `grafana.ini` の `users.auto_assign_org_role: Viewer` で決まる。Grafana は永続化して
+いないので Pod を作り直すと viewer は消えるが、サイドカーがそのときの Secret の値で作り直す。
+Grafana のイメージは distroless で sh が無く、postStart で API を叩けないため別コンテナにした。
+
+viewer のパスワードは `just observe-share` が起動のたびに作り直す (下の「別の PC から見る」)。
+サイドカーは viewer を作るだけで、パスワードは変えない。
+
+パスワードのファイルの所有者はホストのユーザーにしてあるので、WSL2 のシェルから `cat` しても読める。
+admin のパスワードを変えたいときはファイルを消して `just observe-up` を打ち、Secret が変わったあとで
 `kubectl --context kind-study-kind -n observability rollout restart deploy/grafana` とする
 (Grafana は永続化していないので、起動のたびに Secret の値で admin を作り直す)。
 
@@ -217,23 +235,30 @@ Cloudflare Quick Tunnel で Grafana だけを一時的に公開する。Cloudfla
 $ just observe-share
 Grafana を公開しました（Ctrl-C で停止）
   URL:        https://xxxx.trycloudflare.com
-  ユーザー:   admin
+  ユーザー:   viewer
   パスワード: <値>
   ログ:       /home/<you>/.local/share/home-k8s/observability/observe-share.log
 ```
 
 表示された URL・ユーザー・パスワードの 3 行を別の PC に渡し、ブラウザで開いてログインする。
+表示するのは閲覧用の `viewer` で、admin の資格情報は出さない (自分で編集するときは
+`just observe-show-admin` で admin のパスワードを見る)。
 Ctrl-C で止めると URL は無効になり、次に打つと別の URL になる。
+
+observe-share は公開の前に viewer のパスワードを作り直す (`just/grafana-viewer-rotate.sh`)。
+ファイルと Secret `grafana-viewer` を新しい値にし、動いている Grafana の viewer のパスワードを
+`/api/admin/users/<id>/password` で変え、`/api/admin/users/<id>/logout` でログイン中のセッションも
+切る。前の共有相手は、次の共有の URL を知っても前のパスワードでは入れない。
 
 あとから接続先を確かめるときは、別のターミナルで `just observe-show-connection` を打つ。
 share が動いていれば同じ URL を、止まっていれば `http://localhost:3000` と「share は停止中」を、
-ユーザー・パスワードと一緒に表示する。
+viewer のユーザー・パスワードと一緒に表示する。
 
 ```
 $ just observe-show-connection
 Grafana は公開中 (just observe-share)
   URL:        https://xxxx.trycloudflare.com
-  ユーザー:   admin
+  ユーザー:   viewer
   パスワード: <値>
 ```
 
@@ -246,7 +271,10 @@ kill -9 などで消されずに残っても、show-connection はその pid の
   cloudflared は外から localhost:3000 に向かう接続を 1 本張るだけで、ホストのポートを開ける
   わけではない。開発用コンテナは `--network=host` なので、コンテナ内の cloudflared から
   localhost:3000 に届く。
-- URL を知っていれば誰でもログイン画面まで来られる。URL とパスワードは自分以外に渡さない。
+- URL を知っていれば誰でもログイン画面まで来られる。URL と viewer のパスワードは見せたい相手にだけ渡す。
+  admin のパスワードは渡さない。
+- viewer は自分のプロフィールからパスワードを変えられる。共有相手が変えると、その共有のあいだ
+  自分も viewer では入れなくなる (admin では入れる)。次の observe-share で作り直される。
 - 使い終わったら必ず止める。開きっぱなしにしない。
 - Quick Tunnel は試用向けで、稼働の保証は無い (同時リクエスト数の上限もある)。
   長く使う場合は Cloudflare のアカウントで名前付きトンネルと Access を組む。
@@ -258,10 +286,11 @@ kill -9 などで消されずに残っても、show-connection はその pid の
                                                   └──────── 開発用コンテナ ────────┘
 ```
 
-1. caddy と cloudflared を裏で起動し、2 つのログは `observe-share.log` (リポジトリの外、
+1. viewer のパスワードを作り直す (上に書いたとおり)。
+2. caddy と cloudflared を裏で起動し、2 つのログは `observe-share.log` (リポジトリの外、
    起動のたびに上書き) に流す。画面には出さない。
-2. ログから URL を拾い、その URL の `/api/health` が外から応答するまで待つ。
-3. 応答したら URL・ユーザー・パスワードを表示し、どちらかのプロセスが止まるか Ctrl-C を
+3. ログから URL を拾い、その URL の `/api/health` が外から応答するまで待つ。
+4. 応答したら URL と viewer のユーザー・パスワードを表示し、どちらかのプロセスが止まるか Ctrl-C を
    受けるまで待つ。抜けるときは両方を止める (`--grace-period 1s` で、開いたままのブラウザの
    接続を 30 秒待たない)。
 

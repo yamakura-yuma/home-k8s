@@ -31,8 +31,9 @@ just devcontainer shell   # コンテナにシェルで入る
 just kind-up              # kubeadmベースのマルチノードクラスタを起動
 kubectl --context kind-study-kind get nodes -o wide   # ノード状態を確認
 just observe-up           # OTel Collector/Tempo/Prometheus/Loki/Grafana を入れる
-just observe-share        # Grafana を一時的に trycloudflare.com で公開し、URL とパスワードを表示 (Ctrl-C で停止)
-just observe-show-connection  # いまの接続先 (公開中なら公開 URL、止めていれば localhost:3000) とパスワードを表示
+just observe-share        # Grafana を一時的に trycloudflare.com で公開し、URL と閲覧用 (viewer) のパスワードを表示 (Ctrl-C で停止)
+just observe-show-connection  # いまの接続先 (公開中なら公開 URL、止めていれば localhost:3000) と viewer のパスワードを表示
+just observe-show-admin   # Grafana の admin のパスワードを表示 (自分用。共有相手には渡さない)
 just observe-down         # 観測スタックを消す (トレース・メトリクス・ログはホストに残る)
 just orca-exporter-install  # Orca のオーケストレーションを観測スタックに送る exporter を systemd で常駐させる (ホストで動く例外)
 just kind-down             # クラスタを削除
@@ -54,7 +55,7 @@ just devcontainer down    # 開発用コンテナを削除
   マウントされていない旨を出して止まるので、その checkout で
   `just devcontainer down && just devcontainer up` と作り直す。
 - レシピの各行が別々に `docker exec` されるので、コンテナに頼るレシピは shebang を使わず
-  行で書く (長い処理は `just/grafana-admin-secret.sh` のようにスクリプトへ出す)。
+  行で書く (長い処理は `just/grafana-secrets.sh` のようにスクリプトへ出す)。
 
 kind自体は試験で問われないためクラスタの起動/削除は just で自動化しているが、
 `kubectl` は試験で直接問われるため意図的に just でラップしていない。素手で
