@@ -83,9 +83,9 @@ def orca(*args, group="orchestration"):
     try:
         d = json.loads(p.stdout)
     except json.JSONDecodeError:
-        raise OrcaError(f"orca {args[0]}: exit {p.returncode}: {p.stderr.strip()[-300:]}")
+        raise OrcaError(f"orca {group} {args[0]}: exit {p.returncode}: {p.stderr.strip()[-300:]}")
     if not d.get("ok"):
-        raise OrcaError(f"orca {args[0]}: {d.get('error', {}).get('code')}: {d.get('error', {}).get('message')}")
+        raise OrcaError(f"orca {group} {args[0]}: {d.get('error', {}).get('code')}: {d.get('error', {}).get('message')}")
     return d["result"]
 
 

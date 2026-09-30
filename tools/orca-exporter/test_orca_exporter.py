@@ -1,5 +1,5 @@
 """orca_exporter.py の、Orca に触らずに確かめられる部分のテスト。標準ライブラリだけ:
-    python3 -m unittest discover -s tools/orca-exporter
+    python3 -B -m unittest discover -s tools/orca-exporter
 """
 import sys
 import unittest
