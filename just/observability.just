@@ -8,6 +8,8 @@ observe_values := "clusters/kind/observability"
 grafana_password_file := env_var("HOME") + "/.local/share/home-k8s/observability/grafana-admin-password"
 # observe-share の cloudflared と caddy のログ (起動のたびに上書きする)
 share_log_file := env_var("HOME") + "/.local/share/home-k8s/observability/observe-share.log"
+# observe-share が動いている間だけ置く、公開 URL と cloudflared の pid (observe-show-connection が読む)
+share_state_file := env_var("HOME") + "/.local/share/home-k8s/observability/observe-share.state"
 
 # 観測スタックを入れる (既にあれば values を反映し直す)
 observe-up: _grafana-admin-secret
@@ -32,20 +34,22 @@ observe-up: _grafana-admin-secret
         --kube-context kind-study-kind --namespace {{observe_ns}} \
         --values {{observe_values}}/grafana-values.yaml \
         --set-file 'dashboards.default.claude-code-traces.json={{observe_values}}/dashboards/claude-code-traces.json' \
-        --set-file 'dashboards.default.claude-code-usage.json={{observe_values}}/dashboards/claude-code-usage.json' --wait
+        --set-file 'dashboards.default.claude-code-usage.json={{observe_values}}/dashboards/claude-code-usage.json' \
+        --set-file 'dashboards.default.claude-code-improve.json={{observe_values}}/dashboards/claude-code-improve.json' --wait
 
 # 観測スタックを消す (保存済みのトレース・メトリクス・ログはホスト側に残る)
 observe-down:
     -helm uninstall grafana otel-collector loki prometheus tempo --kube-context kind-study-kind --namespace {{observe_ns}} --wait
 
-# Grafana の admin パスワードを表示する (ユーザー名は admin)
-observe-password:
-    @cat {{grafana_password_file}}; echo
+# いまの Grafana の接続先 (URL・ユーザー・パスワード) を表示する。
+# observe-share が動いていれば公開 URL、止まっていれば localhost:3000
+observe-show-connection:
+    @bash just/observe-show-connection.sh "{{grafana_password_file}}" "{{share_state_file}}"
 
 # Grafana (localhost:3000) だけを Cloudflare Quick Tunnel で一時的に公開する。
 # URL が開けるようになってから URL とパスワードを表示する。Ctrl-C で止めれば URL は無効になる
 observe-share:
-    @bash just/observe-share.sh "{{grafana_password_file}}" "{{share_log_file}}"
+    @bash just/observe-share.sh "{{grafana_password_file}}" "{{share_log_file}}" "{{share_state_file}}"
 
 # admin パスワードを (無ければ生成して) Secret grafana-admin に入れる。
 # 中身が同じなら apply は何も変えないので、Grafana の Pod は再起動しない

@@ -41,7 +41,7 @@
         "query": {
           "refId": "TempoDatasourceVariableQueryEditor-VariableQuery",
           "type": 1,
-          "label": "span.tool_name"
+          "label": "tool_name"
         },
         "refresh": 2,
         "includeAll": true,

@@ -2,13 +2,15 @@
 
 Claude Code は OpenTelemetry で 3 種類のデータを出す。このリポジトリの観測スタック
 ([claude-code-traces.md](claude-code-traces.md)) はそれぞれを別の保存先に入れ、Grafana の
-2 枚のダッシュボードで見る。
+3 枚のダッシュボードで見る。ハーネス (rule / skill / 指示の書き方 / モデル選択) を直すための
+`Claude Code improve` は [claude-code-improve.md](claude-code-improve.md) にまとめた。
 
 | 種類 | 何か | 保存先 | 向いている問い | ダッシュボード |
 |---|---|---|---|---|
 | メトリクス | 数値の累計 (コスト、トークン、行数など) を 60 秒ごとに送ったもの | Prometheus | どれだけ使ったか、増えているか | Claude Code usage の 1〜3 |
 | ログ (イベント) | 出来事 1 件ごとの記録 (ツールを実行した、API を呼んだ、など) | Loki | 何が起きたか、どれが失敗したか | Claude Code usage の 4 |
 | トレース | 1 回の依頼の中の処理 (スパン) の親子関係と所要時間 | Tempo | どこで時間がかかったか、何の順に動いたか | Claude Code traces |
+| ログ + メトリクス | 依頼ごとのコスト、繰り返す失敗、使われない skill / MCP | Loki、Prometheus | ハーネスのどこを直すか | Claude Code improve |
 
 メトリクスは件数が多くても軽いが、個々の出来事は分からない。ログは 1 件ずつ見られるが、
 集計すると重い。トレースは 1 回の依頼を分解して見られるが、全体の合計には向かない。

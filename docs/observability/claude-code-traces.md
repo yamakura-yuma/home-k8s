@@ -185,7 +185,7 @@ Grafana はログイン必須で、匿名アクセスは付けていない (閲�
 chart に Secret を作らせると `observe-up` のたびに乱数で作り直されて Pod が再起動するが、
 この形なら Secret の中身が変わらないので `observe-up` を打ち直しても Pod はそのまま残る。
 
-パスワードは `just observe-password` と打つと表示される。ファイルの
+パスワードは `just observe-show-connection` と打つと、接続先の URL と一緒に表示される。ファイルの
 所有者はホストのユーザーにしてあるので、WSL2 のシェルから `cat` しても読める。
 変えたいときはファイルを消して `just observe-up` を打ち、Secret が変わったあとで
 `kubectl --context kind-study-kind -n observability rollout restart deploy/grafana` とする
@@ -222,8 +222,25 @@ Grafana を公開しました（Ctrl-C で停止）
   ログ:       /home/<you>/.local/share/home-k8s/observability/observe-share.log
 ```
 
-表示された URL を別の PC のブラウザで開き、表示されたユーザーとパスワードでログインする。
+表示された URL・ユーザー・パスワードの 3 行を別の PC に渡し、ブラウザで開いてログインする。
 Ctrl-C で止めると URL は無効になり、次に打つと別の URL になる。
+
+あとから接続先を確かめるときは、別のターミナルで `just observe-show-connection` を打つ。
+share が動いていれば同じ URL を、止まっていれば `http://localhost:3000` と「share は停止中」を、
+ユーザー・パスワードと一緒に表示する。
+
+```
+$ just observe-show-connection
+Grafana は公開中 (just observe-share)
+  URL:        https://xxxx.trycloudflare.com
+  ユーザー:   admin
+  パスワード: <値>
+```
+
+observe-share は URL が応答した時点で、URL と cloudflared の pid を
+`~/.local/share/home-k8s/observability/observe-share.state` に書き、止めるときに消す。
+kill -9 などで消されずに残っても、show-connection はその pid の cloudflared が生きているかを
+確かめるので、無効になった古い URL は出さない。
 
 - 公開するのは Grafana (3000) だけで、OTLP の受け口 (4318 / 4317) は出さない。
   cloudflared は外から localhost:3000 に向かう接続を 1 本張るだけで、ホストのポートを開ける
@@ -310,8 +327,9 @@ Grafana の Export / Import とそのまま行き来できるため。
   (local-blocks プロセッサの有効化は不要だった)。
 - 件数が少ない (1 日に数十トレース) ので、クエリのたびに全スパンを読んでも速い。
 
-変えた設定は 1 つで、Tempo の `query_frontend.metrics.max_duration` を既定の 24h から
-168h に広げた (`tempo-values.yaml`)。既定のままだと時間範囲を 24h より長くすると
+変えた設定は、Tempo の `query_frontend.metrics.max_duration` と `query_frontend.search.max_duration`
+を保存期間と同じ 336h に広げたこと (`tempo-values.yaml`)。既定 (24h / 168h) のままだと、
+Grafana の「Last 7 days」でも端数の分だけ 168h を超え、
 `metrics query time range exceeds the maximum allowed duration` で失敗する。
 
 ### 属性名の注意
@@ -357,6 +375,11 @@ Claude Code はスパンの種類を `span.type` という名前の属性で出�
 - 4 の許可待ちと実行: 子スパン (`blocked_on_user`、`execution`) は `tool_name` を持たない。
   親子演算子 `>` で親の `tool` スパンを条件にし、上部の変数「ツール」で絞る。許可が設定
   (`source=config`) で自動に通る場合、許可待ちは数ミリ秒になる。
+  変数「ツール」の定義はスコープを付けない `tool_name` にする。Grafana の Tempo プラグインは
+  タグ一覧からスコープを探してから `span.` を付けるので、`span.tool_name` と書くと
+  `Scope for tag span.tool_name not found` になる。タグ一覧は Tempo データソースの
+  `timeRangeForTags` (14 日) の範囲で引く。未設定だと時間範囲なしで引き、Tempo はごく最近の
+  ブロックのタグしか返さないため、同じエラーになることがある。
 - 6 のサブエージェント: Agent ツールのスパンの下 (`tool` → `tool.execution`) にサブエージェント
   の `llm_request` と `tool` がぶら下がる。サブエージェント内の `llm_request` と `tool` には
   `agent_id` が付き、`query_source_safe` が `agent.builtin.Explore` のように種別を表す。
