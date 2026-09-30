@@ -41,7 +41,8 @@ observe-up: _grafana-secrets
         --set-file 'dashboards.default.claude-code-raw.json={{observe_values}}/dashboards/claude-code-raw.json' \
         --set-file 'dashboards.default.claude-code-start.json={{observe_values}}/dashboards/claude-code-start.json' \
         --set-file 'dashboards.default.orca-orchestration.json={{observe_values}}/dashboards/orca-orchestration.json' \
-        $(for f in {{observe_values}}/dashboards/settings/*.json; do n=$(basename "$f" .json); printf -- "--set-file dashboards.settings.%s.json=%s " "$n" "$f"; done) --wait
+        $(for f in {{observe_values}}/dashboards/settings/*.json; do n=$(basename "$f" .json); printf -- "--set-file dashboards.settings.%s.json=%s " "$n" "$f"; done) \
+        $(for g in kubernetes opentelemetry claude-code; do for f in {{observe_values}}/dashboards/grafana-com/$g/*.json; do n=$(basename "$f" .json); printf -- "--set-file dashboards.grafana-com-%s.%s.json=%s " "$g" "$n" "$f"; done; done) --wait
 
 # 観測スタックを消す (保存済みのトレース・メトリクス・ログはホスト側に残る)
 observe-down:

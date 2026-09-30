@@ -178,3 +178,34 @@ dashboardProviders:
         allowUiUpdates: true
         options:
           path: /var/lib/grafana/dashboards/settings
+      # grafana.com の公開ダッシュボード (dashboards/grafana-com/、docs/observability/grafana-com-dashboards.md)。
+      # 上の 2 つとは混ぜず、群ごとに provider とフォルダを分ける。chart は provider ごとに ConfigMap を
+      # 1 つ作り、ConfigMap は 1 MiB までなので、群を 1 つにまとめると大きくなりすぎる。
+      # JSON は fetch.py が作り、`just observe-up` が dashboards.grafana-com-<群>.<名前>.json に流し込む
+      - name: grafana-com-kubernetes
+        orgId: 1
+        type: file
+        folder: grafana.com / Kubernetes
+        folderUid: gcom-kubernetes
+        disableDeletion: true
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards/grafana-com-kubernetes
+      - name: grafana-com-opentelemetry
+        orgId: 1
+        type: file
+        folder: grafana.com / OpenTelemetry
+        folderUid: gcom-opentelemetry
+        disableDeletion: true
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards/grafana-com-opentelemetry
+      - name: grafana-com-claude-code
+        orgId: 1
+        type: file
+        folder: grafana.com / Claude Code
+        folderUid: gcom-claude-code
+        disableDeletion: true
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards/grafana-com-claude-code

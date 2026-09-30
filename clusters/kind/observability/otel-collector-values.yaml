@@ -81,6 +81,25 @@ config:
       tls:
         insecure: true
   service:
+    # Collector 自身のメトリクス (otelcol_*) を、Claude Code のメトリクスと同じく Prometheus の
+    # OTLP 受信に直接送る。grafana.com の OpenTelemetry Collector ダッシュボード (15983) が読む。
+    # スクレイプの対象を増やさずに済む。readers はリストなので chart 既定の pull (:8888) も書き直して残す
+    telemetry:
+      metrics:
+        readers:
+          - pull:
+              exporter:
+                prometheus:
+                  host: ${env:MY_POD_IP}
+                  port: 8888
+          # 15983 のパネルは最小間隔 10s で $__rate_interval が 40s になる。既定の 60s ごとの送信では
+          # 窓に点が 1 つしか入らず rate() が空になるので、10s ごとに送る (系列は 50 程度で小さい)
+          - periodic:
+              interval: 10000
+              exporter:
+                otlp:
+                  protocol: http/protobuf
+                  endpoint: http://prometheus-server.observability.svc.cluster.local/api/v1/otlp/v1/metrics
     pipelines:
       traces:
         receivers: [otlp]

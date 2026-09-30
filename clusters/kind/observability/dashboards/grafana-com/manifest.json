@@ -1,0 +1,25 @@
+{
+  "kubernetes": {
+    "folder": "grafana.com / Kubernetes",
+    "dashboards": {
+      "k8s-views-global": {"id": 15757, "rev": 43, "url": "https://grafana.com/grafana/dashboards/15757"},
+      "k8s-views-namespaces": {"id": 15758, "rev": 46, "url": "https://grafana.com/grafana/dashboards/15758"},
+      "k8s-views-nodes": {"id": 15759, "rev": 40, "url": "https://grafana.com/grafana/dashboards/15759"},
+      "k8s-views-pods": {"id": 15760, "rev": 41, "url": "https://grafana.com/grafana/dashboards/15760"},
+      "k8s-system-api-server": {"id": 15761, "rev": 21, "url": "https://grafana.com/grafana/dashboards/15761"},
+      "k8s-system-coredns": {"id": 15762, "rev": 22, "url": "https://grafana.com/grafana/dashboards/15762"}
+    }
+  },
+  "opentelemetry": {
+    "folder": "grafana.com / OpenTelemetry",
+    "dashboards": {
+      "opentelemetry-collector": {"id": 15983, "rev": 31, "url": "https://grafana.com/grafana/dashboards/15983"}
+    }
+  },
+  "claude-code": {
+    "folder": "grafana.com / Claude Code",
+    "dashboards": {
+      "claude-code-metrics-prometheus": {"id": 25255, "rev": 10, "url": "https://grafana.com/grafana/dashboards/25255", "uid": "gcom-claude-code-metrics"}
+    }
+  }
+}
