@@ -35,7 +35,9 @@ observe-up: _grafana-admin-secret
         --values {{observe_values}}/grafana-values.yaml \
         --set-file 'dashboards.default.claude-code-traces.json={{observe_values}}/dashboards/claude-code-traces.json' \
         --set-file 'dashboards.default.claude-code-usage.json={{observe_values}}/dashboards/claude-code-usage.json' \
-        --set-file 'dashboards.default.claude-code-improve.json={{observe_values}}/dashboards/claude-code-improve.json' --wait
+        --set-file 'dashboards.default.claude-code-improve.json={{observe_values}}/dashboards/claude-code-improve.json' \
+        --set-file 'dashboards.default.claude-code-raw.json={{observe_values}}/dashboards/claude-code-raw.json' \
+        --set-file 'dashboards.default.claude-code-start.json={{observe_values}}/dashboards/claude-code-start.json' --wait
 
 # 観測スタックを消す (保存済みのトレース・メトリクス・ログはホスト側に残る)
 observe-down:

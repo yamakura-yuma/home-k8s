@@ -302,7 +302,11 @@ Chrome (= localhost:3000 に届かない別の PC と同じ条件) で通した�
 `just observe-up` で Grafana にダッシュボード「Claude Code traces」
 (<http://localhost:3000/d/claude-code-traces>) と「Claude Code usage」
 (<http://localhost:3000/d/claude-code-usage>、[claude-code-usage.md](claude-code-usage.md))
-が入る。上部の「Claude Code」リンク (タグ `claude-code`) で互いに行き来できる。定義は
+が入る。ほかに「Claude Code improve」([claude-code-improve.md](claude-code-improve.md))、
+テレメトリを加工せずに一覧する「Claude Code raw」(<http://localhost:3000/d/claude-code-raw>)、
+入口の「Claude Code はじめに」(<http://localhost:3000/d/claude-code-start>、ログイン直後のホーム。
+内容は [playbook.md](playbook.md) の短縮版) が入る。
+上部の「Claude Code」リンク (タグ `claude-code`) で互いに行き来できる。定義は
 `clusters/kind/observability/dashboards/claude-code-traces.json` で、UI で直しても Pod の
 再起動で消えるので、変えるときは JSON を編集して `just observe-up` を打ち直す。
 

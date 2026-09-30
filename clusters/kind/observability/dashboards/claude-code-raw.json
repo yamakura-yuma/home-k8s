@@ -1,0 +1,1240 @@
+{
+  "uid": "claude-code-raw",
+  "title": "Claude Code raw",
+  "description": "Claude Code のテレメトリ (メトリクス・ログ・トレース) を加工せずに信号ごとに一覧する",
+  "tags": [
+    "claude-code",
+    "prometheus",
+    "loki",
+    "tempo"
+  ],
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 41,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "",
+  "links": [
+    {
+      "type": "dashboards",
+      "title": "Claude Code",
+      "tags": [
+        "claude-code"
+      ],
+      "asDropdown": false,
+      "includeVars": false,
+      "keepTime": true,
+      "targetBlank": false,
+      "icon": "external link"
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "type": "query",
+        "name": "metric",
+        "label": "メトリクス",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "qryType": 2,
+          "query": "metrics(claude_code_.*)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "definition": "metrics(claude_code_.*)",
+        "refresh": 2,
+        "sort": 1,
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "text": "claude_code_token_usage_tokens_total",
+          "value": "claude_code_token_usage_tokens_total"
+        }
+      },
+      {
+        "type": "query",
+        "name": "event",
+        "label": "イベント種別",
+        "datasource": {
+          "type": "yesoreyeram-infinity-datasource",
+          "uid": "backend-api"
+        },
+        "query": {
+          "queryType": "infinity",
+          "refId": "variable",
+          "infinityQuery": {
+            "refId": "variable",
+            "datasource": {
+              "type": "yesoreyeram-infinity-datasource",
+              "uid": "backend-api"
+            },
+            "type": "json",
+            "source": "url",
+            "parser": "backend",
+            "format": "table",
+            "url": "http://loki.observability.svc.cluster.local:3100/loki/api/v1/query_range",
+            "url_options": {
+              "method": "GET",
+              "params": [
+                {
+                  "key": "query",
+                  "value": "sum by (event_name) (count_over_time({service_name=\"claude-code\"} [5m]))"
+                },
+                {
+                  "key": "start",
+                  "value": "${__from:date:seconds}"
+                },
+                {
+                  "key": "end",
+                  "value": "${__to:date:seconds}"
+                },
+                {
+                  "key": "step",
+                  "value": "300"
+                }
+              ]
+            },
+            "root_selector": "data.result.metric.event_name",
+            "columns": []
+          }
+        },
+        "refresh": 2,
+        "sort": 1,
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "text": "tool_result",
+          "value": "tool_result"
+        }
+      },
+      {
+        "type": "query",
+        "name": "span",
+        "label": "スパン名",
+        "datasource": {
+          "type": "yesoreyeram-infinity-datasource",
+          "uid": "backend-api"
+        },
+        "query": {
+          "queryType": "infinity",
+          "refId": "variable",
+          "infinityQuery": {
+            "refId": "variable",
+            "datasource": {
+              "type": "yesoreyeram-infinity-datasource",
+              "uid": "backend-api"
+            },
+            "type": "json",
+            "source": "url",
+            "parser": "backend",
+            "format": "table",
+            "url": "http://tempo.observability.svc.cluster.local:3200/api/v2/search/tag/name/values",
+            "url_options": {
+              "method": "GET",
+              "params": [
+                {
+                  "key": "q",
+                  "value": "{resource.service.name=\"claude-code\"}"
+                },
+                {
+                  "key": "start",
+                  "value": "${__from:date:seconds}"
+                },
+                {
+                  "key": "end",
+                  "value": "${__to:date:seconds}"
+                }
+              ]
+            },
+            "root_selector": "tagValues.value",
+            "columns": []
+          }
+        },
+        "refresh": 2,
+        "sort": 1,
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "text": "claude_code.tool",
+          "value": "claude_code.tool"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "このダッシュボードの使い方",
+      "options": {
+        "mode": "markdown",
+        "content": "Claude Code が送ってくるテレメトリを、**加工せずに信号ごとに一覧する**画面。「何が届いているか」「どの属性があるか」を確かめてから、集計の画面 (Claude Code usage / traces / improve) を作ったり読んだりする。各表の (i) にデータの出どころを書いた。表の列見出しをクリックすると並べ替え、セルにカーソルを当てて目のアイコンで全文が見られる。場面ごとの見方は「Claude Code はじめに」ダッシュボードとリポジトリの `docs/observability/playbook.md`。"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 3
+      }
+    },
+    {
+      "id": 2,
+      "type": "row",
+      "title": "1. メトリクス (Prometheus)",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 3,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 3,
+      "type": "text",
+      "title": "メトリクスとは",
+      "options": {
+        "mode": "markdown",
+        "content": "**何か**: 一定間隔で送られる数値の累計 (カウンタ)。名前 `claude_code_*` と、内訳を分けるラベル (モデル、ワーカー、トークンの種類など) の組で 1 本の系列になる。\n**どこから**: Claude Code が 60 秒ごとに OTLP で OTel Collector に送り、Collector が Prometheus に書く。\n**何が分かる**: コスト・トークン・セッション数・コード行数などの量と、その時間の推移。個々の依頼の中身は分からない (それはログとトレース)。"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 3
+      }
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "メトリクス一覧 (系列数と現在値)",
+      "description": "Prometheus の `claude_code_*` を名前ごとにまとめた。系列数 = ラベルの組み合わせの数。現在値 = 各系列の最後の値の合計 (カウンタの累計なので、Claude Code を再起動すると 0 から数え直す)。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "count by (__name__) (last_over_time({__name__=~\"claude_code_.*\"}[$__range]))",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (__name__) (last_over_time({__name__=~\"claude_code_.*\"}[$__range]))",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "__name__": "メトリクス名",
+              "Value #A": "系列数",
+              "Value #B": "現在値 (全系列の合計)"
+            },
+            "excludeByName": {
+              "Time": true
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "メトリクス名"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 380
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 7,
+        "w": 10,
+        "h": 9
+      }
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "メトリクスごとのラベル (キーと値の例)",
+      "description": "Prometheus の series API (`/api/v1/series`) が返す全系列を、メトリクス × ラベルの 1 行にした。値の種類 = そのラベルが取る値の数、値の例 = 最大 5 個。",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "backend-api"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "backend-api"
+          },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "http://prometheus-server.observability.svc.cluster.local/api/v1/series",
+          "url_options": {
+            "method": "GET",
+            "params": [
+              {
+                "key": "match[]",
+                "value": "{__name__=~\"claude_code_.*\"}"
+              },
+              {
+                "key": "start",
+                "value": "${__from:date:seconds}"
+              },
+              {
+                "key": "end",
+                "value": "${__to:date:seconds}"
+              }
+            ]
+          },
+          "root_selector": "( $d := data; $distinct($d.__name__).( $m := $; $s := $d[__name__ = $m]; $distinct($s.$keys($))[$ != \"__name__\"].( $k := $; $v := $distinct($filter($s.$lookup($, $k), function($x){ $type($x) = \"string\" })); {\"metric\": $m, \"label\": $k, \"n\": $count($v), \"examples\": $join($v[[0..4]], \" / \")} ) ) )",
+          "columns": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "メトリクス"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 300
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ラベル"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 190
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "値の種類"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "metric": "メトリクス",
+              "label": "ラベル",
+              "n": "値の種類",
+              "examples": "値の例"
+            },
+            "excludeByName": {},
+            "indexByName": {
+              "metric": 0,
+              "label": 1,
+              "n": 2,
+              "examples": 3
+            }
+          }
+        }
+      ],
+      "gridPos": {
+        "x": 10,
+        "y": 7,
+        "w": 14,
+        "h": 9
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "$metric の推移 (系列ごと、1 分あたりの増加)",
+      "description": "上の変数「メトリクス」で選んだものを、ラベルを落とさずに全系列そのまま描く。値は `rate(...[$__rate_interval]) * 60`。凡例の系列名にラベルがすべて出る。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "rate({__name__=\"$metric\"}[$__rate_interval]) * 60",
+          "legendFormat": "__auto",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 24,
+        "h": 10
+      }
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "$metric のラベル別内訳 (期間中の増加)",
+      "description": "選んだメトリクスの全系列を、ラベルを列にして 1 行ずつ並べた。値 = 期間中の増加 (`increase(...[$__range] anchored)`)。列見出しで並べ替えて、どのラベルの組が大きいかを見る。",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "increase({__name__=\"$metric\"}[$__range] anchored)",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "期間中の増加",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Value": "期間中の増加"
+            },
+            "excludeByName": {
+              "Time": true,
+              "__name__": true
+            }
+          }
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 26,
+        "w": 24,
+        "h": 9
+      }
+    },
+    {
+      "id": 8,
+      "type": "row",
+      "title": "2. ログ / イベント (Loki)",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 35,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 9,
+      "type": "text",
+      "title": "ログ (イベント) とは",
+      "options": {
+        "mode": "markdown",
+        "content": "**何か**: 出来事 1 回につき 1 行の記録。依頼を受けた (`user_prompt`)、API を呼んだ (`api_request`)、ツールを実行した (`tool_result`) などの種類 (`event_name`) と、その時の属性 (依頼文、コマンド、トークン数など) を持つ。\n**どこから**: Claude Code が OTLP で送り、Collector が秘密っぽい値を `<REDACTED>` に伏せてから Loki に書く。属性は Loki の structured metadata として入る。\n**何が分かる**: 個々の依頼・API 呼び出し・ツール実行の中身。`prompt_id` で同じ依頼のイベントをまとめられ、`trace_id` からトレースへ飛べる。"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 36,
+        "w": 24,
+        "h": 3
+      }
+    },
+    {
+      "id": 10,
+      "type": "table",
+      "title": "イベント種別ごとの件数と属性キー",
+      "description": "Loki に `sum by (event_name, keys) (count_over_time(... | label_format keys=<全属性名> [5m]))` を 5 分刻みで投げて足し合わせ、イベント種別ごとに件数と属性名の和集合を出した。同じ種別でも付く属性が行ごとに違うことがある (例: api_request の skill_name は skill の中で呼んだときだけ付く)。",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "backend-api"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "backend-api"
+          },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "http://loki.observability.svc.cluster.local:3100/loki/api/v1/query_range",
+          "url_options": {
+            "method": "GET",
+            "params": [
+              {
+                "key": "query",
+                "value": "sum by (event_name, keys) (count_over_time({service_name=\"claude-code\"} | label_format keys=`{{ range $k, $v := . }}{{ $k }} {{ end }}` [5m]))"
+              },
+              {
+                "key": "start",
+                "value": "${__from:date:seconds}"
+              },
+              {
+                "key": "end",
+                "value": "${__to:date:seconds}"
+              },
+              {
+                "key": "step",
+                "value": "300"
+              }
+            ]
+          },
+          "root_selector": "( $r := data.result; $distinct($r.metric.event_name).( $e := $; $g := $r[metric.event_name = $e]; {\"event_name\": $e, \"count\": $sum($g.values.$number($[1])), \"keys\": $join($sort($distinct($g.metric.keys.$split($trim($), \" \"))), \"  \")} ) )",
+          "columns": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "イベント種別"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 220
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "件数"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "属性キー"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto",
+                  "wrapText": true
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "件数",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "event_name": "イベント種別",
+              "count": "件数",
+              "keys": "属性キー"
+            },
+            "excludeByName": {},
+            "indexByName": {
+              "event_name": 0,
+              "count": 1,
+              "keys": 2
+            }
+          }
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 39,
+        "w": 24,
+        "h": 11
+      }
+    },
+    {
+      "id": 11,
+      "type": "table",
+      "title": "$event の生のイベント (新しい順、最大 200 行)",
+      "description": "上の変数「イベント種別」で選んだものの生の行。structured metadata をすべて列に展開した (列が多いときは横にスクロール)。共通の列 (OS、アカウント、リポジトリ) は後ろに寄せた。trace_id をクリックするとトレースへ飛ぶ。",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "queryType": "range",
+          "expr": "{service_name=\"claude-code\"} | event_name=\"$event\"",
+          "maxLines": 200
+        }
+      ],
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "labels",
+            "format": "auto",
+            "replace": false,
+            "keepTime": true
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Time": "時刻"
+            },
+            "excludeByName": {
+              "labels": true,
+              "Line": true,
+              "tsNs": true,
+              "labelTypes": true,
+              "id": true,
+              "event_name": true,
+              "detected_level": true,
+              "flags": true,
+              "observed_timestamp": true,
+              "service_name": true,
+              "scope_name": true
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "時刻",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": true,
+            "minWidth": 90
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "時刻"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              },
+              {
+                "id": "custom.width",
+                "value": 160
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "trace_id"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "トレースを開く",
+                    "url": "",
+                    "internal": {
+                      "datasourceUid": "tempo",
+                      "datasourceName": "Tempo",
+                      "query": {
+                        "queryType": "traceql",
+                        "query": "${__value.raw}"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(host_arch|os_type|os_version|wsl_version|service_version|scope_version|terminal_type|organization_id|user_.*|vcs_.*|orca_worktree_id|event_timestamp|event_sequence|span_id)$"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 110
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 50,
+        "w": 24,
+        "h": 14
+      }
+    },
+    {
+      "id": 12,
+      "type": "row",
+      "title": "3. トレース (Tempo)",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 64,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 13,
+      "type": "text",
+      "title": "トレースとスパンとは",
+      "options": {
+        "mode": "markdown",
+        "content": "**何か**: 1 つの依頼の処理を、入れ子になった区間 (スパン) の木として記録したもの。依頼全体 (`claude_code.interaction`) の下に、LLM 呼び出し (`llm_request`)、ツール実行 (`tool`)、hook などのスパンがぶら下がる。各スパンは開始時刻・所要時間・属性を持つ。\n**どこから**: Claude Code が OTLP で送り、Collector が伏せ字をしてから Tempo に書く。\n**何が分かる**: 依頼の中で何がどの順に、それぞれ何秒かかったか。遅い・高い依頼の内訳を見るときに使う。"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 65,
+        "w": 24,
+        "h": 3
+      }
+    },
+    {
+      "id": 14,
+      "type": "table",
+      "title": "スパン名ごとの件数",
+      "description": "TraceQL metrics `{resource.service.name=\"claude-code\"} | count_over_time() by (name)` の期間合計。",
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{resource.service.name=\"claude-code\"} | count_over_time() by (name)",
+          "metricsQueryType": "instant",
+          "tableType": "traces",
+          "limit": 20
+        }
+      ],
+      "transformations": [
+        {
+          "id": "reduce",
+          "options": {
+            "reducers": [
+              "sum"
+            ],
+            "mode": "seriesToRows",
+            "includeTimeField": false
+          }
+        },
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "Field",
+            "format": "regexp",
+            "regExp": "/name=\"?([^\"]+)\"?/",
+            "replace": false
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Field": "スパン名",
+              "Total": "件数"
+            },
+            "excludeByName": {}
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "件数",
+                "desc": true
+              }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 68,
+        "w": 8,
+        "h": 9
+      }
+    },
+    {
+      "id": 15,
+      "type": "table",
+      "title": "$span の属性キー",
+      "description": "Tempo のタグ一覧 API (`/api/v2/search/tags?q={name=\"$span\"}`) を scope ごとに引いた。span = そのスパン固有の属性、resource = 送り手 (Claude Code のプロセス) の属性。上の変数「スパン名」で切り替える。",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "backend-api"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "backend-api"
+          },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "http://tempo.observability.svc.cluster.local:3200/api/v2/search/tags",
+          "url_options": {
+            "method": "GET",
+            "params": [
+              {
+                "key": "q",
+                "value": "{name=\"$span\"}"
+              },
+              {
+                "key": "scope",
+                "value": "span"
+              },
+              {
+                "key": "start",
+                "value": "${__from:date:seconds}"
+              },
+              {
+                "key": "end",
+                "value": "${__to:date:seconds}"
+              }
+            ]
+          },
+          "root_selector": "scopes.( $s := name; tags.{\"scope\": $s, \"key\": $} )",
+          "columns": []
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "backend-api"
+          },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "http://tempo.observability.svc.cluster.local:3200/api/v2/search/tags",
+          "url_options": {
+            "method": "GET",
+            "params": [
+              {
+                "key": "q",
+                "value": "{name=\"$span\"}"
+              },
+              {
+                "key": "scope",
+                "value": "resource"
+              },
+              {
+                "key": "start",
+                "value": "${__from:date:seconds}"
+              },
+              {
+                "key": "end",
+                "value": "${__to:date:seconds}"
+              }
+            ]
+          },
+          "root_selector": "scopes.( $s := name; tags.{\"scope\": $s, \"key\": $} )",
+          "columns": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "scope": "scope",
+              "key": "属性キー"
+            },
+            "excludeByName": {},
+            "indexByName": {
+              "scope": 0,
+              "key": 1
+            }
+          }
+        }
+      ],
+      "gridPos": {
+        "x": 8,
+        "y": 68,
+        "w": 8,
+        "h": 9
+      }
+    },
+    {
+      "id": 16,
+      "type": "table",
+      "title": "全スパン名の属性キー (scope 別)",
+      "description": "名前で絞らずに、Claude Code のスパン全体で使われている属性キーを scope ごとに出した。",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "backend-api"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "backend-api"
+          },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "http://tempo.observability.svc.cluster.local:3200/api/v2/search/tags",
+          "url_options": {
+            "method": "GET",
+            "params": [
+              {
+                "key": "q",
+                "value": "{resource.service.name=\"claude-code\"}"
+              },
+              {
+                "key": "start",
+                "value": "${__from:date:seconds}"
+              },
+              {
+                "key": "end",
+                "value": "${__to:date:seconds}"
+              }
+            ]
+          },
+          "root_selector": "$map(scopes[name != \"intrinsic\"], function($s){ {\"scope\": $s.name, \"n\": $count($s.tags), \"keys\": $join($s.tags, \"  \")} })",
+          "columns": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "属性キー"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto",
+                  "wrapText": true
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "scope"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "数"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 50
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "scope": "scope",
+              "n": "数",
+              "keys": "属性キー"
+            },
+            "excludeByName": {},
+            "indexByName": {
+              "scope": 0,
+              "n": 1,
+              "keys": 2
+            }
+          }
+        }
+      ],
+      "gridPos": {
+        "x": 16,
+        "y": 68,
+        "w": 8,
+        "h": 9
+      }
+    },
+    {
+      "id": 17,
+      "type": "table",
+      "title": "最近のトレース ($span を含むもの)",
+      "description": "Trace ID をクリックするとウォーターフォール (スパンの木と所要時間) が開く。行の左の > を開くと、一致したスパンとその全属性が出る。",
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "tempo",
+            "uid": "tempo"
+          },
+          "queryType": "traceql",
+          "query": "{name=\"$span\"} | select(span.*)",
+          "limit": 50,
+          "spss": 3,
+          "tableType": "traces"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "gridPos": {
+        "x": 0,
+        "y": 77,
+        "w": 24,
+        "h": 12
+      }
+    }
+  ]
+}
