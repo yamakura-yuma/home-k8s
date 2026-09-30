@@ -16,6 +16,7 @@
           kind
           kubernetes-helm
           cloudflared
+          caddy
         ];
       in
       {
