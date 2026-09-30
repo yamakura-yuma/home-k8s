@@ -3,7 +3,7 @@
 OTel Collector に送る。Orca 自体は OTel を出さないので、`orca orchestration ... --json` を
 定期的に読んで信号に直す。構成と決めごとは docs/observability/orca-orchestration.md。
 
-- 読むだけ: run-list / task-list / inbox / worker-list / worker-show / dispatch-show しか叩かない。
+- 読むだけ: run-list / task-list / inbox / worker-list / worker-show / dispatch-show と、terminal list しか叩かない。
   check (既読にする) と run-use (coordinator の束縛を奪う) は使わない。
 - ログ (Loki): メッセージ 1 件、Task・Dispatch の状態変化 1 回ごとに 1 レコード。送ったキーを
   状態ファイルに残し、再起動しても二重に送らない。
@@ -78,14 +78,14 @@ class OrcaError(Exception):
     pass
 
 
-def orca(*args):
-    p = subprocess.run([ORCA, "orchestration", *args, "--json"], capture_output=True, text=True, timeout=120)
+def orca(*args, group="orchestration"):
+    p = subprocess.run([ORCA, group, *args, "--json"], capture_output=True, text=True, timeout=120)
     try:
         d = json.loads(p.stdout)
     except json.JSONDecodeError:
-        raise OrcaError(f"orca {args[0]}: exit {p.returncode}: {p.stderr.strip()[-300:]}")
+        raise OrcaError(f"orca {group} {args[0]}: exit {p.returncode}: {p.stderr.strip()[-300:]}")
     if not d.get("ok"):
-        raise OrcaError(f"orca {args[0]}: {d.get('error', {}).get('code')}: {d.get('error', {}).get('message')}")
+        raise OrcaError(f"orca {group} {args[0]}: {d.get('error', {}).get('code')}: {d.get('error', {}).get('message')}")
     return d["result"]
 
 
@@ -102,6 +102,19 @@ def worktree_name(worktree_id):
     if not worktree_id or "::" not in worktree_id:
         return ""
     return os.path.basename(worktree_id.split("::", 1)[1].rstrip("/"))
+
+
+def coordinator_worktrees(runs, terminals, known):
+    """Run ごとの coordinator の worktree 名 (話題チャットなら coordinator-chat-<topic>)。
+    run-list の coordinator_handle は terminal list の handle で引く。handle は Run を閉じる・
+    run-use で別のチャットに渡すと変わるので、引けた最後の値を known (状態ファイル) に残し、
+    引けない間はそれを使う。known を書き換えて返す"""
+    wt_of = {t["handle"]: worktree_name(t.get("worktreeId")) for t in terminals}
+    for r in runs:
+        name = wt_of.get(r.get("coordinator_handle"))
+        if name:
+            known[r["id"]] = name
+    return known
 
 
 def collect(cache):
@@ -553,7 +566,7 @@ def spans(runs, disp, run_info, state):
 
 # ---- メトリクス -----------------------------------------------------------------
 
-def metrics(runs, disp, msgs, run_info, now):
+def metrics(runs, disp, msgs, run_info, now, coordinators):
     t = ns(now)
     series = {}
 
@@ -568,7 +581,8 @@ def metrics(runs, disp, msgs, run_info, now):
         a = {"orca.run.id": r["id"]}
         g("orca.run.info", "", "Run の目的と、トレース ID (値は常に 1)", 1, {
             **a, "orca.run.objective": r.get("objective") or "", "trace_id": trace_id(r["id"]),
-            "orca.run.state": "closed" if ri["closed"] else "open"})
+            "orca.run.state": "closed" if ri["closed"] else "open",
+            "orca.run.coordinator_worktree": coordinators.get(r["id"], "")})
         g("orca.run.start_time", "s", "Run を作った時刻 (epoch 秒)", ri["start"], a)
         g("orca.run.duration", "s", "Run を作ってから最後の動きまで", ri["last"] - ri["start"], a)
         counts = {}
@@ -614,6 +628,7 @@ def load_state():
     s.setdefault("spans_sent", [])
     s.setdefault("task_status", {})
     s.setdefault("dispatch_cache", {})
+    s.setdefault("run_coordinator", {})
     s["logs_sent"], s["spans_sent"] = set(s["logs_sent"]), set(s["spans_sent"])
     return s
 
@@ -634,10 +649,17 @@ def chunks(xs, n):
 def cycle(state, dry_run=False):
     now = time.time()
     runs, tasks, messages, workers, details = collect(state["dispatch_cache"])
+    try:
+        terminals = orca("list", "--limit", "100000", group="terminal")["terminals"]
+    except OrcaError as e:
+        # 引けなくても他の信号は送る。coordinator の worktree は状態ファイルに残した値を使う
+        log(f"terminal list: {e}")
+        terminals = []
+    coordinators = coordinator_worktrees(runs, terminals, state["run_coordinator"])
     disp, msgs, run_info = build(runs, tasks, messages, workers, details, now)
     logs = log_records(disp, msgs, tasks, run_info, state, now)
     sp = spans(runs, disp, run_info, state)
-    ms = metrics(runs, disp, msgs, run_info, now)
+    ms = metrics(runs, disp, msgs, run_info, now, coordinators)
     stats = {"runs": len(runs), "tasks": len(tasks), "messages": len(messages), "dispatches": len(disp),
              "new_logs": len(logs), "new_spans": len(sp)}
     if dry_run:
@@ -682,6 +704,7 @@ def main():
             "logs_sent": len(s["logs_sent"]),
             "spans_sent": len(s["spans_sent"]),
             "dispatches_cached": len(s["dispatch_cache"]),
+            "run_coordinators": len(s["run_coordinator"]),
         }, ensure_ascii=False, indent=1))
         return
 

@@ -28,7 +28,7 @@ Grafana のダッシュボードを、困りごとから引くための手引き
 | Claude Code traces (`/d/claude-code-traces`) | 所要時間、ツール、hook、サブエージェントの内訳 |
 | Claude Code improve (`/d/claude-code-improve`) | ハーネスを直す箇所を決める。依頼ごとのコスト、失敗したコマンド、skill の使われ方 |
 | Claude Code 設定項目別 (`/d/cc-settings` から各設定へ) | OTel の設定 1 つごとに、その設定で届くようになった属性・ラベルを全部見る。設定を変える前後に使う |
-| Orca orchestration (`/d/orca-orchestration`) | coordinator が Orca でワーカーをどう回したか。追加指示・question・worker_done までの時間などの手戻りと、ワーカー別のコストの突き合わせ。データの出どころは [orca-orchestration.md](orca-orchestration.md) |
+| Orca orchestration (`/d/orca-orchestration`) | coordinator が Orca でワーカーをどう回したか。追加指示・question・worker_done までの時間などの手戻りと、ワーカー別のコストの突き合わせ、話題別・役割別のコスト。データの出どころは [orca-orchestration.md](orca-orchestration.md) |
 
 どのダッシュボードも右上の期間で集計範囲が変わる。上部の「Claude Code」リンクで互いに
 行き来でき、期間は引き継がれる。
@@ -165,6 +165,27 @@ Grafana のダッシュボードを、困りごとから引くための手引き
   5. 雛形を直したら、場面 8 の手順で前後の同じ長さの期間を比べる。ワーカーが 10 未満のうちは判断しない。
 - 拒否された worker_done や user_takeover が出たら、Orca の運用を疑う: coordinator がワーカーの完了を待たずに
   stop / release / 作り直しをしていないか、完了後に人が端末を引き取る運用になっていないか。
+
+### 12. 話題ごとのトークン・コストを見る (話題チャット方式)
+
+- 見る: Orca orchestration の「6. 話題別・役割別」。「話題ごとのコストとトークン」(話題チャット本体 + その話題の Run の
+  ワーカー)、「役割 × モデル別」、「調整コスト比の日次」。
+- 前提: worktree 名が `coordinator` なら main-chat、`coordinator-chat-<topic>` なら話題チャット、それ以外はワーカー。
+  話題は Run の coordinator の worktree 名 (exporter の `orca_run_coordinator_worktree`) から取る。
+  名前の規約を変えたら、集計が外れる ([orca-orchestration.md](orca-orchestration.md) の「話題別・役割別の集計」)。
+- 分かること: どの話題にいくら (とどのトークン) かかったか、その内訳が話題チャットとワーカーのどちらか、
+  main-chat / topic-chat / worker がどのモデルでどれだけ使ったか。`(不明)` は話題に割れなかった Run
+  (ラベルを入れる前に閉じたもの)、`(main-chat 直)` は main-chat が直接回した Run。
+- 旧方式 (1 つの coordinator が複数の話題を回す) と比べるとき: 旧方式は話題に割れないので、**期間単位の調整コスト比**
+  (調整コスト ÷ ワーカーのコスト) と Dispatch 1 件あたりの調整コストを、切り替え (2026-10-01 04:22 JST) の前後の
+  同じ長さの期間で比べる。調整コストは新方式で main-chat + topic-chat、旧方式で `coordinator`
+  (worktree 名が空で `vcs_repository_name="coordinator"` のものを含む)。
+- 次にすること:
+  1. main-chat にコストの大きいモデル (Opus) が入っていたら、main-chat は Sonnet で開く約束が守られていない。
+  2. 調整コスト比が切り替え後に下がっていなければ、話題チャットが重い (Opus で回している・長く居座っている)。
+     話題別の表で、ワーカーより話題チャット本体が大きい話題を探す。
+  3. `(不明)` が大きいときは、exporter が動いていたか (`just orca-exporter-status`) と、`terminal list` が通っているかを見る。
+- ワーカー分は近似 (`rate` を足したもの) で、短いセッションでは誤差が出る。
 
 ## raw ダッシュボードの作り
 

@@ -2226,6 +2226,827 @@
         "showHeader": true,
         "cellHeight": "sm"
       }
+    },
+    {
+      "id": 29,
+      "type": "row",
+      "title": "6. 話題別・役割別 (トークン・コスト)",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 109,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 30,
+      "type": "text",
+      "title": "読み方 (前提)",
+      "gridPos": {
+        "x": 0,
+        "y": 110,
+        "w": 24,
+        "h": 4
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "役割は Orca の worktree 名で決める: `coordinator` = **main-chat**、`coordinator-chat-<topic>` = **topic-chat** (話題チャット)、それ以外 = **worker**。この名前の規約が崩れると判定が外れる。\n話題ごとの合計 = 話題チャット本体 + その話題の Run のワーカー。ワーカーは「その時点で最新の Dispatch の Run」に寄せ、Run の話題は `orca_run_info` の `orca_run_coordinator_worktree` で決める。ラベルが付く前に閉じた Run と、main-chat が直接回した Run は話題に割れず、`(不明)` / `(main-chat 直)` に入る。\n旧方式 (1 つの coordinator が複数の話題を回す) は話題に割れない。**期間単位の「調整コスト比」** で前後を比べる (旧は `coordinator` と、worktree 名が空で `vcs_repository_name=\"coordinator\"` のもの)。期間は右上 (ワーカーの絞り込みは効かない)"
+      }
+    },
+    {
+      "id": 31,
+      "type": "stat",
+      "title": "調整コスト (USD)",
+      "description": "main-chat + topic-chat (旧方式は coordinator) の期間中のコスト",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 114,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "((sum(increase(claude_code_cost_usage_USD_total{orca_worktree_name=~\"coordinator|coordinator-chat-.+\"}[$__range])) or vector(0)) + (sum(increase(claude_code_cost_usage_USD_total{orca_worktree_name=\"\", vcs_repository_name=\"coordinator\"}[$__range])) or vector(0)))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 32,
+      "type": "stat",
+      "title": "ワーカーのコスト (USD)",
+      "description": "ワーカー (coordinator 以外の worktree) の期間中のコスト",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 114,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(increase(claude_code_cost_usage_USD_total{orca_worktree_name!=\"\", orca_worktree_name!~\"coordinator|coordinator-chat-.+\"}[$__range]))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 33,
+      "type": "stat",
+      "title": "調整コスト比",
+      "description": "調整コスト ÷ ワーカーのコスト。話題チャット方式に切り替えた前後で比べる。下がれば、調整にかかるコストが仕事に対して減った",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 114,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "((sum(increase(claude_code_cost_usage_USD_total{orca_worktree_name=~\"coordinator|coordinator-chat-.+\"}[$__range])) or vector(0)) + (sum(increase(claude_code_cost_usage_USD_total{orca_worktree_name=\"\", vcs_repository_name=\"coordinator\"}[$__range])) or vector(0))) / sum(increase(claude_code_cost_usage_USD_total{orca_worktree_name!=\"\", orca_worktree_name!~\"coordinator|coordinator-chat-.+\"}[$__range]))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 34,
+      "type": "stat",
+      "title": "Dispatch 1 件あたりの調整コスト (USD)",
+      "description": "調整コスト ÷ 期間中に出したワーカー (Dispatch) の数",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 114,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "((sum(increase(claude_code_cost_usage_USD_total{orca_worktree_name=~\"coordinator|coordinator-chat-.+\"}[$__range])) or vector(0)) + (sum(increase(claude_code_cost_usage_USD_total{orca_worktree_name=\"\", vcs_repository_name=\"coordinator\"}[$__range])) or vector(0))) / count(last_over_time(orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}[$__range]) >= ${__from:date:seconds})",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 35,
+      "type": "table",
+      "title": "話題ごとのコストとトークン",
+      "description": "話題 = 話題チャット本体 + その話題の Run のワーカー。ワーカー分は rate を足した近似で、短いセッションでは誤差が出る。`(不明)` は Run の話題が分からないもの (ラベルが付く前に閉じた Run など)、`(main-chat 直)` は main-chat が直接回した Run。話題チャット本体しかない話題 (ワーカーを出していない) も出る。cache 読みはコストが小さくトークンは大きくなりやすいので、コストで見比べる",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 118,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(sum by (orca_topic) (sum by (orca_run_id) (sum_over_time((sum by (orca_worktree_name) (rate(claude_code_cost_usage_USD_total{}[5m])) * on (orca_worktree_name) group_left (orca_run_id) (0 * topk by (orca_worktree_name) (1, orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}) + 1))[$__range:1m]) * 60) * on (orca_run_id) group_left (orca_topic) label_replace(label_replace(label_replace((0 * topk by (orca_run_id) (1, max_over_time(timestamp(orca_run_info{job=\"home-k8s/orca\"})[$__range:1m])) + 1), \"orca_topic\", \"(不明)\", \"orca_run_coordinator_worktree\", \".*\"), \"orca_topic\", \"(main-chat 直)\", \"orca_run_coordinator_worktree\", \"coordinator\"), \"orca_topic\", \"$1\", \"orca_run_coordinator_worktree\", \"coordinator-chat-(.+)\")) + sum by (orca_topic) (label_replace(increase(claude_code_cost_usage_USD_total{orca_worktree_name=~\"coordinator-chat-.+\"}[$__range]), \"orca_topic\", \"$1\", \"orca_worktree_name\", \"coordinator-chat-(.+)\"))) or sum by (orca_topic) (sum by (orca_run_id) (sum_over_time((sum by (orca_worktree_name) (rate(claude_code_cost_usage_USD_total{}[5m])) * on (orca_worktree_name) group_left (orca_run_id) (0 * topk by (orca_worktree_name) (1, orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}) + 1))[$__range:1m]) * 60) * on (orca_run_id) group_left (orca_topic) label_replace(label_replace(label_replace((0 * topk by (orca_run_id) (1, max_over_time(timestamp(orca_run_info{job=\"home-k8s/orca\"})[$__range:1m])) + 1), \"orca_topic\", \"(不明)\", \"orca_run_coordinator_worktree\", \".*\"), \"orca_topic\", \"(main-chat 直)\", \"orca_run_coordinator_worktree\", \"coordinator\"), \"orca_topic\", \"$1\", \"orca_run_coordinator_worktree\", \"coordinator-chat-(.+)\")) or sum by (orca_topic) (label_replace(increase(claude_code_cost_usage_USD_total{orca_worktree_name=~\"coordinator-chat-.+\"}[$__range]), \"orca_topic\", \"$1\", \"orca_worktree_name\", \"coordinator-chat-(.+)\"))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(sum by (orca_topic) (sum by (orca_run_id) (sum_over_time((sum by (orca_worktree_name) (rate(claude_code_token_usage_tokens_total{type=\"input\"}[5m])) * on (orca_worktree_name) group_left (orca_run_id) (0 * topk by (orca_worktree_name) (1, orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}) + 1))[$__range:1m]) * 60) * on (orca_run_id) group_left (orca_topic) label_replace(label_replace(label_replace((0 * topk by (orca_run_id) (1, max_over_time(timestamp(orca_run_info{job=\"home-k8s/orca\"})[$__range:1m])) + 1), \"orca_topic\", \"(不明)\", \"orca_run_coordinator_worktree\", \".*\"), \"orca_topic\", \"(main-chat 直)\", \"orca_run_coordinator_worktree\", \"coordinator\"), \"orca_topic\", \"$1\", \"orca_run_coordinator_worktree\", \"coordinator-chat-(.+)\")) + sum by (orca_topic) (label_replace(increase(claude_code_token_usage_tokens_total{orca_worktree_name=~\"coordinator-chat-.+\", type=\"input\"}[$__range]), \"orca_topic\", \"$1\", \"orca_worktree_name\", \"coordinator-chat-(.+)\"))) or sum by (orca_topic) (sum by (orca_run_id) (sum_over_time((sum by (orca_worktree_name) (rate(claude_code_token_usage_tokens_total{type=\"input\"}[5m])) * on (orca_worktree_name) group_left (orca_run_id) (0 * topk by (orca_worktree_name) (1, orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}) + 1))[$__range:1m]) * 60) * on (orca_run_id) group_left (orca_topic) label_replace(label_replace(label_replace((0 * topk by (orca_run_id) (1, max_over_time(timestamp(orca_run_info{job=\"home-k8s/orca\"})[$__range:1m])) + 1), \"orca_topic\", \"(不明)\", \"orca_run_coordinator_worktree\", \".*\"), \"orca_topic\", \"(main-chat 直)\", \"orca_run_coordinator_worktree\", \"coordinator\"), \"orca_topic\", \"$1\", \"orca_run_coordinator_worktree\", \"coordinator-chat-(.+)\")) or sum by (orca_topic) (label_replace(increase(claude_code_token_usage_tokens_total{orca_worktree_name=~\"coordinator-chat-.+\", type=\"input\"}[$__range]), \"orca_topic\", \"$1\", \"orca_worktree_name\", \"coordinator-chat-(.+)\"))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(sum by (orca_topic) (sum by (orca_run_id) (sum_over_time((sum by (orca_worktree_name) (rate(claude_code_token_usage_tokens_total{type=\"output\"}[5m])) * on (orca_worktree_name) group_left (orca_run_id) (0 * topk by (orca_worktree_name) (1, orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}) + 1))[$__range:1m]) * 60) * on (orca_run_id) group_left (orca_topic) label_replace(label_replace(label_replace((0 * topk by (orca_run_id) (1, max_over_time(timestamp(orca_run_info{job=\"home-k8s/orca\"})[$__range:1m])) + 1), \"orca_topic\", \"(不明)\", \"orca_run_coordinator_worktree\", \".*\"), \"orca_topic\", \"(main-chat 直)\", \"orca_run_coordinator_worktree\", \"coordinator\"), \"orca_topic\", \"$1\", \"orca_run_coordinator_worktree\", \"coordinator-chat-(.+)\")) + sum by (orca_topic) (label_replace(increase(claude_code_token_usage_tokens_total{orca_worktree_name=~\"coordinator-chat-.+\", type=\"output\"}[$__range]), \"orca_topic\", \"$1\", \"orca_worktree_name\", \"coordinator-chat-(.+)\"))) or sum by (orca_topic) (sum by (orca_run_id) (sum_over_time((sum by (orca_worktree_name) (rate(claude_code_token_usage_tokens_total{type=\"output\"}[5m])) * on (orca_worktree_name) group_left (orca_run_id) (0 * topk by (orca_worktree_name) (1, orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}) + 1))[$__range:1m]) * 60) * on (orca_run_id) group_left (orca_topic) label_replace(label_replace(label_replace((0 * topk by (orca_run_id) (1, max_over_time(timestamp(orca_run_info{job=\"home-k8s/orca\"})[$__range:1m])) + 1), \"orca_topic\", \"(不明)\", \"orca_run_coordinator_worktree\", \".*\"), \"orca_topic\", \"(main-chat 直)\", \"orca_run_coordinator_worktree\", \"coordinator\"), \"orca_topic\", \"$1\", \"orca_run_coordinator_worktree\", \"coordinator-chat-(.+)\")) or sum by (orca_topic) (label_replace(increase(claude_code_token_usage_tokens_total{orca_worktree_name=~\"coordinator-chat-.+\", type=\"output\"}[$__range]), \"orca_topic\", \"$1\", \"orca_worktree_name\", \"coordinator-chat-(.+)\"))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(sum by (orca_topic) (sum by (orca_run_id) (sum_over_time((sum by (orca_worktree_name) (rate(claude_code_token_usage_tokens_total{type=\"cacheRead\"}[5m])) * on (orca_worktree_name) group_left (orca_run_id) (0 * topk by (orca_worktree_name) (1, orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}) + 1))[$__range:1m]) * 60) * on (orca_run_id) group_left (orca_topic) label_replace(label_replace(label_replace((0 * topk by (orca_run_id) (1, max_over_time(timestamp(orca_run_info{job=\"home-k8s/orca\"})[$__range:1m])) + 1), \"orca_topic\", \"(不明)\", \"orca_run_coordinator_worktree\", \".*\"), \"orca_topic\", \"(main-chat 直)\", \"orca_run_coordinator_worktree\", \"coordinator\"), \"orca_topic\", \"$1\", \"orca_run_coordinator_worktree\", \"coordinator-chat-(.+)\")) + sum by (orca_topic) (label_replace(increase(claude_code_token_usage_tokens_total{orca_worktree_name=~\"coordinator-chat-.+\", type=\"cacheRead\"}[$__range]), \"orca_topic\", \"$1\", \"orca_worktree_name\", \"coordinator-chat-(.+)\"))) or sum by (orca_topic) (sum by (orca_run_id) (sum_over_time((sum by (orca_worktree_name) (rate(claude_code_token_usage_tokens_total{type=\"cacheRead\"}[5m])) * on (orca_worktree_name) group_left (orca_run_id) (0 * topk by (orca_worktree_name) (1, orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}) + 1))[$__range:1m]) * 60) * on (orca_run_id) group_left (orca_topic) label_replace(label_replace(label_replace((0 * topk by (orca_run_id) (1, max_over_time(timestamp(orca_run_info{job=\"home-k8s/orca\"})[$__range:1m])) + 1), \"orca_topic\", \"(不明)\", \"orca_run_coordinator_worktree\", \".*\"), \"orca_topic\", \"(main-chat 直)\", \"orca_run_coordinator_worktree\", \"coordinator\"), \"orca_topic\", \"$1\", \"orca_run_coordinator_worktree\", \"coordinator-chat-(.+)\")) or sum by (orca_topic) (label_replace(increase(claude_code_token_usage_tokens_total{orca_worktree_name=~\"coordinator-chat-.+\", type=\"cacheRead\"}[$__range]), \"orca_topic\", \"$1\", \"orca_worktree_name\", \"coordinator-chat-(.+)\"))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "E",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(sum by (orca_topic) (sum by (orca_run_id) (sum_over_time((sum by (orca_worktree_name) (rate(claude_code_token_usage_tokens_total{type=\"cacheCreation\"}[5m])) * on (orca_worktree_name) group_left (orca_run_id) (0 * topk by (orca_worktree_name) (1, orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}) + 1))[$__range:1m]) * 60) * on (orca_run_id) group_left (orca_topic) label_replace(label_replace(label_replace((0 * topk by (orca_run_id) (1, max_over_time(timestamp(orca_run_info{job=\"home-k8s/orca\"})[$__range:1m])) + 1), \"orca_topic\", \"(不明)\", \"orca_run_coordinator_worktree\", \".*\"), \"orca_topic\", \"(main-chat 直)\", \"orca_run_coordinator_worktree\", \"coordinator\"), \"orca_topic\", \"$1\", \"orca_run_coordinator_worktree\", \"coordinator-chat-(.+)\")) + sum by (orca_topic) (label_replace(increase(claude_code_token_usage_tokens_total{orca_worktree_name=~\"coordinator-chat-.+\", type=\"cacheCreation\"}[$__range]), \"orca_topic\", \"$1\", \"orca_worktree_name\", \"coordinator-chat-(.+)\"))) or sum by (orca_topic) (sum by (orca_run_id) (sum_over_time((sum by (orca_worktree_name) (rate(claude_code_token_usage_tokens_total{type=\"cacheCreation\"}[5m])) * on (orca_worktree_name) group_left (orca_run_id) (0 * topk by (orca_worktree_name) (1, orca_dispatch_start_time_seconds{job=\"home-k8s/orca\"}) + 1))[$__range:1m]) * 60) * on (orca_run_id) group_left (orca_topic) label_replace(label_replace(label_replace((0 * topk by (orca_run_id) (1, max_over_time(timestamp(orca_run_info{job=\"home-k8s/orca\"})[$__range:1m])) + 1), \"orca_topic\", \"(不明)\", \"orca_run_coordinator_worktree\", \".*\"), \"orca_topic\", \"(main-chat 直)\", \"orca_run_coordinator_worktree\", \"coordinator\"), \"orca_topic\", \"$1\", \"orca_run_coordinator_worktree\", \"coordinator-chat-(.+)\")) or sum by (orca_topic) (label_replace(increase(claude_code_token_usage_tokens_total{orca_worktree_name=~\"coordinator-chat-.+\", type=\"cacheCreation\"}[$__range]), \"orca_topic\", \"$1\", \"orca_worktree_name\", \"coordinator-chat-(.+)\"))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "orca_topic": "話題",
+              "Value #A": "コスト (USD)",
+              "Value #B": "input (token)",
+              "Value #C": "output (token)",
+              "Value #D": "cache 読み (token)",
+              "Value #E": "cache 作成 (token)"
+            },
+            "indexByName": {
+              "orca_topic": 0,
+              "コスト (USD)": 1,
+              "input (token)": 2,
+              "output (token)": 3,
+              "cache 読み (token)": 4,
+              "cache 作成 (token)": 5
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "コスト (USD)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "input (token)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "output (token)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cache 読み (token)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cache 作成 (token)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "コスト (USD)",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 36,
+      "type": "table",
+      "title": "役割 × モデル別のコストとトークン",
+      "description": "役割は worktree 名で決める。main-chat = `coordinator`、topic-chat = `coordinator-chat-<topic>`、worker = それ以外。main-chat に Opus が入っていれば、main-chat を Sonnet で開く約束が守られていない",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 128,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (role, model) (label_replace(label_replace(label_replace(sum by (orca_worktree_name, model) (increase(claude_code_cost_usage_USD_total{orca_worktree_name!=\"\"}[$__range])), \"role\", \"worker\", \"orca_worktree_name\", \".+\"), \"role\", \"topic-chat\", \"orca_worktree_name\", \"coordinator-chat-.+\"), \"role\", \"main-chat\", \"orca_worktree_name\", \"coordinator\"))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (role, model) (label_replace(label_replace(label_replace(sum by (orca_worktree_name, model) (increase(claude_code_token_usage_tokens_total{orca_worktree_name!=\"\", type=\"input\"}[$__range])), \"role\", \"worker\", \"orca_worktree_name\", \".+\"), \"role\", \"topic-chat\", \"orca_worktree_name\", \"coordinator-chat-.+\"), \"role\", \"main-chat\", \"orca_worktree_name\", \"coordinator\"))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (role, model) (label_replace(label_replace(label_replace(sum by (orca_worktree_name, model) (increase(claude_code_token_usage_tokens_total{orca_worktree_name!=\"\", type=\"output\"}[$__range])), \"role\", \"worker\", \"orca_worktree_name\", \".+\"), \"role\", \"topic-chat\", \"orca_worktree_name\", \"coordinator-chat-.+\"), \"role\", \"main-chat\", \"orca_worktree_name\", \"coordinator\"))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (role, model) (label_replace(label_replace(label_replace(sum by (orca_worktree_name, model) (increase(claude_code_token_usage_tokens_total{orca_worktree_name!=\"\", type=\"cacheRead\"}[$__range])), \"role\", \"worker\", \"orca_worktree_name\", \".+\"), \"role\", \"topic-chat\", \"orca_worktree_name\", \"coordinator-chat-.+\"), \"role\", \"main-chat\", \"orca_worktree_name\", \"coordinator\"))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "refId": "E",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (role, model) (label_replace(label_replace(label_replace(sum by (orca_worktree_name, model) (increase(claude_code_token_usage_tokens_total{orca_worktree_name!=\"\", type=\"cacheCreation\"}[$__range])), \"role\", \"worker\", \"orca_worktree_name\", \".+\"), \"role\", \"topic-chat\", \"orca_worktree_name\", \"coordinator-chat-.+\"), \"role\", \"main-chat\", \"orca_worktree_name\", \"coordinator\"))",
+          "legendFormat": "__auto",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "role": "役割",
+              "model": "モデル",
+              "Value #A": "コスト (USD)",
+              "Value #B": "input (token)",
+              "Value #C": "output (token)",
+              "Value #D": "cache 読み (token)",
+              "Value #E": "cache 作成 (token)"
+            },
+            "indexByName": {
+              "role": 0,
+              "model": 1,
+              "コスト (USD)": 2,
+              "input (token)": 3,
+              "output (token)": 4,
+              "cache 読み (token)": 5,
+              "cache 作成 (token)": 6
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "コスト (USD)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "input (token)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "output (token)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cache 読み (token)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "cache 作成 (token)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "コスト (USD)",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 37,
+      "type": "timeseries",
+      "title": "調整コスト比の日次",
+      "description": "日ごと (UTC) の 調整コスト ÷ ワーカーのコスト。切り替え (dotfiles PR #37 のマージ) の前後で比べる。旧方式は `coordinator` (と worktree 名が空で `vcs_repository_name=\"coordinator\"`) を調整コストに数える。分母のワーカーが少ない日は比が跳ねる",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 136,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "((sum(increase(claude_code_cost_usage_USD_total{orca_worktree_name=~\"coordinator|coordinator-chat-.+\"}[1d])) or vector(0)) + (sum(increase(claude_code_cost_usage_USD_total{orca_worktree_name=\"\", vcs_repository_name=\"coordinator\"}[1d])) or vector(0))) / sum(increase(claude_code_cost_usage_USD_total{orca_worktree_name!=\"\", orca_worktree_name!~\"coordinator|coordinator-chat-.+\"}[1d]))",
+          "legendFormat": "調整コスト比",
+          "instant": false,
+          "range": true,
+          "interval": "1d"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "showPoints": "always"
+          },
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 38,
+      "type": "timeseries",
+      "title": "役割別のコストの日次",
+      "description": "日ごと (UTC) のコストを役割別に積む。旧方式の coordinator (worktree 名が空) は「main-chat (worktree 名なし)」",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 136,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (role) (label_replace(label_replace(label_replace(sum by (orca_worktree_name) (increase(claude_code_cost_usage_USD_total{orca_worktree_name!=\"\"}[1d])), \"role\", \"worker\", \"orca_worktree_name\", \".+\"), \"role\", \"topic-chat\", \"orca_worktree_name\", \"coordinator-chat-.+\"), \"role\", \"main-chat\", \"orca_worktree_name\", \"coordinator\"))",
+          "legendFormat": "{{role}}",
+          "instant": false,
+          "range": true,
+          "interval": "1d"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "label_replace(sum(increase(claude_code_cost_usage_USD_total{orca_worktree_name=\"\", vcs_repository_name=\"coordinator\"}[1d])), \"role\", \"main-chat (worktree 名なし)\", \"\", \"\")",
+          "legendFormat": "{{role}}",
+          "instant": false,
+          "range": true,
+          "interval": "1d"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "stacking": {
+              "mode": "normal"
+            },
+            "fillOpacity": 80,
+            "lineWidth": 1
+          },
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
     }
   ]
 }
