@@ -138,8 +138,10 @@ Explore で `{service_name="claude-code"} | event_name="api_request"` のよう�
 - ColeMurray/claude-code-otel (<https://github.com/ColeMurray/claude-code-otel>):
   Loki の `tool_result` / `api_error` のパネル
 
-どちらもセッション ID (`session_id`) やユーザー (`user_email`) で分けているが、この環境では
-セッション ID を外しており、利用者も 1 人なので、代わりにワーカーで分けている。
+どちらもセッション ID (`session_id`) やユーザー (`user_email`) で分けているが、このダッシュボードは
+ワーカー (`orca_worktree_name`) で分けている。利用者は 1 人で、ワーカーとセッションはほぼ 1 対 1 に
+なるため。`session_id` は 2026-10-01 から付いている (`OTEL_METRICS_INCLUDE_SESSION_ID=true`)。
+セッション別の内訳は設定項目別ダッシュボードの `cc-setting-include-session-id` にある。
 
 ## 定義の場所
 

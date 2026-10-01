@@ -40,8 +40,9 @@ Grafana の `Claude Code improve` (`/d/claude-code-improve`) は、エージェ�
 - 依頼文・ツールの詳細が入るのは、Claude Code 側で `OTEL_LOG_USER_PROMPTS=1`・
   `OTEL_LOG_TOOL_DETAILS=1` を立てた後のイベントだけ。それより前の依頼文は `<REDACTED>`
   (Claude Code 自身の伏せ字) と出る。
-- イベントにセッション ID は入っていない (`OTEL_METRICS_INCLUDE_SESSION_ID=false`) ので、
-  セッション単位ではなくワーカー単位でまとめている。
+- セッション単位ではなくワーカー単位でまとめている。イベントにセッション ID (`session_id`) が
+  入るのは 2026-10-01 に `OTEL_METRICS_INCLUDE_SESSION_ID=true` にした後のイベントだけで、
+  それより前のイベントには無いため。
 
 ## 秘密の値を伏せる
 

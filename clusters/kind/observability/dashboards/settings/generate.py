@@ -1,6 +1,6 @@
 """設定項目 (環境変数) ごとのダッシュボード (このディレクトリの *.json) を作る。
 
-12 枚がほぼ同じ形なので、JSON を手で直さずにこのスクリプトを直して作り直す:
+13 枚がほぼ同じ形なので、JSON を手で直さずにこのスクリプトを直して作り直す:
     python3 clusters/kind/observability/dashboards/settings/generate.py
 パネルの部品は lib.py。Grafana への反映は `just observe-up`。
 """
@@ -124,7 +124,8 @@ SETTINGS = [
     ("OTEL_LOG_TOOL_DETAILS", "1", "cc-setting-log-tool-details", "コマンド・ファイルパス・skill / MCP 名・ツール入力"),
     ("OTEL_LOG_ASSISTANT_RESPONSES", "1", "cc-setting-log-assistant-responses", "応答文 (`response`)"),
     ("OTEL_LOG_TOOL_CONTENT", "1 (dotfiles で有効化中。届いていれば下の件数が 1 以上)", "cc-setting-log-tool-content", "ツール出力の中身 (スパンイベント `tool.output`)"),
-    ("OTEL_METRICS_INCLUDE_SESSION_ID ほか既定値・オフのもの", "false ほか", "cc-setting-off", "オフなので届いていないもの、既定でオンのもの"),
+    ("OTEL_METRICS_INCLUDE_SESSION_ID", "true", "cc-setting-include-session-id", "メトリクスとイベントに `session.id`"),
+    ("既定値・オフのもの", "既定値ほか", "cc-setting-off", "オフなので届いていないもの、既定でオンのもの"),
 ]
 b = Board("cc-settings", "Claude Code 設定項目別 (一覧)",
           "Claude Code の OTel 設定 (環境変数) ごとに、何が届いているかを見るダッシュボード群の入口",
@@ -139,7 +140,7 @@ md = ("Claude Code の OTel 設定は環境変数 (dotfiles の `claude/telemetr
       "\n\nClaude Code の設定ではないが、`orca.worktree.name` で結合できる信号がもう 1 つある: Orca のオーケストレーション "
       "(Run / Task / ワーカー / メッセージ) をホストの `orca-exporter` が送っている (`service_name=\"orca\"`)。"
       "手戻り (追加指示の回数、worker_done までの時間) は [Orca orchestration](/d/orca-orchestration)。")
-b.add(text("設定項目別ダッシュボードの一覧", md), 24, 20)
+b.add(text("設定項目別ダッシュボードの一覧", md), 24, 21)
 presence(b, "各設定で増えたものが届いているか (期間中の件数。0 = 届いていない)", [
     ("メトリクス系列 (METRICS_EXPORTER)", pc('{__name__=~"claude_code_.*"}')),
     ("イベント (LOGS_EXPORTER)", lc('event_name!=""')),
@@ -150,7 +151,7 @@ presence(b, "各設定で増えたものが届いているか (期間中の件�
     ("tool_parameters 付き tool_result (LOG_TOOL_DETAILS)", lc('event_name="tool_result" | tool_parameters!=""')),
     ("応答文が入った assistant_response (LOG_ASSISTANT_RESPONSES)", lc('event_name="assistant_response" | response!="" | response!="<REDACTED>"')),
     ("tool.output スパンイベント (LOG_TOOL_CONTENT)", tc('{event:name="tool.output"}')),
-    ("session_id ラベル付き系列 (INCLUDE_SESSION_ID=false) (0 が正)", pc('{__name__=~"claude_code_.*", session_id!=""}')),
+    ("session_id ラベル付き系列 (INCLUDE_SESSION_ID)", pc('{__name__=~"claude_code_.*", session_id!=""}')),
 ])
 add_board(b, "cc-settings.json")
 
@@ -670,12 +671,51 @@ b.add(table("ツール別の長さ (届いた文字数)", [inf_tempo_search(
 add_board(b, "cc-setting-log-tool-content.json")
 
 
-# ================= 11. オフ・既定値 =================
-b = Board("cc-setting-off", "設定: 既定値のまま・オフの項目 (INCLUDE_SESSION_ID ほか)", "オフなので届いていないもの、既定でオンのもの")
-md = ("dotfiles で明示しているのは `OTEL_METRICS_INCLUDE_SESSION_ID=false` だけで、ほかは Claude Code の既定値のまま。"
-      "**オフの項目は届いていない** ことを下の件数 (0) で示し、オンにすると何が増えるかを書いた。\n\n"
+# ================= 11. INCLUDE_SESSION_ID =================
+b = Board("cc-setting-include-session-id", "設定: OTEL_METRICS_INCLUDE_SESSION_ID", "session.id (セッション) の属性で届くもの")
+b.add(text("この設定について", header(
+    "`OTEL_METRICS_INCLUDE_SESSION_ID`", "`true` (既定 true。dotfiles で明示。2026-10-01 に `false` から切り替えた)",
+    "メトリクスとイベントに `session.id` (クラウドでは `ccr.session.id`) を付ける。Prometheus では `session_id` ラベル、"
+    "Loki では structured metadata の `session_id` になる。`/clear` すると新しい `session.id` になる。",
+    "メトリクス・イベントの `session_id`。grafana.com の Claude Code Metrics (25255) の Sessions・Top Sessions by Cost・"
+    "Sessions by Terminal がセッションを数えられなくなる (ラベル無しの全系列が 1 セッションに見える)。",
+    "セッションごとのコスト・トークン・依頼数。1 つのワーカーの中で `/clear` や resume をまたいだ内訳。",
+    "メトリクスとイベントで実データを確認。スパンにはこの設定と関係なく `span.session.id` が付く (`false` の間も付いていた)。"
+    "切り替えより前の系列には `session_id` が無く、保持期間の 14 日 (2026-10-15 ごろまで) は「session_id 無し」の件数に残る。")), 24, 8)
+presence(b, "session_id が付いた件数", [
+    ("session_id 付きメトリクス系列", pc('{__name__=~"claude_code_.*", session_id!=""}')),
+    ("session_id 無しメトリクス系列 (切り替え前の分)", pc('{__name__=~"claude_code_.*", session_id=""}')),
+    ("session_id 付きイベント", lc('session_id!=""')),
+    ("session_id 無しイベント (切り替え前の分)", lc('session_id=""')),
+    ("session.id 付きスパン (設定と関係なく付く)", tc('{span.session.id != nil}')),
+])
+b.row("セッションで分けた主要指標")
+b.add(table("セッション別のコスト・トークン・作業時間 (期間中)", [
+    prom('sum by (session_id, orca_worktree_name) (increase(claude_code_cost_usage_USD_total[$__range]))', instant=True, ref="A"),
+    prom('sum by (session_id, orca_worktree_name) (increase(claude_code_token_usage_tokens_total[$__range]))', instant=True, ref="B"),
+    prom('sum by (session_id, orca_worktree_name) (increase(claude_code_active_time_seconds_total[$__range]))', instant=True, ref="C"),
+    loki(f'sum by (session_id, orca_worktree_name) (count_over_time({SEL} | event_name="user_prompt" [$__range]))', instant=True, ref="D")],
+    "session_id が空の行 = 切り替え前の系列 (14 日で消える)。1 つのワーカーに複数のセッションがあれば、`/clear` か resume をまたいでいる。",
+    [MERGE, organize({"session_id": "セッション", "orca_worktree_name": "ワーカー", "Value #A": "コスト (USD)", "Value #B": "トークン",
+                      "Value #C": "作業時間 (秒)", "Value #D": "依頼"}, {"Time": True})],
+    [{"matcher": {"id": "byName", "options": "コスト (USD)"}, "properties": [{"id": "unit", "value": "currencyUSD"}, {"id": "decimals", "value": 3}]},
+     {"matcher": {"id": "byName", "options": "作業時間 (秒)"}, "properties": [{"id": "unit", "value": "s"}]}],
+    sort="コスト (USD)"), 24, 9)
+b.add(ts("動いているセッション数 (メトリクス)", [prom('count(count by (session_id) (claude_code_cost_usage_USD_total{session_id!=""}))', "セッション")],
+         "その時点で系列があるセッションの数。"), 12, 8)
+b.add(table("スパンの session.id の値", [tempo_metrics(
+    '{name="claude_code.interaction"} | count_over_time() by (span.session.id)', instant=True)],
+    "セッションごとの依頼数。スパンには切り替え前から付いているので、切り替え前のセッションもここで追える。",
+    [reduce_rows("sum"), organize({"Field": "session.id", "Total": "依頼数"})], sort="依頼数"), 12, 8)
+add_board(b, "cc-setting-include-session-id.json")
+
+
+# ================= 12. オフ・既定値 =================
+b = Board("cc-setting-off", "設定: 既定値のまま・オフの項目", "オフなので届いていないもの、既定でオンのもの")
+md = ("dotfiles で明示していない項目は Claude Code の既定値のまま。"
+      "**オフの項目は届いていない** ことを下の件数 (0) で示し、オンにすると何が増えるかを書いた。"
+      "`OTEL_METRICS_INCLUDE_SESSION_ID` は `true` にしたので [cc-setting-include-session-id](/d/cc-setting-include-session-id) へ移した。\n\n"
       "| 環境変数 | いまの値 | オンにすると増えるもの (公式) | 実データ |\n|---|---|---|---|\n"
-      "| `OTEL_METRICS_INCLUDE_SESSION_ID` | **false** (明示) | メトリクスに `session.id` (クラウドでは `ccr.session.id`) のラベル。セッションごとのコストが出せるが、系列がセッションの数だけ増える | メトリクスは 0 系列。**イベントにも付いていない**。**スパンには `session.id` が付いている** (この設定はメトリクスだけでなくイベントにも効き、スパンには効かない、推定) |\n"
       "| `OTEL_METRICS_INCLUDE_VERSION` | 既定 false | メトリクスに `app.version` | 0 系列。版は resource 属性 `service.version` でイベント・スパン・`target_info` に届いている |\n"
       "| `OTEL_METRICS_INCLUDE_ENTRYPOINT` | 既定 false | メトリクスに `app.entrypoint` (`cli` / `sdk-cli` など。`claude -p` と対話の区別) | 0 系列 |\n"
       "| `OTEL_METRICS_INCLUDE_ACCOUNT_UUID` | 既定 **true** | `user.account_uuid` / `user.account_id` | 届いている (止めると消える) |\n"
@@ -684,10 +724,8 @@ md = ("dotfiles で明示しているのは `OTEL_METRICS_INCLUDE_SESSION_ID=fal
       "| `OTEL_LOG_MANAGED_SETTINGS` | 未設定 | `managed_settings_resolved` に `managed_settings.settings` と `managed_settings.resolved_sha256` | イベントは届くが、この 2 属性は 0 件 |\n"
       "| `ENABLE_BETA_TRACING_DETAILED` + `BETA_TRACING_ENDPOINT` | 未設定 | スパン `claude_code.hook`、`llm_request` の `query_source`、`new_context` / `system_prompt_preview` / `tool_input` / `response.model_output` などのスパン属性。送り先が変わる | ほぼ 0。ただし `claude_code.hook` スパンと `llm_request.query_source` が数件だけ届いている (どのセッションが出したかは未確認。公式どおりならこの設定が要る) |\n"
       "| `CLAUDE_CODE_OTEL_CONTENT_MAX_LENGTH` | 既定 61440 (60 KB) | 長い属性を切る長さ。上げると tool.output / response の切り詰めが減る | 切り詰めの件数は tool-content のダッシュボード |\n")
-b.add(text("オフ・既定値の項目", md), 24, 17)
+b.add(text("オフ・既定値の項目", md), 24, 16)
 presence(b, "オフの項目で増えるはずの属性 (0 = 届いていない)", [
-    ("metric session_id (0 が正)", pc('{__name__=~"claude_code_.*", session_id!=""}')),
-    ("event session_id (0 が正)", lc('session_id!=""')),
     ("metric app_version (0 が正)", pc('{__name__=~"claude_code_.*", app_version!=""}')),
     ("metric app_entrypoint (0 が正)", pc('{__name__=~"claude_code_.*", app_entrypoint!=""}')),
     ("api_request_body (0 が正)", lc('event_name="api_request_body"')),
@@ -697,18 +735,13 @@ presence(b, "オフの項目で増えるはずの属性 (0 = 届いていない)
     ("llm_request.query_source (hook と同じく少数あり) (0 が正)", tc('{name="claude_code.llm_request" && span.query_source != nil}')),
 ])
 presence(b, "既定でオン / 別経路で届いているもの", [
-    ("span session.id (スパンには付く)", tc('{span.session.id != nil}')),
     ("metric user_account_uuid (ACCOUNT_UUID)", pc('{__name__=~"claude_code_.*", user_account_uuid!=""}')),
     ("metric orca_worktree_name (INCLUDE_RESOURCE_ATTRIBUTES)", pc('{__name__=~"claude_code_.*", orca_worktree_name!=""}')),
     ("event service_version (版)", lc('service_version!=""')),
     ("managed_settings_resolved (イベント自体)", lc('event_name="managed_settings_resolved"')),
 ])
-b.add(table("スパンの session.id の値 (メトリクスでは落としている)", [tempo_metrics(
-    '{name="claude_code.interaction"} | count_over_time() by (span.session.id)', instant=True)],
-    "セッションごとの依頼数。メトリクスで session_id を落としても、トレースならセッション単位で追える。",
-    [reduce_rows("sum"), organize({"Field": "session.id", "Total": "依頼数"})], sort="依頼数"), 12, 8)
 b.add(table("managed_settings_resolved の属性 (オフでも届く分)", [event_attr_long(' | event_name="managed_settings_resolved"')],
-            "", [organize({"event": "イベント", "key": "属性キー", "state": "状態", "count": "件数"})]), 12, 8)
+            "", [organize({"event": "イベント", "key": "属性キー", "state": "状態", "count": "件数"})]), 24, 8)
 add_board(b, "cc-setting-off.json")
 
 

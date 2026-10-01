@@ -25,7 +25,7 @@ Claude Code が OpenTelemetry に何を送るかは、環境変数 (dotfiles の
 | `OTEL_LOG_TOOL_DETAILS` | `1` | `tool_result` / `tool_decision` の `tool_parameters`、`tool_result` の `tool_input` と `error` (全文) と git commit 時の `vcs.ref.head.*`、`tool` スパンの `file_path` / `full_command` / `skill_name` / `subagent_type`、`user_prompt.command_name` の実名、コスト・トークンと `api_request` の `skill.name` / `mcp_server.name` / `mcp_tool.name` / `agent.name` の実名、`mcp_server_connection.server_name`、`hook_registered.hook_matcher` | `command_name` 以外はすべて届いている (`claude -p "/skill 名"` では `command_name` が付かなかった)。メトリクスの `mcp_server_name="custom"` は v2.1.273 より前か、この設定より前の系列 (推定) | `cc-setting-log-tool-details` |
 | `OTEL_LOG_ASSISTANT_RESPONSES` | `1` | `assistant_response.response` (オフだと `<REDACTED>`。未設定なら `OTEL_LOG_USER_PROMPTS` に従う) | 届いている | `cc-setting-log-assistant-responses` |
 | `OTEL_LOG_TOOL_CONTENT` | dotfiles で有効化中 | `tool` スパンのスパンイベント `tool.output` (`content` / `output` / `diff` / `file_path` / `bash_command`、切ったときの `*_truncated` / `*_original_length`) | 検証で `OTEL_LOG_TOOL_CONTENT=1` を付けた `claude -p` の分だけ届いている (Read / Bash / Edit / Write / MCP)。Loki のイベントには出ない | `cc-setting-log-tool-content` |
-| `OTEL_METRICS_INCLUDE_SESSION_ID` | `false` | オンにするとメトリクスに `session.id` | メトリクス 0 系列、**イベントにも付いていない**。スパンには `session.id` が付いている (推定: この設定はメトリクスとイベントに効き、スパンには効かない) | `cc-setting-off` |
+| `OTEL_METRICS_INCLUDE_SESSION_ID` | `true` (2026-10-01 に `false` から切り替え) | メトリクスとイベントに `session.id` (Prometheus では `session_id` ラベル、Loki では structured metadata の `session_id`) | 切り替え後に起動したセッションのメトリクスとイベントに届いている。切り替え前の系列・イベントには無く、保持期間の 14 日 (2026-10-15 ごろまで) は残る。スパンには `false` の間も `session.id` が付いていた (この設定はメトリクスとイベントに効き、スパンには効かない) | `cc-setting-include-session-id` |
 | `OTEL_METRICS_INCLUDE_VERSION` / `_ENTRYPOINT` | 既定 false | メトリクスに `app.version` / `app.entrypoint` | 0 系列。版は `service.version` で届いている | `cc-setting-off` |
 | `OTEL_METRICS_INCLUDE_ACCOUNT_UUID` / `_RESOURCE_ATTRIBUTES` | 既定 true | `user.account_uuid` / `user.account_id`、resource 属性のラベル | 届いている | `cc-setting-off` |
 | `OTEL_LOG_RAW_API_BODIES` / `OTEL_LOG_MANAGED_SETTINGS` | 未設定 | `api_request_body` / `api_response_body` イベント、`managed_settings.settings` / `resolved_sha256` | 0 件 | `cc-setting-off` |
@@ -33,7 +33,7 @@ Claude Code が OpenTelemetry に何を送るかは、環境変数 (dotfiles の
 
 ## ダッシュボードの作り
 
-- 12 枚の JSON は `clusters/kind/observability/dashboards/settings/` にあり、同じディレクトリの
+- 13 枚の JSON は `clusters/kind/observability/dashboards/settings/` にあり、同じディレクトリの
   `generate.py` (部品は `lib.py`) で作る。直すときは JSON ではなく `generate.py` を直し、
   `python3 clusters/kind/observability/dashboards/settings/generate.py` で作り直してコミットする。
 - `just observe-up` は `settings/*.json` をすべて `dashboards.settings.<名前>.json` として Grafana に渡す。
