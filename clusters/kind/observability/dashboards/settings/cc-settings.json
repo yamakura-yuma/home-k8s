@@ -61,14 +61,14 @@
    "title": "設定項目別ダッシュボードの一覧",
    "options": {
     "mode": "markdown",
-    "content": "Claude Code の OTel 設定は環境変数 (dotfiles の `claude/telemetry-env.json` → `~/.claude/settings.json` の `env`) で項目ごとに決めている。ここから **設定項目 1 つにつき 1 枚** のダッシュボードへ飛ぶ。各ダッシュボードの先頭に、環境変数・いまの値・何が届くようになるか (公式 https://code.claude.com/docs/en/monitoring-usage)・止めると何が消えるかを書き、その下にその項目で届くようになった属性・ラベル・フィールドを **漏れなく** 表にした。\n\n| 環境変数 | いまの値 | 届くもの | ダッシュボード |\n|---|---|---|---|\n| `CLAUDE_CODE_ENABLE_TELEMETRY` | 1 | テレメトリ全体の元スイッチ。これが無いと何も届かない | [cc-setting-enable-telemetry](/d/cc-setting-enable-telemetry) |\n| `OTEL_METRICS_EXPORTER` | otlp | メトリクス (`claude_code_*`) → Prometheus | [cc-setting-metrics-exporter](/d/cc-setting-metrics-exporter) |\n| `OTEL_LOGS_EXPORTER` | otlp | ログ / イベント → Loki | [cc-setting-logs-exporter](/d/cc-setting-logs-exporter) |\n| `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA + OTEL_TRACES_EXPORTER` | 1 / otlp | トレース (スパン) → Tempo | [cc-setting-traces](/d/cc-setting-traces) |\n| `OTEL_METRICS_INCLUDE_REPOSITORY` | true | メトリクスとイベントに `vcs.*` (リポジトリ) | [cc-setting-include-repository](/d/cc-setting-include-repository) |\n| `OTEL_RESOURCE_ATTRIBUTES` | orca.worktree.id/name (Orca 端末から起動したときだけ) | 全信号に `orca.worktree.*` (ワーカー) | [cc-setting-resource-attributes](/d/cc-setting-resource-attributes) |\n| `OTEL_LOG_USER_PROMPTS` | 1 | 依頼文 (`prompt` / `user_prompt`) | [cc-setting-log-user-prompts](/d/cc-setting-log-user-prompts) |\n| `OTEL_LOG_TOOL_DETAILS` | 1 | コマンド・ファイルパス・skill / MCP 名・ツール入力 | [cc-setting-log-tool-details](/d/cc-setting-log-tool-details) |\n| `OTEL_LOG_ASSISTANT_RESPONSES` | 1 | 応答文 (`response`) | [cc-setting-log-assistant-responses](/d/cc-setting-log-assistant-responses) |\n| `OTEL_LOG_TOOL_CONTENT` | 1 (dotfiles で有効化中。届いていれば下の件数が 1 以上) | ツール出力の中身 (スパンイベント `tool.output`) | [cc-setting-log-tool-content](/d/cc-setting-log-tool-content) |\n| `OTEL_METRICS_INCLUDE_SESSION_ID ほか既定値・オフのもの` | false ほか | オフなので届いていないもの、既定でオンのもの | [cc-setting-off](/d/cc-setting-off) |\n\n対応表の全文 (どの属性がどの設定で増えるか、実データで確かめたか) はリポジトリの `docs/observability/claude-code-settings.md`。\n\nClaude Code の設定ではないが、`orca.worktree.name` で結合できる信号がもう 1 つある: Orca のオーケストレーション (Run / Task / ワーカー / メッセージ) をホストの `orca-exporter` が送っている (`service_name=\"orca\"`)。手戻り (追加指示の回数、worker_done までの時間) は [Orca orchestration](/d/orca-orchestration)。"
+    "content": "Claude Code の OTel 設定は環境変数 (dotfiles の `claude/telemetry-env.json` → `~/.claude/settings.json` の `env`) で項目ごとに決めている。ここから **設定項目 1 つにつき 1 枚** のダッシュボードへ飛ぶ。各ダッシュボードの先頭に、環境変数・いまの値・何が届くようになるか (公式 https://code.claude.com/docs/en/monitoring-usage)・止めると何が消えるかを書き、その下にその項目で届くようになった属性・ラベル・フィールドを **漏れなく** 表にした。\n\n| 環境変数 | いまの値 | 届くもの | ダッシュボード |\n|---|---|---|---|\n| `CLAUDE_CODE_ENABLE_TELEMETRY` | 1 | テレメトリ全体の元スイッチ。これが無いと何も届かない | [cc-setting-enable-telemetry](/d/cc-setting-enable-telemetry) |\n| `OTEL_METRICS_EXPORTER` | otlp | メトリクス (`claude_code_*`) → Prometheus | [cc-setting-metrics-exporter](/d/cc-setting-metrics-exporter) |\n| `OTEL_LOGS_EXPORTER` | otlp | ログ / イベント → Loki | [cc-setting-logs-exporter](/d/cc-setting-logs-exporter) |\n| `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA + OTEL_TRACES_EXPORTER` | 1 / otlp | トレース (スパン) → Tempo | [cc-setting-traces](/d/cc-setting-traces) |\n| `OTEL_METRICS_INCLUDE_REPOSITORY` | true | メトリクスとイベントに `vcs.*` (リポジトリ) | [cc-setting-include-repository](/d/cc-setting-include-repository) |\n| `OTEL_RESOURCE_ATTRIBUTES` | orca.worktree.id/name (Orca 端末から起動したときだけ) | 全信号に `orca.worktree.*` (ワーカー) | [cc-setting-resource-attributes](/d/cc-setting-resource-attributes) |\n| `OTEL_LOG_USER_PROMPTS` | 1 | 依頼文 (`prompt` / `user_prompt`) | [cc-setting-log-user-prompts](/d/cc-setting-log-user-prompts) |\n| `OTEL_LOG_TOOL_DETAILS` | 1 | コマンド・ファイルパス・skill / MCP 名・ツール入力 | [cc-setting-log-tool-details](/d/cc-setting-log-tool-details) |\n| `OTEL_LOG_ASSISTANT_RESPONSES` | 1 | 応答文 (`response`) | [cc-setting-log-assistant-responses](/d/cc-setting-log-assistant-responses) |\n| `OTEL_LOG_TOOL_CONTENT` | 1 (dotfiles で有効化中。届いていれば下の件数が 1 以上) | ツール出力の中身 (スパンイベント `tool.output`) | [cc-setting-log-tool-content](/d/cc-setting-log-tool-content) |\n| `OTEL_METRICS_INCLUDE_SESSION_ID` | true | メトリクスとイベントに `session.id` | [cc-setting-include-session-id](/d/cc-setting-include-session-id) |\n| `既定値・オフのもの` | 既定値ほか | オフなので届いていないもの、既定でオンのもの | [cc-setting-off](/d/cc-setting-off) |\n\n対応表の全文 (どの属性がどの設定で増えるか、実データで確かめたか) はリポジトリの `docs/observability/claude-code-settings.md`。\n\nClaude Code の設定ではないが、`orca.worktree.name` で結合できる信号がもう 1 つある: Orca のオーケストレーション (Run / Task / ワーカー / メッセージ) をホストの `orca-exporter` が送っている (`service_name=\"orca\"`)。手戻り (追加指示の回数、worker_done までの時間) は [Orca orchestration](/d/orca-orchestration)。"
    },
    "id": 1,
    "gridPos": {
     "x": 0,
     "y": 0,
     "w": 24,
-    "h": 20
+    "h": 21
    }
   },
   {
@@ -79,7 +79,7 @@
    "id": 2,
    "gridPos": {
     "x": 0,
-    "y": 20,
+    "y": 21,
     "w": 24,
     "h": 1
    }
@@ -166,7 +166,7 @@
    "id": 3,
    "gridPos": {
     "x": 0,
-    "y": 21,
+    "y": 22,
     "w": 6,
     "h": 4
    }
@@ -250,7 +250,7 @@
    "id": 4,
    "gridPos": {
     "x": 6,
-    "y": 21,
+    "y": 22,
     "w": 6,
     "h": 4
    }
@@ -337,7 +337,7 @@
    "id": 5,
    "gridPos": {
     "x": 12,
-    "y": 21,
+    "y": 22,
     "w": 6,
     "h": 4
    }
@@ -424,7 +424,7 @@
    "id": 6,
    "gridPos": {
     "x": 18,
-    "y": 21,
+    "y": 22,
     "w": 6,
     "h": 4
    }
@@ -511,7 +511,7 @@
    "id": 7,
    "gridPos": {
     "x": 0,
-    "y": 25,
+    "y": 26,
     "w": 6,
     "h": 4
    }
@@ -595,7 +595,7 @@
    "id": 8,
    "gridPos": {
     "x": 6,
-    "y": 25,
+    "y": 26,
     "w": 6,
     "h": 4
    }
@@ -679,7 +679,7 @@
    "id": 9,
    "gridPos": {
     "x": 12,
-    "y": 25,
+    "y": 26,
     "w": 6,
     "h": 4
    }
@@ -763,7 +763,7 @@
    "id": 10,
    "gridPos": {
     "x": 18,
-    "y": 25,
+    "y": 26,
     "w": 6,
     "h": 4
    }
@@ -850,7 +850,7 @@
    "id": 11,
    "gridPos": {
     "x": 0,
-    "y": 29,
+    "y": 30,
     "w": 6,
     "h": 4
    }
@@ -889,11 +889,11 @@
       "mode": "absolute",
       "steps": [
        {
-        "color": "text",
+        "color": "red",
         "value": null
        },
        {
-        "color": "orange",
+        "color": "green",
         "value": 1
        }
       ]
@@ -908,7 +908,7 @@
       "properties": [
        {
         "id": "displayName",
-        "value": "session_id ラベル付き系列 (INCLUDE_SESSION_ID=false) (0 が正)"
+        "value": "session_id ラベル付き系列 (INCLUDE_SESSION_ID)"
        }
       ]
      }
@@ -937,7 +937,7 @@
    "id": 12,
    "gridPos": {
     "x": 6,
-    "y": 29,
+    "y": 30,
     "w": 6,
     "h": 4
    }

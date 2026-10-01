@@ -1,0 +1,800 @@
+{
+ "uid": "cc-setting-include-session-id",
+ "title": "設定: OTEL_METRICS_INCLUDE_SESSION_ID",
+ "description": "session.id (セッション) の属性で届くもの",
+ "tags": [
+  "claude-code-setting"
+ ],
+ "timezone": "browser",
+ "editable": true,
+ "graphTooltip": 1,
+ "schemaVersion": 41,
+ "time": {
+  "from": "now-7d",
+  "to": "now"
+ },
+ "refresh": "",
+ "links": [
+  {
+   "type": "link",
+   "title": "設定項目別の一覧",
+   "url": "/d/cc-settings",
+   "icon": "dashboard",
+   "keepTime": true,
+   "targetBlank": false,
+   "asDropdown": false,
+   "includeVars": false,
+   "tags": []
+  },
+  {
+   "type": "dashboards",
+   "title": "設定項目別",
+   "tags": [
+    "claude-code-setting"
+   ],
+   "asDropdown": true,
+   "includeVars": false,
+   "keepTime": true,
+   "targetBlank": false,
+   "icon": "external link"
+  },
+  {
+   "type": "dashboards",
+   "title": "Claude Code",
+   "tags": [
+    "claude-code"
+   ],
+   "asDropdown": true,
+   "includeVars": false,
+   "keepTime": true,
+   "targetBlank": false,
+   "icon": "external link"
+  }
+ ],
+ "templating": {
+  "list": []
+ },
+ "panels": [
+  {
+   "type": "text",
+   "title": "この設定について",
+   "options": {
+    "mode": "markdown",
+    "content": "**環境変数**: `OTEL_METRICS_INCLUDE_SESSION_ID`\n\n**いまの値**: `true` (既定 true。dotfiles で明示。2026-10-01 に `false` から切り替えた)\n\n**何が届くようになるか (公式)**: メトリクスとイベントに `session.id` (クラウドでは `ccr.session.id`) を付ける。Prometheus では `session_id` ラベル、Loki では structured metadata の `session_id` になる。`/clear` すると新しい `session.id` になる。\n\n**止めると消えるもの**: メトリクス・イベントの `session_id`。grafana.com の Claude Code Metrics (25255) の Sessions・Top Sessions by Cost・Sessions by Terminal がセッションを数えられなくなる (ラベル無しの全系列が 1 セッションに見える)。\n\n**何が分かる・何に使えるか**: セッションごとのコスト・トークン・依頼数。1 つのワーカーの中で `/clear` や resume をまたいだ内訳。\n\n**公式と実データの突き合わせ**: メトリクスとイベントで実データを確認。スパンにはこの設定と関係なく `span.session.id` が付く (`false` の間も付いていた)。切り替えより前の系列には `session_id` が無く、保持期間の 14 日 (2026-10-15 ごろまで) は「session_id 無し」の件数に残る。"
+   },
+   "id": 1,
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 24,
+    "h": 12
+   }
+  },
+  {
+   "type": "row",
+   "title": "session_id が付いた件数",
+   "collapsed": false,
+   "panels": [],
+   "id": 2,
+   "gridPos": {
+    "x": 0,
+    "y": 12,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "count(last_over_time({__name__=~\"claude_code_.*\", session_id!=\"\"}[$__range])) or vector(0)",
+     "legendFormat": "__auto",
+     "instant": true,
+     "range": false,
+     "format": "time_series"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "session_id 付きメトリクス系列"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 3,
+   "gridPos": {
+    "x": 0,
+    "y": 13,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "count(last_over_time({__name__=~\"claude_code_.*\", session_id=\"\"}[$__range])) or vector(0)",
+     "legendFormat": "__auto",
+     "instant": true,
+     "range": false,
+     "format": "time_series"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "session_id 無しメトリクス系列 (切り替え前の分)"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 4,
+   "gridPos": {
+    "x": 6,
+    "y": 13,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum(count_over_time({service_name=\"claude-code\"} | session_id!=\"\" [$__range])) or vector(0)",
+     "queryType": "instant"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "session_id 付きイベント"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 5,
+   "gridPos": {
+    "x": 12,
+    "y": 13,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "loki",
+    "uid": "loki"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum(count_over_time({service_name=\"claude-code\"} | session_id=\"\" [$__range])) or vector(0)",
+     "queryType": "instant"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "session_id 無しイベント (切り替え前の分)"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 6,
+   "gridPos": {
+    "x": 18,
+    "y": 13,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "stat",
+   "title": "",
+   "description": "期間中の件数。0 = 1 件も届いていない。",
+   "datasource": {
+    "type": "tempo",
+    "uid": "tempo"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "tempo",
+      "uid": "tempo"
+     },
+     "queryType": "traceql",
+     "query": "{span.session.id != nil} | count_over_time()",
+     "metricsQueryType": "instant",
+     "tableType": "traces",
+     "limit": 20
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "noValue": "0",
+     "decimals": null,
+     "color": {
+      "mode": "thresholds"
+     },
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "green",
+        "value": 1
+       }
+      ]
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byType",
+       "options": "number"
+      },
+      "properties": [
+       {
+        "id": "displayName",
+        "value": "session.id 付きスパン (設定と関係なく付く)"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "textMode": "value_and_name",
+    "colorMode": "background",
+    "graphMode": "none",
+    "justifyMode": "auto",
+    "orientation": "auto",
+    "wideLayout": true,
+    "showPercentChange": false,
+    "text": {
+     "titleSize": 13,
+     "valueSize": 34
+    }
+   },
+   "id": 7,
+   "gridPos": {
+    "x": 0,
+    "y": 17,
+    "w": 6,
+    "h": 4
+   }
+  },
+  {
+   "type": "row",
+   "title": "セッションで分けた主要指標",
+   "collapsed": false,
+   "panels": [],
+   "id": 8,
+   "gridPos": {
+    "x": 0,
+    "y": 21,
+    "w": 24,
+    "h": 1
+   }
+  },
+  {
+   "type": "table",
+   "title": "セッション別のコスト・トークン・作業時間 (期間中)",
+   "description": "session_id が空の行 = 切り替え前の系列 (14 日で消える)。1 つのワーカーに複数のセッションがあれば、`/clear` か resume をまたいでいる。",
+   "datasource": {
+    "type": "datasource",
+    "uid": "-- Mixed --"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (session_id, orca_worktree_name) (increase(claude_code_cost_usage_USD_total[$__range]))",
+     "legendFormat": "__auto",
+     "instant": true,
+     "range": false,
+     "format": "table"
+    },
+    {
+     "refId": "B",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (session_id, orca_worktree_name) (increase(claude_code_token_usage_tokens_total[$__range]))",
+     "legendFormat": "__auto",
+     "instant": true,
+     "range": false,
+     "format": "table"
+    },
+    {
+     "refId": "C",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "sum by (session_id, orca_worktree_name) (increase(claude_code_active_time_seconds_total[$__range]))",
+     "legendFormat": "__auto",
+     "instant": true,
+     "range": false,
+     "format": "table"
+    },
+    {
+     "refId": "D",
+     "datasource": {
+      "type": "loki",
+      "uid": "loki"
+     },
+     "expr": "sum by (session_id, orca_worktree_name) (count_over_time({service_name=\"claude-code\"} | event_name=\"user_prompt\" [$__range]))",
+     "queryType": "instant"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "コスト (USD)"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "currencyUSD"
+       },
+       {
+        "id": "decimals",
+        "value": 3
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "作業時間 (秒)"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "s"
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm",
+    "sortBy": [
+     {
+      "displayName": "コスト (USD)",
+      "desc": true
+     }
+    ]
+   },
+   "transformations": [
+    {
+     "id": "merge",
+     "options": {}
+    },
+    {
+     "id": "organize",
+     "options": {
+      "renameByName": {
+       "session_id": "セッション",
+       "orca_worktree_name": "ワーカー",
+       "Value #A": "コスト (USD)",
+       "Value #B": "トークン",
+       "Value #C": "作業時間 (秒)",
+       "Value #D": "依頼"
+      },
+      "excludeByName": {
+       "Time": true
+      },
+      "indexByName": {}
+     }
+    }
+   ],
+   "id": 9,
+   "gridPos": {
+    "x": 0,
+    "y": 22,
+    "w": 24,
+    "h": 9
+   }
+  },
+  {
+   "type": "timeseries",
+   "title": "動いているセッション数 (メトリクス)",
+   "description": "その時点で系列があるセッションの数。",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "prometheus",
+      "uid": "prometheus"
+     },
+     "expr": "count(count by (session_id) (claude_code_cost_usage_USD_total{session_id!=\"\"}))",
+     "legendFormat": "セッション",
+     "range": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "drawStyle": "line",
+      "lineWidth": 1,
+      "fillOpacity": 10,
+      "showPoints": "never",
+      "stacking": {
+       "mode": "none",
+       "group": "A"
+      }
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "table",
+     "placement": "right",
+     "calcs": [
+      "sum"
+     ]
+    },
+    "tooltip": {
+     "mode": "multi",
+     "sort": "desc"
+    }
+   },
+   "id": 10,
+   "gridPos": {
+    "x": 0,
+    "y": 31,
+    "w": 12,
+    "h": 8
+   }
+  },
+  {
+   "type": "table",
+   "title": "スパンの session.id の値",
+   "description": "セッションごとの依頼数。スパンには切り替え前から付いているので、切り替え前のセッションもここで追える。",
+   "datasource": {
+    "type": "tempo",
+    "uid": "tempo"
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "tempo",
+      "uid": "tempo"
+     },
+     "queryType": "traceql",
+     "query": "{name=\"claude_code.interaction\"} | count_over_time() by (span.session.id)",
+     "metricsQueryType": "instant",
+     "tableType": "traces",
+     "limit": 20
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "custom": {
+      "align": "auto",
+      "cellOptions": {
+       "type": "auto"
+      },
+      "inspect": true,
+      "minWidth": 80
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "showHeader": true,
+    "cellHeight": "sm",
+    "sortBy": [
+     {
+      "displayName": "依頼数",
+      "desc": true
+     }
+    ]
+   },
+   "transformations": [
+    {
+     "id": "reduce",
+     "options": {
+      "reducers": [
+       "sum"
+      ],
+      "mode": "seriesToRows",
+      "includeTimeField": false
+     }
+    },
+    {
+     "id": "organize",
+     "options": {
+      "renameByName": {
+       "Field": "session.id",
+       "Total": "依頼数"
+      },
+      "excludeByName": {},
+      "indexByName": {}
+     }
+    }
+   ],
+   "id": 11,
+   "gridPos": {
+    "x": 12,
+    "y": 31,
+    "w": 12,
+    "h": 8
+   }
+  }
+ ]
+}
