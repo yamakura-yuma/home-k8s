@@ -1,0 +1,9 @@
+# Orca が新しい worktree を作るたびに走らせる。.claude/ と apm_modules/ は gitignore
+# なので、ここでハーネスを展開する。自分のパッケージは main の最新に上げるが、
+# lock の差分はワーカーの PR に混ぜないので戻す。外部パッケージは lock どおり。
+scripts:
+  setup: |
+    apm install
+    apm update core-principal --yes
+    git checkout -- apm.lock.yaml
+setupAgentStartupPolicy: wait-for-setup

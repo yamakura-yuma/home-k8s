@@ -1,16 +1,18 @@
 lockfile_version: '1'
-apm_version: 0.31.0
+apm_version: 0.33.0
 dependencies:
 - repo_url: yamakura-yuma/dotfiles
+  alias: core-principal
   name: core-principal
   host: github.com
-  resolved_commit: 51856cebaa34d148600b7f64d20d34fac4f2401e
-  resolved_ref: 51856cebaa34d148600b7f64d20d34fac4f2401e
+  resolved_commit: 9b30626db4f6052eed173df1d0db4f008a65fad0
+  resolved_ref: main
   version: 1.1.0
   virtual_path: core-principal
   is_virtual: true
   package_type: apm_package
   deployed_files:
+  - .claude/agents/completion-reviewer.md
   - .claude/commands/retro.md
   - .claude/commands/workers.md
   - .claude/commands/worktree.md
@@ -32,25 +34,204 @@ dependencies:
   - .claude/skills/core-tools
   - .claude/skills/core-tools/SKILL.md
   deployed_file_hashes:
+    .claude/agents/completion-reviewer.md: sha256:4141cbf80cf6962e038f62519149117397245a51fe73364118f91a495af88956
     .claude/commands/retro.md: sha256:cb7b04b93dfd16970f5cbc260dd590cb5ead870bf0bee6e488277bfc46452890
-    .claude/commands/workers.md: sha256:605b6adae0a9107da8a068ef088e94723b6b28b73c3bc32a0bfd96377ca88568
-    .claude/commands/worktree.md: sha256:c6fae8cf3ed708b9db3ea1dd6aa40ff2c90d551efab5cda98917bda39f300145
-    .claude/hooks/core-principal/.apm/hooks/scripts/dispatch-in-coordinator.sh: sha256:ec7cccdb823aeceee1efdd58f35c7056457c8fe4cc1b47f3e909989c5e4a6c24
+    .claude/commands/workers.md: sha256:0055f51cc6fa1c73dec7940c15d27dca3d15e6c39bc67ae465cf6d451f33365f
+    .claude/commands/worktree.md: sha256:bb84a26ae3da5fc24de4d3c246f9d7c4575b23105deb0a41184d22d6e5f7d230
+    .claude/hooks/core-principal/.apm/hooks/scripts/dispatch-in-coordinator.sh: sha256:386eea829d306ff73c7f976948bf1f06e12835045dd21d9691de8ef132898e30
     .claude/hooks/core-principal/.apm/hooks/scripts/guard-coordinator-edit.sh: sha256:9f334191e8dd50272df6f5356a345ae589c88d51faac40c7b3941be3a7a6cc54
-    .claude/hooks/core-principal/.apm/hooks/scripts/guard-default-branch.sh: sha256:1a32a0d5c9399d9fd4ff5d09599d62b8985dbdf3e5b7daa6fcf358c3e5721729
+    .claude/hooks/core-principal/.apm/hooks/scripts/guard-default-branch.sh: sha256:a79687acc40747d945be0243806f364e2e8fd8c46b2baafce19dfeaca1271544
     .claude/hooks/core-principal/.apm/hooks/scripts/guard-destructive-git.sh: sha256:ee57fb415c9acbf409715032196a7186fa0f161a5b1187143a40ca6f054b4d35
     .claude/hooks/core-principal/.apm/hooks/scripts/lib/coordinator-workspace.sh: sha256:db2ba153ce0ab0126f6a1c6def88150c2b67e0ebc313e4ea546ff9eae3161542
     .claude/rules/core-principal.md: sha256:2713980ffbde09797ae2a27f046e31255aada776cf505cde181def10463191ff
-    .claude/skills/core-communication/SKILL.md: sha256:290c4cfbd8095fd64035de93e5fae4c3ab5e80fbd110f0317d272231e5060750
-    .claude/skills/core-dispatch/SKILL.md: sha256:5cfd5f0112a3da5e9845da656b7b9cd244eab31b41ba1b5a672f6c18228bb5a6
-    .claude/skills/core-dispatch/references/orca.md: sha256:d3f6539efe8f66ede2f0a4ee57c327b3516a5b209a66dd1803081d516999b120
+    .claude/skills/core-communication/SKILL.md: sha256:27efe3d21b868ba3a8fb3020acaa6feeafd837e954909b2c537ef283bc4dc553
+    .claude/skills/core-dispatch/SKILL.md: sha256:0d652089bdb4267113292d11a60dbf68792a71e1b353431c25dbac5175f4f406
+    .claude/skills/core-dispatch/references/orca.md: sha256:69ed057ffdaf81ee012fc4d989097a4da2648d6cf4b300778624fcf20cfe9843
     .claude/skills/core-harness/SKILL.md: sha256:99c045d95e8dc280ded6ea6b097a2be74250332c29ed88d4f234484f2cfc88f0
     .claude/skills/core-retro/SKILL.md: sha256:eb696797ce02014584b939277d35552c9f02844402d480fb97f152bf56969c09
     .claude/skills/core-tools/SKILL.md: sha256:6ef187280006ff43a5fec623bbcccfcc86e53571cb156b770ddae63bf9c490cd
-  content_hash: sha256:61f5a01168db79fe0d9231e6fd0fc20e5b28633b09a15bdc6cecd0b9f20e55a7
+  content_hash: sha256:e44ae7bd358ba0a448abed8dd75ccdb317647ef90d19fd0e3b6f19dc2dff38cf
+  target_subset:
+  - claude
+- repo_url: agents365-ai/drawio-skill
+  materialization_repo_url: Agents365-ai/drawio-skill
+  alias: drawio-skill
+  name: drawio-skill
+  host: github.com
+  resolved_commit: 7aa92f73819766eb914fffac66762cf2adb5d828
+  resolved_ref: 7aa92f73819766eb914fffac66762cf2adb5d828
+  version: unknown
+  virtual_path: skills/drawio-skill
+  is_virtual: true
+  depth: 2
+  resolved_by: yamakura-yuma/dotfiles
+  package_type: claude_skill
+  deployed_files:
+  - .claude/skills/drawio-skill
+  - .claude/skills/drawio-skill/LICENSE
+  - .claude/skills/drawio-skill/SKILL.md
+  - .claude/skills/drawio-skill/agents/openai.yaml
+  - .claude/skills/drawio-skill/data/SHAPE-INDEX-NOTICE.md
+  - .claude/skills/drawio-skill/data/databricks-icons.json
+  - .claude/skills/drawio-skill/data/diagram-ir.schema.json
+  - .claude/skills/drawio-skill/data/lobe-icons.json
+  - .claude/skills/drawio-skill/data/shape-index.json.gz
+  - .claude/skills/drawio-skill/references/autolayout.md
+  - .claude/skills/drawio-skill/references/ci-gate.md
+  - .claude/skills/drawio-skill/references/cookbook.md
+  - .claude/skills/drawio-skill/references/databricks.md
+  - .claude/skills/drawio-skill/references/derasterize.md
+  - .claude/skills/drawio-skill/references/diagram-ir.md
+  - .claude/skills/drawio-skill/references/diagram-types.md
+  - .claude/skills/drawio-skill/references/live-infra.md
+  - .claude/skills/drawio-skill/references/mcp.md
+  - .claude/skills/drawio-skill/references/mermaid-authoring.md
+  - .claude/skills/drawio-skill/references/pr-bot.md
+  - .claude/skills/drawio-skill/references/security.md
+  - .claude/skills/drawio-skill/references/semantic-workflows.md
+  - .claude/skills/drawio-skill/references/shapes.md
+  - .claude/skills/drawio-skill/references/style-extraction.md
+  - .claude/skills/drawio-skill/references/style-presets.md
+  - .claude/skills/drawio-skill/references/toolbox.md
+  - .claude/skills/drawio-skill/references/troubleshooting.md
+  - .claude/skills/drawio-skill/references/tubemap.md
+  - .claude/skills/drawio-skill/references/xml-authoring.md
+  - .claude/skills/drawio-skill/scripts/aiicons.py
+  - .claude/skills/drawio-skill/scripts/asyncapiimports.py
+  - .claude/skills/drawio-skill/scripts/autolayout.py
+  - .claude/skills/drawio-skill/scripts/buildup.py
+  - .claude/skills/drawio-skill/scripts/c4.py
+  - .claude/skills/drawio-skill/scripts/ciimports.py
+  - .claude/skills/drawio-skill/scripts/composeimports.py
+  - .claude/skills/drawio-skill/scripts/compress.py
+  - .claude/skills/drawio-skill/scripts/dbxicons.py
+  - .claude/skills/drawio-skill/scripts/diagram_ir.py
+  - .claude/skills/drawio-skill/scripts/diagramctl.py
+  - .claude/skills/drawio-skill/scripts/diagramctl_mcp.py
+  - .claude/skills/drawio-skill/scripts/dockerimports.py
+  - .claude/skills/drawio-skill/scripts/drawio2mermaid.py
+  - .claude/skills/drawio-skill/scripts/drawio2pptx.py
+  - .claude/skills/drawio-skill/scripts/drawiodiff.py
+  - .claude/skills/drawio-skill/scripts/drawiohtml.py
+  - .claude/skills/drawio-skill/scripts/edgeports.py
+  - .claude/skills/drawio-skill/scripts/encode_drawio_url.py
+  - .claude/skills/drawio-skill/scripts/explain.py
+  - .claude/skills/drawio-skill/scripts/goimports.py
+  - .claude/skills/drawio-skill/scripts/graphqlerd.py
+  - .claude/skills/drawio-skill/scripts/heatmap.py
+  - .claude/skills/drawio-skill/scripts/jsimports.py
+  - .claude/skills/drawio-skill/scripts/k8simports.py
+  - .claude/skills/drawio-skill/scripts/openapiimports.py
+  - .claude/skills/drawio-skill/scripts/prdiff.py
+  - .claude/skills/drawio-skill/scripts/protoimports.py
+  - .claude/skills/drawio-skill/scripts/pyclasses.py
+  - .claude/skills/drawio-skill/scripts/pyimports.py
+  - .claude/skills/drawio-skill/scripts/raster2drawio.py
+  - .claude/skills/drawio-skill/scripts/relabel.py
+  - .claude/skills/drawio-skill/scripts/repair_png.py
+  - .claude/skills/drawio-skill/scripts/restyle.py
+  - .claude/skills/drawio-skill/scripts/runbook.py
+  - .claude/skills/drawio-skill/scripts/rustimports.py
+  - .claude/skills/drawio-skill/scripts/seqlayout.py
+  - .claude/skills/drawio-skill/scripts/shapesearch.py
+  - .claude/skills/drawio-skill/scripts/sqlerd.py
+  - .claude/skills/drawio-skill/scripts/svgflow.py
+  - .claude/skills/drawio-skill/scripts/tfimports.py
+  - .claude/skills/drawio-skill/scripts/tfstate.py
+  - .claude/skills/drawio-skill/scripts/timelapse.py
+  - .claude/skills/drawio-skill/scripts/tubemap.py
+  - .claude/skills/drawio-skill/scripts/validate.py
+  - .claude/skills/drawio-skill/styles/built-in/colorblind-safe.json
+  - .claude/skills/drawio-skill/styles/built-in/corporate.json
+  - .claude/skills/drawio-skill/styles/built-in/dark.json
+  - .claude/skills/drawio-skill/styles/built-in/default.json
+  - .claude/skills/drawio-skill/styles/built-in/handdrawn.json
+  - .claude/skills/drawio-skill/styles/schema.json
+  deployed_file_hashes:
+    .claude/skills/drawio-skill/LICENSE: sha256:0d43b46456eda48a9054fbfa915ac80e150f5db5cf90714eda710c02e1df461a
+    .claude/skills/drawio-skill/SKILL.md: sha256:67840438e03a26dc888d72f67df66abae60cce4298494787c4a0e79da55cc2db
+    .claude/skills/drawio-skill/agents/openai.yaml: sha256:ca8053ac6cec8b9fce47320e6cc902c615a8692e5cbb2cfa701863898862e0fc
+    .claude/skills/drawio-skill/data/SHAPE-INDEX-NOTICE.md: sha256:dc6e070b9fd905c6a574614dd0c4403253ad8b7111e2f2f3892996b2729e26ab
+    .claude/skills/drawio-skill/data/databricks-icons.json: sha256:760d80cdd57e5b7784b036d07ce49c149b78d362a35078c5f92171e2d268ec7c
+    .claude/skills/drawio-skill/data/diagram-ir.schema.json: sha256:92891a36b4160a2a08398884fd0cbec224791c406a9107c923acf934f471e016
+    .claude/skills/drawio-skill/data/lobe-icons.json: sha256:e7c309bd5ebf4df948563d48469090d0868432549f168319534215f79b0077cc
+    .claude/skills/drawio-skill/data/shape-index.json.gz: sha256:f19d9f794775d91e196b0a8d1fce32d6dbbf9828f094bedc53e843c8131ee8ea
+    .claude/skills/drawio-skill/references/autolayout.md: sha256:1d993371633b87b5563a785e8f3c862e0103f0d0251b7986e37d862b9c59b1ef
+    .claude/skills/drawio-skill/references/ci-gate.md: sha256:4aff775b72567c0325b467805e9108187fa9e38c4df339c84a100028f3e65c50
+    .claude/skills/drawio-skill/references/cookbook.md: sha256:c85e1373b685d4ed3ecdec115649da1f38de0ed7abce5ccbc15be2ca75d5ca59
+    .claude/skills/drawio-skill/references/databricks.md: sha256:aa47283c8c875305569bcca8f83649912c7f8e8ceefef723220fdc139531c8c9
+    .claude/skills/drawio-skill/references/derasterize.md: sha256:a4efd3152ba340299a92ae599d936fd07296d725a1a86efc79ed9a7b25754bb8
+    .claude/skills/drawio-skill/references/diagram-ir.md: sha256:3a12b71703f1631b0cf6cfc5fb0faf46534a7f9382e1e5d26eecbcde685232d8
+    .claude/skills/drawio-skill/references/diagram-types.md: sha256:958b6d0ab59b2731b6fb9d567a95d8c8cde596cddad18d5242304d916a78f7e1
+    .claude/skills/drawio-skill/references/live-infra.md: sha256:87d92e8b8ae259a1433764f349ff8f8dd1f7991dba5d4c55198fb9fa1706580a
+    .claude/skills/drawio-skill/references/mcp.md: sha256:020af01efd02e6269591dd43168517bdc2cdc073381c5f89da0b6bd9c10ddbc5
+    .claude/skills/drawio-skill/references/mermaid-authoring.md: sha256:b44d45322be91ee3b32da2badaa8ff53e6951350185bb71f7fb8f48ac9120b96
+    .claude/skills/drawio-skill/references/pr-bot.md: sha256:c34a85d91ec4e5b79d7bfb42b725ae9f15435f1f2dc67b98f6d0523ada294d6f
+    .claude/skills/drawio-skill/references/security.md: sha256:35f2072dcf1a01ead5dd72c971ac74bfc89a6c174667586bce495023070faa0e
+    .claude/skills/drawio-skill/references/semantic-workflows.md: sha256:797e504c2e9ba62318b3d21acc09fb106812d717a1d2c10b0b3880817cc730e0
+    .claude/skills/drawio-skill/references/shapes.md: sha256:b696df00bb4d74afb93670adf0e58acd6e0eb5cf8145e40994851ec052a18c23
+    .claude/skills/drawio-skill/references/style-extraction.md: sha256:9dfba198a0e0f610e2fdaecff29aa380984ba03c67d5a02c86b75106c95de2a0
+    .claude/skills/drawio-skill/references/style-presets.md: sha256:b40f2dfd2cd21e244a9769d05b597d96dd2135518bea9478aa15d08616d848c6
+    .claude/skills/drawio-skill/references/toolbox.md: sha256:1b3d27a32af38c10ebe47f4917c317dc77834420f09bf5f822550ea2f4b43483
+    .claude/skills/drawio-skill/references/troubleshooting.md: sha256:46dee9804e8f6866ea565a2e626bc14103f4295747a984faccb98fddc2376809
+    .claude/skills/drawio-skill/references/tubemap.md: sha256:654db7cc5f5c757a28e0b64060e3c78880fa11045944810150af1770cd8107c1
+    .claude/skills/drawio-skill/references/xml-authoring.md: sha256:731a128920fe33f9f5ce41b4bb9d8459b606fd5232080ea26357cc37aecf320e
+    .claude/skills/drawio-skill/scripts/aiicons.py: sha256:96017e7e289eacbf7b304a623b207b6df2258fe04ffe9894d266bcde2c135c2d
+    .claude/skills/drawio-skill/scripts/asyncapiimports.py: sha256:8a4e39f8933db55227575c23705b04a16551de1bbb833431c3462af8e881a3c2
+    .claude/skills/drawio-skill/scripts/autolayout.py: sha256:d72e15eb0cfa356e9722c9824037d2fbd65840ee686324e87070d195d973a162
+    .claude/skills/drawio-skill/scripts/buildup.py: sha256:e496e39605f51dd81d44964c623298376e1efba7c9c7132452c1e01dfddb8afc
+    .claude/skills/drawio-skill/scripts/c4.py: sha256:82f349e1a5240984275f1fc9cfe21a91dd4124fbf42a61903439eaf90ceadd22
+    .claude/skills/drawio-skill/scripts/ciimports.py: sha256:c9de9a7af0aa3ed6b2d3e4e1bfaa045444940bf31666fc7e0118ce962ae1ed86
+    .claude/skills/drawio-skill/scripts/composeimports.py: sha256:ae9c96282daa3f35ddba65a443456034ca9e7e6920a3db5b646ed8fe0a17909d
+    .claude/skills/drawio-skill/scripts/compress.py: sha256:464689570eccf3a8992531164f03933380624e00f3e97c421e74a49c1d3250a7
+    .claude/skills/drawio-skill/scripts/dbxicons.py: sha256:dfa302a7d803b6c710d7cfdf4fc06d959c8cd9e53ef1f73108f9d2946a03db16
+    .claude/skills/drawio-skill/scripts/diagram_ir.py: sha256:8afdb80d3b53afcdd40d773b6141284aab3a5513df7b2474ced1e79eea58475c
+    .claude/skills/drawio-skill/scripts/diagramctl.py: sha256:dd857659d23bc1ed672a8d405d69e83b76db1f604d3f506e6ed6f7b87487707c
+    .claude/skills/drawio-skill/scripts/diagramctl_mcp.py: sha256:4c0bd49d58d194d1e1fb8c9c7e2cb2c0a1690eca5650dae8214098c05ea31d38
+    .claude/skills/drawio-skill/scripts/dockerimports.py: sha256:7a06bcc73f754b01d651bf5276d0e947d6eeb9817c412abcd1bb69f3752760ec
+    .claude/skills/drawio-skill/scripts/drawio2mermaid.py: sha256:c6bc00fd9d3e7f3f0534dddc4e519708559404e0c40c808ebc89312160b9e01c
+    .claude/skills/drawio-skill/scripts/drawio2pptx.py: sha256:22be444d8ee4894f5a72f7f296a72c0f15085c9ae56fb72a9ff374c4861d0d45
+    .claude/skills/drawio-skill/scripts/drawiodiff.py: sha256:392396ad3633f30776208388165a3552f0faa894cf2f5ec45a1b0ce5101fdcba
+    .claude/skills/drawio-skill/scripts/drawiohtml.py: sha256:334226f9fccfc55561f5ffb67e4fa1a35e5ac8fa9ef72688582de23558195275
+    .claude/skills/drawio-skill/scripts/edgeports.py: sha256:429f1c8c0be958ef68418d38ddbf4af0e1da9d52f25015ecb599c74fa1b64f7a
+    .claude/skills/drawio-skill/scripts/encode_drawio_url.py: sha256:47b77e4bc46226cc1a1cea29e93988877796d0a60706a2a38c7fd7910af3dfef
+    .claude/skills/drawio-skill/scripts/explain.py: sha256:a804ae7094e5400f6c92b631dadae78e67ef4e2977bff8777e92058e1f22fb40
+    .claude/skills/drawio-skill/scripts/goimports.py: sha256:a2cb0ea9cfbfb6b276abf746e35d352d5edce2c7469e31a1e0d1d48ad3939a51
+    .claude/skills/drawio-skill/scripts/graphqlerd.py: sha256:be39395bd95f7f9c22d398cc7925222fab7495e91eee51466f7d5b82c701d67b
+    .claude/skills/drawio-skill/scripts/heatmap.py: sha256:91d0c98537bf31b14b8766f7ee98046a9142716df450a97b062092bdec532a73
+    .claude/skills/drawio-skill/scripts/jsimports.py: sha256:63b563d5ec10498d445885d7d762d7dbc26eb2cb47d379120db372ce7261bad1
+    .claude/skills/drawio-skill/scripts/k8simports.py: sha256:3d2c32c908c78cf0f557ba2f3c00a3351b15052a3586d94c34cfe5251057782f
+    .claude/skills/drawio-skill/scripts/openapiimports.py: sha256:2d29c8b205d862acd1201875dedbc91fc510266012bcb64f469902d7c365afdc
+    .claude/skills/drawio-skill/scripts/prdiff.py: sha256:2e89c97b89b5dd47d7a15d7383396ae897364f141b201f1cd99ee09ab4c0fde8
+    .claude/skills/drawio-skill/scripts/protoimports.py: sha256:e742b59c5e9f7ae6b884184b6cf9df4465ee3cafa15069658af6cd2852d9ba99
+    .claude/skills/drawio-skill/scripts/pyclasses.py: sha256:1fbcf0370c0154bf18cdde559b56e1dbf4a6b069b75dda8ed49e386d56308be2
+    .claude/skills/drawio-skill/scripts/pyimports.py: sha256:619a27f15e22995b323c28b6c2037fb02d9a9522e1bbbd1fe90680d98a46d9bd
+    .claude/skills/drawio-skill/scripts/raster2drawio.py: sha256:7a81fad51336f01fa5791c354a3467994faea396b76d018d99c377c0374fcdb5
+    .claude/skills/drawio-skill/scripts/relabel.py: sha256:98db0ebe5928754719ccf7c1ebcf661d14e010aed3962cc38bae57c25810c414
+    .claude/skills/drawio-skill/scripts/repair_png.py: sha256:1a453cb88231813dcb5631456b0c7431eb59acd21570c7e749c1cce89ae31c4c
+    .claude/skills/drawio-skill/scripts/restyle.py: sha256:b12ff51e133de46aff66ca70c546d82d2eba77673b872786c3f02a31996c7140
+    .claude/skills/drawio-skill/scripts/runbook.py: sha256:56059a1bb86ff76047dc962b2fa8276b01090bc0bfe6051b388a8adb9bc5dc9c
+    .claude/skills/drawio-skill/scripts/rustimports.py: sha256:9b6bfbc97a1daa5e6eee6ab6733a88500e5ea8d4accb92acf08cc633761ca41f
+    .claude/skills/drawio-skill/scripts/seqlayout.py: sha256:527c522dfd1ccff1c252bb146f250710d0033385444ac3cc2a33ede11ee09fc4
+    .claude/skills/drawio-skill/scripts/shapesearch.py: sha256:ac624fa2d532c1a72cc77ec0b2fd94a71e0baf4cd03ba339b60eb7a784e511b3
+    .claude/skills/drawio-skill/scripts/sqlerd.py: sha256:f3896f9c17bb0933676de048cad3da6a3c17d853f0ef9dffb11d1e4ecacdff09
+    .claude/skills/drawio-skill/scripts/svgflow.py: sha256:ba02ca683dc508d1a5083902236b52d595141b7dc0898f7b8d5ce6341706f334
+    .claude/skills/drawio-skill/scripts/tfimports.py: sha256:66636c6b73b41d485560a90e0b4a13a4b30d4ecb03910f66cd3519d40406b007
+    .claude/skills/drawio-skill/scripts/tfstate.py: sha256:aa2728eb203462621de7fde8eac9d2a3631252fd8b4b3ddd647f5fb596718ade
+    .claude/skills/drawio-skill/scripts/timelapse.py: sha256:992ba6bb6ad5c9bbc00ddc6244e2cdd661d5bdea6963874800dee1fff4649220
+    .claude/skills/drawio-skill/scripts/tubemap.py: sha256:f3bf38c0ca6941ea5b96174275532748793a2246d91aad2459d485666881fb6e
+    .claude/skills/drawio-skill/scripts/validate.py: sha256:3effc1cdfd5b43b672630d0dbbc6f233a4925f6469f808e271d8c623530b9540
+    .claude/skills/drawio-skill/styles/built-in/colorblind-safe.json: sha256:3b836988e6533c07bf0e6676cc35731e750f0fa659ab25e80bfef7087436f3eb
+    .claude/skills/drawio-skill/styles/built-in/corporate.json: sha256:0cb0ba05b44e5938ce775bb917b6ffaa3a0501ceedbd610975cc6e909fe5e60b
+    .claude/skills/drawio-skill/styles/built-in/dark.json: sha256:2a78d4da3b6bc747da7943597bb1d58e9ff12f5188192ecc09589570d6873fae
+    .claude/skills/drawio-skill/styles/built-in/default.json: sha256:5340c1f80ab983f412e895d58d5dffb4949c246acc516702fd565675fec140e1
+    .claude/skills/drawio-skill/styles/built-in/handdrawn.json: sha256:92a1fdca1bbb95e5239fca62b2da81d4035936a11ca690e026419a5c2508e541
+    .claude/skills/drawio-skill/styles/schema.json: sha256:4886d76481285d584eaa7963053c1ec6786eb335b4f75e1093b66788dce148c0
+  content_hash: sha256:053c2a451fde773b1489b3b36e4987929cc713809cd29d8c2aba59bade771a3c
   target_subset:
   - claude
 - repo_url: dietrichgebert/ponytail
+  alias: ponytail
   name: ponytail
   host: github.com
   resolved_commit: e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156
@@ -70,6 +251,7 @@ dependencies:
   target_subset:
   - claude
 - repo_url: dietrichgebert/ponytail
+  alias: ponytail-audit
   name: ponytail-audit
   host: github.com
   resolved_commit: e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156
@@ -89,6 +271,7 @@ dependencies:
   target_subset:
   - claude
 - repo_url: dietrichgebert/ponytail
+  alias: ponytail-debt
   name: ponytail-debt
   host: github.com
   resolved_commit: e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156
@@ -108,6 +291,7 @@ dependencies:
   target_subset:
   - claude
 - repo_url: dietrichgebert/ponytail
+  alias: ponytail-gain
   name: ponytail-gain
   host: github.com
   resolved_commit: e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156
@@ -127,6 +311,7 @@ dependencies:
   target_subset:
   - claude
 - repo_url: dietrichgebert/ponytail
+  alias: ponytail-help
   name: ponytail-help
   host: github.com
   resolved_commit: e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156
@@ -146,6 +331,7 @@ dependencies:
   target_subset:
   - claude
 - repo_url: dietrichgebert/ponytail
+  alias: ponytail-review
   name: ponytail-review
   host: github.com
   resolved_commit: e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156
@@ -165,6 +351,7 @@ dependencies:
   target_subset:
   - claude
 - repo_url: gonta223/humanizer-ja
+  alias: humanizer-ja
   name: humanizer-ja
   host: github.com
   resolved_commit: a1e343696e43aa50e7218891f3319ab22cde3464
@@ -186,6 +373,7 @@ dependencies:
   target_subset:
   - claude
 - repo_url: humanlayer/skills
+  alias: show-me
   name: show-me
   host: github.com
   resolved_commit: ca7c8088db69e315a8b2deea43820270457f8f3c
@@ -208,6 +396,7 @@ dependencies:
   - claude
   declared_license: MIT
 - repo_url: k16shikano/eb2929f13ed19c97188393d297be8432
+  alias: cognitive-rhythm-writing
   name: cognitive-rhythm-writing
   host: gist.github.com
   resolved_commit: a3b1e26beced71d582e13314fb6f5b179b023c76
@@ -225,6 +414,7 @@ dependencies:
   target_subset:
   - claude
 - repo_url: k16shikano/fd287c3133457c4fd8f5601d34aa817d
+  alias: japanese-tech-writing
   name: japanese-tech-writing
   host: gist.github.com
   resolved_commit: 8f2d57610a73efc97d743c9b0b0ecb1002e09fa4
@@ -242,6 +432,7 @@ dependencies:
   target_subset:
   - claude
 - repo_url: mattpocock/skills
+  alias: grill-me
   name: grill-me
   host: github.com
   resolved_commit: c55ee46073ed923f86ce59a5eb3b6d895095d1b7
@@ -263,6 +454,7 @@ dependencies:
   target_subset:
   - claude
 - repo_url: mattpocock/skills
+  alias: grilling
   name: grilling
   host: github.com
   resolved_commit: c55ee46073ed923f86ce59a5eb3b6d895095d1b7
@@ -284,6 +476,7 @@ dependencies:
   target_subset:
   - claude
 - repo_url: mattpocock/skills
+  alias: handoff
   name: handoff
   host: github.com
   resolved_commit: c55ee46073ed923f86ce59a5eb3b6d895095d1b7
@@ -305,6 +498,7 @@ dependencies:
   target_subset:
   - claude
 - repo_url: mattpocock/skills
+  alias: teach
   name: teach
   host: github.com
   resolved_commit: c55ee46073ed923f86ce59a5eb3b6d895095d1b7
@@ -334,6 +528,7 @@ dependencies:
   target_subset:
   - claude
 - repo_url: mattpocock/skills
+  alias: to-questionnaire
   name: to-questionnaire
   host: github.com
   resolved_commit: c55ee46073ed923f86ce59a5eb3b6d895095d1b7
@@ -355,6 +550,7 @@ dependencies:
   target_subset:
   - claude
 - repo_url: mattpocock/skills
+  alias: wait-what
   name: wait-what
   host: github.com
   resolved_commit: c55ee46073ed923f86ce59a5eb3b6d895095d1b7
@@ -376,6 +572,7 @@ dependencies:
   target_subset:
   - claude
 - repo_url: mattpocock/skills
+  alias: writing-for-agents
   name: writing-for-agents
   host: github.com
   resolved_commit: c55ee46073ed923f86ce59a5eb3b6d895095d1b7
@@ -399,6 +596,7 @@ dependencies:
   target_subset:
   - claude
 - repo_url: stablyai/orca
+  alias: computer-use
   name: computer-use
   host: github.com
   resolved_commit: a445abadd4b2fd75d987872c0aa9d274f05ab33b
@@ -418,6 +616,7 @@ dependencies:
   target_subset:
   - claude
 - repo_url: stablyai/orca
+  alias: linear-tickets
   name: linear-tickets
   host: github.com
   resolved_commit: a445abadd4b2fd75d987872c0aa9d274f05ab33b
@@ -437,6 +636,7 @@ dependencies:
   target_subset:
   - claude
 - repo_url: stablyai/orca
+  alias: orca-cli
   name: orca-cli
   host: github.com
   resolved_commit: a445abadd4b2fd75d987872c0aa9d274f05ab33b
@@ -456,6 +656,7 @@ dependencies:
   target_subset:
   - claude
 - repo_url: stablyai/orca
+  alias: orca-emulator
   name: orca-emulator
   host: github.com
   resolved_commit: a445abadd4b2fd75d987872c0aa9d274f05ab33b
@@ -475,6 +676,7 @@ dependencies:
   target_subset:
   - claude
 - repo_url: stablyai/orca
+  alias: orca-emulator-android
   name: orca-emulator-android
   host: github.com
   resolved_commit: a445abadd4b2fd75d987872c0aa9d274f05ab33b
@@ -494,6 +696,7 @@ dependencies:
   target_subset:
   - claude
 - repo_url: stablyai/orca
+  alias: orca-linear
   name: orca-linear
   host: github.com
   resolved_commit: a445abadd4b2fd75d987872c0aa9d274f05ab33b
@@ -513,6 +716,7 @@ dependencies:
   target_subset:
   - claude
 - repo_url: stablyai/orca
+  alias: orca-per-workspace-env
   name: orca-per-workspace-env
   host: github.com
   resolved_commit: a445abadd4b2fd75d987872c0aa9d274f05ab33b
@@ -532,6 +736,7 @@ dependencies:
   target_subset:
   - claude
 - repo_url: stablyai/orca
+  alias: orchestration
   name: orchestration
   host: github.com
   resolved_commit: a445abadd4b2fd75d987872c0aa9d274f05ab33b
@@ -551,6 +756,7 @@ dependencies:
   target_subset:
   - claude
 - repo_url: vercel-labs/skills
+  alias: find-skills
   name: find-skills
   host: github.com
   resolved_commit: 7407f3893ad4dceab546ac002c3ef806e4000c73
@@ -572,6 +778,15 @@ dependencies:
 deployments:
 - kind: project-relative
   target: claude
+  value: .claude/agents/completion-reviewer.md
+  runtime: null
+  scope: project
+  owners:
+  - yamakura-yuma/dotfiles/core-principal
+  active_owner: yamakura-yuma/dotfiles/core-principal
+  content_hash: sha256:4141cbf80cf6962e038f62519149117397245a51fe73364118f91a495af88956
+- kind: project-relative
+  target: claude
   value: .claude/commands/retro.md
   runtime: null
   scope: project
@@ -587,7 +802,7 @@ deployments:
   owners:
   - yamakura-yuma/dotfiles/core-principal
   active_owner: yamakura-yuma/dotfiles/core-principal
-  content_hash: sha256:605b6adae0a9107da8a068ef088e94723b6b28b73c3bc32a0bfd96377ca88568
+  content_hash: sha256:0055f51cc6fa1c73dec7940c15d27dca3d15e6c39bc67ae465cf6d451f33365f
 - kind: project-relative
   target: claude
   value: .claude/commands/worktree.md
@@ -596,7 +811,7 @@ deployments:
   owners:
   - yamakura-yuma/dotfiles/core-principal
   active_owner: yamakura-yuma/dotfiles/core-principal
-  content_hash: sha256:c6fae8cf3ed708b9db3ea1dd6aa40ff2c90d551efab5cda98917bda39f300145
+  content_hash: sha256:bb84a26ae3da5fc24de4d3c246f9d7c4575b23105deb0a41184d22d6e5f7d230
 - kind: project-relative
   target: claude
   value: .claude/hooks/core-principal/.apm/hooks/scripts/dispatch-in-coordinator.sh
@@ -605,7 +820,7 @@ deployments:
   owners:
   - yamakura-yuma/dotfiles/core-principal
   active_owner: yamakura-yuma/dotfiles/core-principal
-  content_hash: sha256:ec7cccdb823aeceee1efdd58f35c7056457c8fe4cc1b47f3e909989c5e4a6c24
+  content_hash: sha256:386eea829d306ff73c7f976948bf1f06e12835045dd21d9691de8ef132898e30
 - kind: project-relative
   target: claude
   value: .claude/hooks/core-principal/.apm/hooks/scripts/guard-coordinator-edit.sh
@@ -623,7 +838,7 @@ deployments:
   owners:
   - yamakura-yuma/dotfiles/core-principal
   active_owner: yamakura-yuma/dotfiles/core-principal
-  content_hash: sha256:1a32a0d5c9399d9fd4ff5d09599d62b8985dbdf3e5b7daa6fcf358c3e5721729
+  content_hash: sha256:a79687acc40747d945be0243806f364e2e8fd8c46b2baafce19dfeaca1271544
 - kind: project-relative
   target: claude
   value: .claude/hooks/core-principal/.apm/hooks/scripts/guard-destructive-git.sh
@@ -704,7 +919,7 @@ deployments:
   owners:
   - yamakura-yuma/dotfiles/core-principal
   active_owner: yamakura-yuma/dotfiles/core-principal
-  content_hash: sha256:290c4cfbd8095fd64035de93e5fae4c3ab5e80fbd110f0317d272231e5060750
+  content_hash: sha256:27efe3d21b868ba3a8fb3020acaa6feeafd837e954909b2c537ef283bc4dc553
 - kind: project-relative
   target: claude
   value: .claude/skills/core-dispatch
@@ -722,7 +937,7 @@ deployments:
   owners:
   - yamakura-yuma/dotfiles/core-principal
   active_owner: yamakura-yuma/dotfiles/core-principal
-  content_hash: sha256:5cfd5f0112a3da5e9845da656b7b9cd244eab31b41ba1b5a672f6c18228bb5a6
+  content_hash: sha256:0d652089bdb4267113292d11a60dbf68792a71e1b353431c25dbac5175f4f406
 - kind: project-relative
   target: claude
   value: .claude/skills/core-dispatch/references/orca.md
@@ -731,7 +946,7 @@ deployments:
   owners:
   - yamakura-yuma/dotfiles/core-principal
   active_owner: yamakura-yuma/dotfiles/core-principal
-  content_hash: sha256:d3f6539efe8f66ede2f0a4ee57c327b3516a5b209a66dd1803081d516999b120
+  content_hash: sha256:69ed057ffdaf81ee012fc4d989097a4da2648d6cf4b300778624fcf20cfe9843
 - kind: project-relative
   target: claude
   value: .claude/skills/core-harness
@@ -786,6 +1001,726 @@ deployments:
   - yamakura-yuma/dotfiles/core-principal
   active_owner: yamakura-yuma/dotfiles/core-principal
   content_hash: sha256:6ef187280006ff43a5fec623bbcccfcc86e53571cb156b770ddae63bf9c490cd
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/LICENSE
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:0d43b46456eda48a9054fbfa915ac80e150f5db5cf90714eda710c02e1df461a
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:67840438e03a26dc888d72f67df66abae60cce4298494787c4a0e79da55cc2db
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/agents/openai.yaml
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:ca8053ac6cec8b9fce47320e6cc902c615a8692e5cbb2cfa701863898862e0fc
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/data/SHAPE-INDEX-NOTICE.md
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:dc6e070b9fd905c6a574614dd0c4403253ad8b7111e2f2f3892996b2729e26ab
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/data/databricks-icons.json
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:760d80cdd57e5b7784b036d07ce49c149b78d362a35078c5f92171e2d268ec7c
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/data/diagram-ir.schema.json
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:92891a36b4160a2a08398884fd0cbec224791c406a9107c923acf934f471e016
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/data/lobe-icons.json
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:e7c309bd5ebf4df948563d48469090d0868432549f168319534215f79b0077cc
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/data/shape-index.json.gz
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:f19d9f794775d91e196b0a8d1fce32d6dbbf9828f094bedc53e843c8131ee8ea
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/references/autolayout.md
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:1d993371633b87b5563a785e8f3c862e0103f0d0251b7986e37d862b9c59b1ef
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/references/ci-gate.md
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:4aff775b72567c0325b467805e9108187fa9e38c4df339c84a100028f3e65c50
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/references/cookbook.md
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:c85e1373b685d4ed3ecdec115649da1f38de0ed7abce5ccbc15be2ca75d5ca59
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/references/databricks.md
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:aa47283c8c875305569bcca8f83649912c7f8e8ceefef723220fdc139531c8c9
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/references/derasterize.md
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:a4efd3152ba340299a92ae599d936fd07296d725a1a86efc79ed9a7b25754bb8
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/references/diagram-ir.md
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:3a12b71703f1631b0cf6cfc5fb0faf46534a7f9382e1e5d26eecbcde685232d8
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/references/diagram-types.md
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:958b6d0ab59b2731b6fb9d567a95d8c8cde596cddad18d5242304d916a78f7e1
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/references/live-infra.md
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:87d92e8b8ae259a1433764f349ff8f8dd1f7991dba5d4c55198fb9fa1706580a
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/references/mcp.md
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:020af01efd02e6269591dd43168517bdc2cdc073381c5f89da0b6bd9c10ddbc5
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/references/mermaid-authoring.md
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:b44d45322be91ee3b32da2badaa8ff53e6951350185bb71f7fb8f48ac9120b96
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/references/pr-bot.md
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:c34a85d91ec4e5b79d7bfb42b725ae9f15435f1f2dc67b98f6d0523ada294d6f
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/references/security.md
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:35f2072dcf1a01ead5dd72c971ac74bfc89a6c174667586bce495023070faa0e
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/references/semantic-workflows.md
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:797e504c2e9ba62318b3d21acc09fb106812d717a1d2c10b0b3880817cc730e0
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/references/shapes.md
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:b696df00bb4d74afb93670adf0e58acd6e0eb5cf8145e40994851ec052a18c23
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/references/style-extraction.md
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:9dfba198a0e0f610e2fdaecff29aa380984ba03c67d5a02c86b75106c95de2a0
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/references/style-presets.md
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:b40f2dfd2cd21e244a9769d05b597d96dd2135518bea9478aa15d08616d848c6
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/references/toolbox.md
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:1b3d27a32af38c10ebe47f4917c317dc77834420f09bf5f822550ea2f4b43483
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/references/troubleshooting.md
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:46dee9804e8f6866ea565a2e626bc14103f4295747a984faccb98fddc2376809
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/references/tubemap.md
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:654db7cc5f5c757a28e0b64060e3c78880fa11045944810150af1770cd8107c1
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/references/xml-authoring.md
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:731a128920fe33f9f5ce41b4bb9d8459b606fd5232080ea26357cc37aecf320e
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/aiicons.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:96017e7e289eacbf7b304a623b207b6df2258fe04ffe9894d266bcde2c135c2d
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/asyncapiimports.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:8a4e39f8933db55227575c23705b04a16551de1bbb833431c3462af8e881a3c2
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/autolayout.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:d72e15eb0cfa356e9722c9824037d2fbd65840ee686324e87070d195d973a162
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/buildup.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:e496e39605f51dd81d44964c623298376e1efba7c9c7132452c1e01dfddb8afc
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/c4.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:82f349e1a5240984275f1fc9cfe21a91dd4124fbf42a61903439eaf90ceadd22
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/ciimports.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:c9de9a7af0aa3ed6b2d3e4e1bfaa045444940bf31666fc7e0118ce962ae1ed86
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/composeimports.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:ae9c96282daa3f35ddba65a443456034ca9e7e6920a3db5b646ed8fe0a17909d
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/compress.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:464689570eccf3a8992531164f03933380624e00f3e97c421e74a49c1d3250a7
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/dbxicons.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:dfa302a7d803b6c710d7cfdf4fc06d959c8cd9e53ef1f73108f9d2946a03db16
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/diagram_ir.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:8afdb80d3b53afcdd40d773b6141284aab3a5513df7b2474ced1e79eea58475c
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/diagramctl.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:dd857659d23bc1ed672a8d405d69e83b76db1f604d3f506e6ed6f7b87487707c
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/diagramctl_mcp.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:4c0bd49d58d194d1e1fb8c9c7e2cb2c0a1690eca5650dae8214098c05ea31d38
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/dockerimports.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:7a06bcc73f754b01d651bf5276d0e947d6eeb9817c412abcd1bb69f3752760ec
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/drawio2mermaid.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:c6bc00fd9d3e7f3f0534dddc4e519708559404e0c40c808ebc89312160b9e01c
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/drawio2pptx.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:22be444d8ee4894f5a72f7f296a72c0f15085c9ae56fb72a9ff374c4861d0d45
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/drawiodiff.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:392396ad3633f30776208388165a3552f0faa894cf2f5ec45a1b0ce5101fdcba
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/drawiohtml.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:334226f9fccfc55561f5ffb67e4fa1a35e5ac8fa9ef72688582de23558195275
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/edgeports.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:429f1c8c0be958ef68418d38ddbf4af0e1da9d52f25015ecb599c74fa1b64f7a
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/encode_drawio_url.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:47b77e4bc46226cc1a1cea29e93988877796d0a60706a2a38c7fd7910af3dfef
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/explain.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:a804ae7094e5400f6c92b631dadae78e67ef4e2977bff8777e92058e1f22fb40
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/goimports.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:a2cb0ea9cfbfb6b276abf746e35d352d5edce2c7469e31a1e0d1d48ad3939a51
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/graphqlerd.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:be39395bd95f7f9c22d398cc7925222fab7495e91eee51466f7d5b82c701d67b
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/heatmap.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:91d0c98537bf31b14b8766f7ee98046a9142716df450a97b062092bdec532a73
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/jsimports.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:63b563d5ec10498d445885d7d762d7dbc26eb2cb47d379120db372ce7261bad1
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/k8simports.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:3d2c32c908c78cf0f557ba2f3c00a3351b15052a3586d94c34cfe5251057782f
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/openapiimports.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:2d29c8b205d862acd1201875dedbc91fc510266012bcb64f469902d7c365afdc
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/prdiff.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:2e89c97b89b5dd47d7a15d7383396ae897364f141b201f1cd99ee09ab4c0fde8
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/protoimports.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:e742b59c5e9f7ae6b884184b6cf9df4465ee3cafa15069658af6cd2852d9ba99
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/pyclasses.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:1fbcf0370c0154bf18cdde559b56e1dbf4a6b069b75dda8ed49e386d56308be2
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/pyimports.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:619a27f15e22995b323c28b6c2037fb02d9a9522e1bbbd1fe90680d98a46d9bd
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/raster2drawio.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:7a81fad51336f01fa5791c354a3467994faea396b76d018d99c377c0374fcdb5
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/relabel.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:98db0ebe5928754719ccf7c1ebcf661d14e010aed3962cc38bae57c25810c414
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/repair_png.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:1a453cb88231813dcb5631456b0c7431eb59acd21570c7e749c1cce89ae31c4c
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/restyle.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:b12ff51e133de46aff66ca70c546d82d2eba77673b872786c3f02a31996c7140
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/runbook.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:56059a1bb86ff76047dc962b2fa8276b01090bc0bfe6051b388a8adb9bc5dc9c
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/rustimports.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:9b6bfbc97a1daa5e6eee6ab6733a88500e5ea8d4accb92acf08cc633761ca41f
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/seqlayout.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:527c522dfd1ccff1c252bb146f250710d0033385444ac3cc2a33ede11ee09fc4
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/shapesearch.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:ac624fa2d532c1a72cc77ec0b2fd94a71e0baf4cd03ba339b60eb7a784e511b3
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/sqlerd.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:f3896f9c17bb0933676de048cad3da6a3c17d853f0ef9dffb11d1e4ecacdff09
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/svgflow.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:ba02ca683dc508d1a5083902236b52d595141b7dc0898f7b8d5ce6341706f334
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/tfimports.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:66636c6b73b41d485560a90e0b4a13a4b30d4ecb03910f66cd3519d40406b007
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/tfstate.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:aa2728eb203462621de7fde8eac9d2a3631252fd8b4b3ddd647f5fb596718ade
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/timelapse.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:992ba6bb6ad5c9bbc00ddc6244e2cdd661d5bdea6963874800dee1fff4649220
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/tubemap.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:f3bf38c0ca6941ea5b96174275532748793a2246d91aad2459d485666881fb6e
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/scripts/validate.py
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:3effc1cdfd5b43b672630d0dbbc6f233a4925f6469f808e271d8c623530b9540
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/styles/built-in/colorblind-safe.json
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:3b836988e6533c07bf0e6676cc35731e750f0fa659ab25e80bfef7087436f3eb
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/styles/built-in/corporate.json
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:0cb0ba05b44e5938ce775bb917b6ffaa3a0501ceedbd610975cc6e909fe5e60b
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/styles/built-in/dark.json
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:2a78d4da3b6bc747da7943597bb1d58e9ff12f5188192ecc09589570d6873fae
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/styles/built-in/default.json
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:5340c1f80ab983f412e895d58d5dffb4949c246acc516702fd565675fec140e1
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/styles/built-in/handdrawn.json
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:92a1fdca1bbb95e5239fca62b2da81d4035936a11ca690e026419a5c2508e541
+- kind: project-relative
+  target: claude
+  value: .claude/skills/drawio-skill/styles/schema.json
+  runtime: null
+  scope: project
+  owners:
+  - agents365-ai/drawio-skill/skills/drawio-skill
+  active_owner: agents365-ai/drawio-skill/skills/drawio-skill
+  content_hash: sha256:4886d76481285d584eaa7963053c1ec6786eb335b4f75e1093b66788dce148c0
 - kind: project-relative
   target: claude
   value: .claude/skills/find-skills

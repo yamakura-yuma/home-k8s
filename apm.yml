@@ -6,14 +6,15 @@ author: yamakura-yuma
 targets:
 - claude
 
-# The shared harness (rules, guard hooks, core-* skills) from the dotfiles repo,
-# pinned by commit because upstream publishes no tags; bump with `apm update`.
+# The shared harness (rules, guard hooks, core-* skills, agents) from the dotfiles repo.
+# 自分のパッケージは main を追う。外部パッケージは commit 固定。
+# orca.yaml の setup が新しい worktree ごとに main の最新へ上げて展開する。
 # `apm install` lands it in ./.claude/, never in ~/.claude/.
 dependencies:
   apm:
   - git: https://github.com/yamakura-yuma/dotfiles.git
     path: core-principal
-    ref: 51856cebaa34d148600b7f64d20d34fac4f2401e
+    ref: main
     alias: core-principal
     targets:
     - claude
