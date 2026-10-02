@@ -20,8 +20,15 @@ import 'just/kind.just'
 import 'just/observability.just'
 import 'just/orca-exporter.just'
 
-# 公開レシピはこの 6 つだけ (just --list)。内部用は `_` 付きで隠してあり、just/ 以下に置く。
-# up・down・show・share はここ、orca-exporter と devcontainer は just/ 以下。
+# 公開レシピはこの 7 つだけ (just --list)。内部用は `_` 付きで隠してあり、just/ 以下に置く。
+# up・down・show・share・ci はここ、orca-exporter と devcontainer は just/ 以下。
+
+# 中身は just/ci.sh。ツールは nix (devShells.ci) から入るので、開発用コンテナを通さず shebang で直に走らせる。
+
+# PR のゲートと同じ静的チェック (yamllint・helm template・kubeconform・kube-linter)。クラスタは触らない
+ci:
+    #!/usr/bin/env bash
+    exec just/ci.sh
 
 # kind のクラスタを作り、Backstage のイメージを入れ、ArgoCD を入れ、Secret を作って、観測スタック・Headlamp・Backstage の同期を待つ。
 # 打ち直しても同じ状態に戻るだけ。

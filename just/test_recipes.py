@@ -1,4 +1,4 @@
-"""just の公開レシピが 6 個だけで、引数が正しく展開されるかのテスト。
+"""just の公開レシピが 7 個だけで、引数が正しく展開されるかのテスト。
 
 標準ライブラリだけ: python3 -B -m unittest discover -s just -p test_recipes.py
 レシピは実行せず `just --dry-run` / `just --list` の出力だけを見る (クラスタにもコンテナにも触れない)。
@@ -14,7 +14,7 @@ from pathlib import Path
 sys.dont_write_bytecode = True  # __pycache__ をリポジトリに作らない
 
 ROOT = Path(__file__).resolve().parent.parent
-PUBLIC = ["devcontainer", "down", "orca-exporter", "share", "show", "up"]
+PUBLIC = ["ci", "devcontainer", "down", "orca-exporter", "share", "show", "up"]
 
 
 def just(*args):

@@ -1,0 +1,30 @@
+# 段階 C (人の承認が要る変更)。dotfiles の docs/gates.md を参照。
+# 先頭に `*` は置かない (置くと docs や values の変更まで承認待ちになる)。
+# パス単位なので「ストレージの削除」のような変更の種類は表せず、storage/ の変更全部を C にしている。
+
+# ゲート自身 (弱める変更を AI が自分で通せないようにする)。
+# ci.sh と各設定は、検査の中身 (kube-linter の除外、lint の規則、ツールの版) を決める
+/.github/                  @yamakura-yuma
+/justfile                  @yamakura-yuma
+/just/ci.sh                @yamakura-yuma
+/.yamllint.yaml            @yamakura-yuma
+/.kube-linter.yaml         @yamakura-yuma
+/flake.nix                 @yamakura-yuma
+/flake.lock                @yamakura-yuma
+
+# ArgoCD の設定そのもの (root と子の Application、values)。just up が最初に入れる bootstrap も含む
+/clusters/kind/argocd/     @yamakura-yuma
+/just/argocd.just          @yamakura-yuma
+
+# ストレージ (StorageClass と PV)
+/clusters/kind/storage/    @yamakura-yuma
+
+# Secret を作る・回すスクリプト (observability.just は grafana-secrets.sh の引数と、share の状態ファイルの置き場を決める)
+/just/observability.just        @yamakura-yuma
+/just/grafana-secrets.sh        @yamakura-yuma
+/just/grafana-viewer-rotate.sh  @yamakura-yuma
+/just/headlamp-token.sh         @yamakura-yuma
+
+# 外部公開 (just share)
+/just/observe-share.sh     @yamakura-yuma
+/just/*.Caddyfile          @yamakura-yuma

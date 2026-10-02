@@ -1,0 +1,16 @@
+# PR のゲート。中身は dotfiles の再利用 workflow (checkout して just を入れ、`just ci` を走らせるだけ)。
+# ローカルと同じ `just ci` を打つ。paths で絞らない (絞ると必須チェックが Pending のまま PR が止まる)。
+# @ の後ろは dotfiles の commit SHA (docs/gates.md)。上げるときは SHA を差し替える。
+# just ci は nix develop .#ci でツールを入れるので install-nix: true。
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  ci:
+    uses: yamakura-yuma/dotfiles/.github/workflows/just-ci.yml@9deac6498c82ab599e96d0e009c83bbc493dfbc4
+    with:
+      install-nix: true
