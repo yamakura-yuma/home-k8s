@@ -8,3 +8,5 @@ service:
 # 読み取りの権限だけにする (manifests/rbac.yaml)。ログインはこの ServiceAccount のトークンで行う
 clusterRoleBinding:
   create: false
+service:
+  type: ClusterIP
