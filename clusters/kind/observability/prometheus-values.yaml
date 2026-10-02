@@ -3,8 +3,8 @@
 # Kubernetes 自体の監視もこのスタックの目的に含める。grafana.com の Kubernetes ダッシュボード
 # (docs/observability/grafana-com-dashboards.md) が前提にする kube-state-metrics・node-exporter・
 # cAdvisor・API サーバー・CoreDNS のメトリクスは、下の scrapeConfigs とサブチャートでスクレイプする。
-# 保存は Tempo と同じく、kind の extraMounts で WSL2 ホストの
-# ~/.local/share/home-k8s/observability につながったローカルディレクトリに置く。
+# 保存は Tempo と同じく PV (prometheus、clusters/kind/storage) で、WSL2 ホストの
+# ~/.local/share/home-k8s/observability/prometheus につながっている (docs/cluster/persistence.md)。
 server:
   extraFlags:
     - web.enable-lifecycle
@@ -21,33 +21,16 @@ server:
     promote_resource_attributes:
       - orca.worktree.id
       - orca.worktree.name
-  # PVC ではなく hostPath に TSDB を置く。chart は storage-volume (emptyDir) を必ず
-  # マウントするが、--storage.tsdb.path をこちらに向けるので使われない
+  # PVC prometheus-server を /data にマウントし、TSDB をその根に置く。PV prometheus が claimRef で待っている。
+  # ノードは PV の nodeAffinity が決めるので nodeSelector は要らない
   persistentVolume:
-    enabled: false
-  storagePath: /prometheus-data
-  extraVolumes:
-    - name: prometheus-data
-      hostPath:
-        path: /var/local/home-k8s/observability/prometheus
-        type: DirectoryOrCreate
-  extraVolumeMounts:
-    - name: prometheus-data
-      mountPath: /prometheus-data
-  # extraMounts を持つ worker にだけ置く (clusters/kind/kind-config.yaml の labels)
-  nodeSelector:
-    home-k8s/observability-storage: "true"
-  # hostPath は root 所有で作られるため、Prometheus の実行ユーザー (65534) に渡してから起動する
-  extraInitContainers:
-    - name: chown-prometheus-data
-      image: busybox:1.37
-      command: ["chown", "-R", "65534:65534", "/prometheus-data"]
-      securityContext:
-        runAsUser: 0
-        runAsNonRoot: false
-      volumeMounts:
-        - name: prometheus-data
-          mountPath: /prometheus-data
+    enabled: true
+    storageClass: home-k8s-local
+    volumeName: prometheus
+  # local の volume は fsGroup (chart の既定 65534) でグループを付け替える。
+  # 毎回の再帰的な付け替えを避け、根の所有が違うときだけ付け替える
+  securityContext:
+    fsGroupChangePolicy: OnRootMismatch
 
 # chart 既定のスクレイプ対象のうち、grafana.com の Kubernetes ダッシュボード (dotdc 15757〜15762) が
 # 使うメトリクスを出す 3 つだけを使う。ほかは使うダッシュボードが無いので切ったままにする

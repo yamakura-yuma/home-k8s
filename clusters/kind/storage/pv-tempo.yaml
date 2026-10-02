@@ -1,0 +1,27 @@
+# Tempo のトレース。PVC は StatefulSet tempo の volumeClaimTemplates (storage) が作る。
+# 中身は WSL2 ホストの ~/.local/share/home-k8s/observability/tempo (kind-config の extraMounts)。
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: tempo
+spec:
+  # local は容量を強制しない。chart の PVC の要求 (10Gi) を満たす値にする
+  capacity:
+    storage: 10Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: home-k8s-local
+  # chart が作るこの PVC 以外とは結ばない (事前バインド)
+  claimRef:
+    namespace: observability
+    name: storage-tempo-0
+  local:
+    path: /var/local/home-k8s/observability/tempo
+  # local では必須。extraMounts を持つ worker (clusters/kind/kind-config.yaml の labels) に固定する
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: home-k8s/observability-storage
+              operator: In
+              values: ["true"]

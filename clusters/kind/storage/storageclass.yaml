@@ -1,0 +1,11 @@
+# 観測スタック (と今後の状態を持つアプリ) の保存先。PV は動的に作らず、pv-*.yaml で 1 アプリ 1 枚を
+# 静的に置く。設計と運用は docs/cluster/persistence.md。
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: home-k8s-local
+# 動的プロビジョニングしない。kind 標準の standard (local-path) と違い、PV を消してもディレクトリは消えない
+provisioner: kubernetes.io/no-provisioner
+# Pod のスケジュールまでバインドを待つ。PV の nodeAffinity に合うノードに Pod が置かれる
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain

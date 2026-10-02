@@ -47,7 +47,8 @@ class Recipes(unittest.TestCase):
 
     def test_up_runs_in_order(self):
         out = just("--dry-run", "up").stderr
-        steps = ["kind create cluster", "docker build -t home-k8s-backstage:", "kind load docker-image home-k8s-backstage:",
+        steps = ["kind create cluster", "observability/{tempo,prometheus,loki,grafana}",
+                 "docker build -t home-k8s-backstage:", "kind load docker-image home-k8s-backstage:",
                  "helm upgrade --install argocd", "grafana-secrets.sh",
                  "argocd/root.yaml", "argocd-wait.sh", "headlamp-token.sh"]
         pos = [out.find(step) for step in steps]

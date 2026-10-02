@@ -1,10 +1,14 @@
 # grafana-community/loki chart (単一バイナリ構成) の values。
 # Claude Code のログ (イベント) を OTel Collector から OTLP (/otlp) で受ける。
-# 保存は Tempo と同じく、kind の extraMounts で WSL2 ホストの
-# ~/.local/share/home-k8s/observability につながったローカルディレクトリに置く。
+# 保存は Tempo と同じく PV (loki、clusters/kind/storage) で、WSL2 ホストの
+# ~/.local/share/home-k8s/observability/loki につながっている (docs/cluster/persistence.md)。
 deploymentMode: Monolithic
 
 loki:
+  # local の volume は fsGroup (chart の既定 10001) でグループを付け替える。
+  # 毎回の再帰的な付け替えを避け、根の所有が違うときだけ付け替える
+  podSecurityContext:
+    fsGroupChangePolicy: OnRootMismatch
   # マルチテナントにしない (X-Scope-OrgID ヘッダ無しで読み書きする)
   auth_enabled: false
   commonConfig:
@@ -37,27 +41,11 @@ loki:
 
 singleBinary:
   replicas: 1
-  # PVC ではなく hostPath を /var/loki に直接マウントする (volume 名は chart 側で storage)
+  # PVC storage-loki-0 を /var/loki にマウントする。PV loki が claimRef で待っている。
+  # ノードは PV の nodeAffinity が決めるので nodeSelector は要らない
   persistence:
-    enabled: false
-    dataVolumeParameters:
-      hostPath:
-        path: /var/local/home-k8s/observability/loki
-        type: DirectoryOrCreate
-  # extraMounts を持つ worker にだけ置く (clusters/kind/kind-config.yaml の labels)
-  nodeSelector:
-    home-k8s/observability-storage: "true"
-  # hostPath は root 所有で作られるため、Loki の実行ユーザー (10001) に渡してから起動する
-  initContainers:
-    - name: chown-loki-data
-      image: busybox:1.37
-      command: ["chown", "-R", "10001:10001", "/var/loki"]
-      securityContext:
-        runAsUser: 0
-        runAsNonRoot: false
-      volumeMounts:
-        - name: storage
-          mountPath: /var/loki
+    enabled: true
+    storageClass: home-k8s-local
 
 # 単一構成では使わない部品を止める
 gateway:

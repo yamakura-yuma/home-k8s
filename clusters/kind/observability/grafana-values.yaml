@@ -1,10 +1,27 @@
 # grafana-community/grafana chart の values。
 # ホストの localhost:3000 で開く (NodePort + kind の extraPortMappings)。
 # Quick Tunnel で外に出すこともあるため、匿名アクセスは付けずログインを必須にする。
-# 設定は provisioning で入るため、Grafana 自体の永続化はしない。
+# データソースとリポジトリのダッシュボードは provisioning で入る。UI で作ったダッシュボード・ユーザー・設定は
+# grafana.db に入り、PV grafana (clusters/kind/storage) に残す (docs/cluster/persistence.md)。
 service:
   type: NodePort
   nodePort: 30300
+
+# PVC grafana を /var/lib/grafana にマウントする。PV grafana が claimRef で待っている。
+# volumeName を書くのは、chart が既存 PVC の volumeName を lookup で引こうとし、
+# ArgoCD (helm template で描く) ではそれが空になるため
+persistence:
+  enabled: true
+  storageClassName: home-k8s-local
+  volumeName: grafana
+# sqlite の grafana.db (RWO) を新旧 2 つの Pod が同時に開かないよう、古い Pod を消してから作る
+deploymentStrategy:
+  type: Recreate
+# 所有者は fsGroup (chart の既定 472) で付け替わるので、chown の initContainer は要らない
+initChownData:
+  enabled: false
+securityContext:
+  fsGroupChangePolicy: OnRootMismatch
 
 # admin のパスワードは `just up` が作る Secret から読む。値はリポジトリに置かない。
 # chart に Secret を作らせると upgrade のたびに乱数で作り直し、Pod が毎回再起動する。
@@ -13,14 +30,45 @@ admin:
   userKey: admin-user
   passwordKey: admin-password
 
-# 共有相手に渡す閲覧用ユーザー viewer (Viewer ロール)。Grafana は永続化していないので、
-# Pod を作り直すと消える。そこで Grafana の横にサイドカーを置き、viewer が無ければ HTTP API で作る。
+# Grafana が Secret の admin のパスワードを使うのは、grafana.db が空の初回だけ。永続化した後は
+# パスワードファイルを書き換えても DB の値のままになり、下のサイドカーも `just share` も admin で入れなくなる。
+# そこで起動のたびに、Grafana の前に grafana cli で DB の admin (id 1) のパスワードを Secret の値にそろえる。
+# イメージは distroless で sh が無いので、同じイメージの grafana バイナリを exec 形式で直接打つ
+# (DB が空でも動く。DB の場所は環境変数 GF_PATHS_DATA の既定 /var/lib/grafana)
+extraInitContainers:
+  - name: reset-admin-password
+    # Grafana 本体と同じイメージ。extraInitContainers は chart が tpl に通すので、chart の版に追従する
+    image: "docker.io/grafana/grafana:{{ .Chart.AppVersion }}-distroless"
+    command:
+      - /usr/share/grafana/bin/grafana
+      - cli
+      - --homepath=/usr/share/grafana
+      - --config=/etc/grafana/grafana.ini
+      - admin
+      - reset-admin-password
+      - $(ADMIN_PASSWORD)
+    env:
+      - name: ADMIN_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: grafana-admin
+            key: admin-password
+    volumeMounts:
+      - name: config
+        mountPath: /etc/grafana/grafana.ini
+        subPath: grafana.ini
+      - name: storage
+        mountPath: /var/lib/grafana
+
+# 共有相手に渡す閲覧用ユーザー viewer (Viewer ロール)。Grafana の横にサイドカーを置き、Pod の起動ごとに
+# 一度だけ HTTP API で viewer を Secret の値にそろえる (居なければ作り、居ればパスワードを変える)。
 # Grafana のイメージは distroless で sh が無く、postStart の exec では作れないため別コンテナにする。
 # パスワードは `just up` が作る Secret grafana-viewer から読む。値はリポジトリに置かない。
-# サイドカーは作るだけで、パスワードを変えない。変えるのは `just share` (起動のたびに作り直す)。
-# 新しい Pod では環境変数が Secret のいまの値になるので、作り直しても最後に渡したパスワードで入れる。
-# 同じサイドカーが Backstage 用の閲覧用ユーザー backstage (パスワードは Secret grafana-backstage) も作る。
-# こちらは居てもパスワードが Secret と違えば合わせる。Secret が無いあいだは何もしない (optional)。
+# 動いている間にパスワードを変えるのは `just share` で、ファイル・Secret・Grafana の 3 つを同時に変える。
+# サイドカーの環境変数は Pod の起動時の値のままなので、そろえるのは起動時の一度だけにし、そのあとは寝て待つ
+# (繰り返すと `just share` の変更を古い値に戻してしまう。コンテナが終わると再起動でまた打つので終わらせない)。
+# 同じサイドカーが Backstage 用の閲覧用ユーザー backstage (パスワードは Secret grafana-backstage) もそろえる。
+# Secret が無いあいだは何もしない (optional)。ユーザーを足すときは、環境変数を足して最後の upsert を 1 行足す。
 # ここは chart が tpl に通すので、二重波括弧を書かないこと
 extraContainers: |
   - name: viewer-user
@@ -53,36 +101,28 @@ extraContainers: |
       - -c
       - |
         api=http://127.0.0.1:3000/api
-        while true; do
-          # 200 なら居る、404 なら作る。それ以外は Grafana がまだ起動していない
-          code=$(curl -s -o /dev/null -w '%{http_code}' -u "$ADMIN_USER:$ADMIN_PASSWORD" \
-            "$api/users/lookup?loginOrEmail=viewer")
-          if [ "$code" = 404 ]; then
+        # Grafana が起動するまで待つ
+        until curl -sf -o /dev/null "$api/health"; do sleep 2; done
+        # upsert <login> <password>: 居なければ作り、居ればパスワードを変える
+        upsert() {
+          id=$(curl -sf -u "$ADMIN_USER:$ADMIN_PASSWORD" "$api/users/lookup?loginOrEmail=$1" \
+            | grep -o '"id":[0-9]*' | head -n 1 | cut -d: -f2)
+          if [ -z "$id" ]; then
             # 新しいユーザーのロールは auto_assign_org_role (下の grafana.ini で Viewer)
-            printf '{"name":"viewer","login":"viewer","password":"%s"}' "$VIEWER_PASSWORD" \
+            printf '{"name":"%s","login":"%s","password":"%s"}' "$1" "$1" "$2" \
               | curl -sf -o /dev/null -u "$ADMIN_USER:$ADMIN_PASSWORD" \
                   -H 'Content-Type: application/json' --data-binary @- "$api/admin/users" \
-              && echo "viewer を作った"
+              && echo "$1 を作った" || echo "$1 を作れなかった" >&2
+          else
+            printf '{"password":"%s"}' "$2" \
+              | curl -sf -o /dev/null -u "$ADMIN_USER:$ADMIN_PASSWORD" -X PUT \
+                  -H 'Content-Type: application/json' --data-binary @- "$api/admin/users/$id/password" \
+              && echo "$1 のパスワードを Secret の値にそろえた" || echo "$1 のパスワードを変えられなかった" >&2
           fi
-          # backstage は無ければ作り、居てパスワードが違えば Secret の値に合わせる
-          if [ -n "$BACKSTAGE_PASSWORD" ] && [ "$(curl -s -o /dev/null -w '%{http_code}' \
-              -u "backstage:$BACKSTAGE_PASSWORD" "$api/user")" = 401 ]; then
-            id=$(curl -sf -u "$ADMIN_USER:$ADMIN_PASSWORD" "$api/users/lookup?loginOrEmail=backstage" \
-              | sed -n 's/^{"id":\([0-9]*\),.*/\1/p')
-            if [ -n "$id" ]; then
-              printf '{"password":"%s"}' "$BACKSTAGE_PASSWORD" \
-                | curl -sf -o /dev/null -u "$ADMIN_USER:$ADMIN_PASSWORD" -X PUT \
-                    -H 'Content-Type: application/json' --data-binary @- "$api/admin/users/$id/password" \
-                && echo "backstage のパスワードを更新した"
-            else
-              printf '{"name":"backstage","login":"backstage","password":"%s"}' "$BACKSTAGE_PASSWORD" \
-                | curl -sf -o /dev/null -u "$ADMIN_USER:$ADMIN_PASSWORD" \
-                    -H 'Content-Type: application/json' --data-binary @- "$api/admin/users" \
-                && echo "backstage を作った"
-            fi
-          fi
-          sleep 10
-        done
+        }
+        upsert viewer "$VIEWER_PASSWORD"
+        if [ -n "$BACKSTAGE_PASSWORD" ]; then upsert backstage "$BACKSTAGE_PASSWORD"; fi
+        while true; do sleep 3600; done
 
 grafana.ini:
   auth.anonymous:
@@ -189,7 +229,7 @@ dashboardProviders:
         orgId: 1
         type: file
         disableDeletion: true
-        # UI での変更は保存できても Pod の再起動で消える。直すときは JSON を編集する
+        # UI での変更も保存できるが、正本はリポジトリの JSON。直すときは JSON を編集する
         allowUiUpdates: true
         options:
           path: /var/lib/grafana/dashboards/default

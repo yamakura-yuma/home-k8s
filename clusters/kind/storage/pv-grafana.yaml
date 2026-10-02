@@ -1,0 +1,27 @@
+# Grafana の grafana.db (UI で作ったダッシュボード・ユーザー・設定)。PVC は chart grafana が作る。
+# 中身は WSL2 ホストの ~/.local/share/home-k8s/observability/grafana (kind-config の extraMounts)。
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: grafana
+spec:
+  # local は容量を強制しない。chart の PVC の要求 (10Gi) を満たす値にする
+  capacity:
+    storage: 10Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: home-k8s-local
+  # chart が作るこの PVC 以外とは結ばない (事前バインド)
+  claimRef:
+    namespace: observability
+    name: grafana
+  local:
+    path: /var/local/home-k8s/observability/grafana
+  # local では必須。extraMounts を持つ worker (clusters/kind/kind-config.yaml の labels) に固定する
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: home-k8s/observability-storage
+              operator: In
+              values: ["true"]
