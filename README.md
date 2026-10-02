@@ -73,9 +73,9 @@ kind自体は試験で問われないためクラスタの起動/削除は just 
 
 観測スタック・Headlamp・Backstage は ArgoCD が GitHub の `main` から同期する (GitOps)。values や
 ダッシュボードの変更は `main` に入れれば反映される。ArgoCD の入れ方・構成・本番のクラスタへの
-反映手順は `docs/cluster/argocd.md`。Backstage (localhost:7007) は home-k8s のエンティティのページに
-Grafana のダッシュボードの一覧を出す。アプリは `backstage/` にあり、イメージは `just up` が手元で build する。
-構成と本番への反映手順は `docs/cluster/backstage.md`。
+反映手順は `docs/cluster/argocd.md`。データの永続化の設計 (StorageClass・PV・PVC) は `docs/cluster/persistence.md`。
+Backstage (localhost:7007) は home-k8s のエンティティのページに Grafana のダッシュボードの一覧を出す。
+アプリは `backstage/` にあり、イメージは `just up` が手元で build する。構成と本番への反映手順は `docs/cluster/backstage.md`。
 
 利用可能なrecipe一覧は `just --list` で確認できる。資格取得のロードマップは
 `docs/certification/roadmap.md` を参照。Claude Code のトレース・メトリクス・ログを見る
