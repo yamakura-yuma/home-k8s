@@ -1,0 +1,15 @@
+# kube-linter (just/ci.sh) の設定。対象は ArgoCD の Application が指す chart を helm template で描画した
+# manifest と、repo の素の manifest。chart は上流のもので直せないので、導入時 (2026-10-03) に出ていた
+# 違反 57 件を「現状」として検査ごとに除外してある。ここに無い検査は既定のまま有効で、新しい種類の違反は落ちる。
+# 除外の件数は検査ごと (描画した chart の数)。減らせたら該当行を消すこと。
+checks:
+  exclude:
+    - unset-cpu-requirements     # 20 件: kind の学習用で requests/limits を置いていない
+    - unset-memory-requirements  # 20 件: 同上
+    - no-read-only-root-fs       # 8 件: Prometheus・Loki・Tempo・Headlamp・otel-collector など上流の既定
+    - sensitive-host-mounts      # 3 件: prometheus node-exporter が /proc・/sys・/ をマウントする (仕様)
+    - run-as-non-root            # 2 件: 上流の既定
+    - liveness-port              # 1 件: otel-collector の probe が宣言していないポートを指す (上流の既定)
+    - readiness-port             # 1 件: 同上
+    - host-pid                   # 1 件: node-exporter (仕様)
+    - host-network               # 1 件: node-exporter (仕様)

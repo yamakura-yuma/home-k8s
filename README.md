@@ -38,7 +38,7 @@ just down                 # クラスタを削除
 just devcontainer down    # 開発用コンテナを削除
 ```
 
-公開レシピは次の 6 つだけ (`just --list`)。kind の作成や ArgoCD の導入などの内部用は `_` 付きで隠してあり、
+公開レシピは次の 7 つだけ (`just --list`)。kind の作成や ArgoCD の導入などの内部用は `_` 付きで隠してあり、
 `up` が呼ぶ。サブコマンド形のものは、引数を間違えると使い方を出して止まる。
 
 | レシピ | 中身 |
@@ -49,6 +49,7 @@ just devcontainer down    # 開発用コンテナを削除
 | `just share [grafana\|headroom\|backstage]` | Grafana (localhost:3000)、headroom のダッシュボード (localhost:8787)、Backstage (localhost:7007) のどれかを Cloudflare Quick Tunnel で一時的に公開する。Backstage は画面と TechDocs を読む経路だけを通す |
 | `just orca-exporter <install\|uninstall\|status>` | Orca の exporter を systemd のユーザーユニットとして入れる・消す・状態を見る |
 | `just devcontainer <up\|shell\|down>` | 開発用コンテナを起動する・シェルで入る・削除する |
+| `just ci` | PR のゲートと同じ静的チェック (yamllint、`helm template`、kubeconform、kube-linter)。クラスタは触らない。ツールは nix (`devShells.ci`) から入り、開発用コンテナを通さず直に走る。Actions も同じコマンド。設定は `.yamllint.yaml`・`.kube-linter.yaml` |
 
 ### ホストで打つか、コンテナで打つか
 

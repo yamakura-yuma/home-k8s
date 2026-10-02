@@ -30,5 +30,19 @@
         devShells.default = pkgs.mkShell {
           packages = tools;
         };
+
+        # `just ci` (just/ci.sh) が使う静的チェックのツール。`nix develop .#ci -c` で入る。
+        # 開発用コンテナには入れない (`nix profile install .` は packages.default だけ)。
+        devShells.ci = pkgs.mkShell {
+          packages = with pkgs; [
+            yamllint
+            yq-go
+            kubernetes-helm
+            kustomize
+            kubeconform
+            kube-linter
+            python3
+          ];
+        };
       });
 }
