@@ -296,7 +296,10 @@ kill -9 などで消されずに残っても、show-connection はその pid の
 `just share headroom` は、WSL ホストで動いている headroom (`localhost:8787`) のダッシュボードを同じ
 仕組みで公開する。Grafana と違い viewer のようなアカウントは無いので、共有のたびに使い捨てのパスワードを作り、
 caddy の basic_auth (ユーザーは `viewer`) で守る。URL・ユーザー・パスワードは起動時に表示するだけで、
-ファイルには残さない (`just show` には出ない)。
+ファイルには残さない (`just show` には出ない)。caddy の待ち受けは Grafana が 127.0.0.1:3001、headroom が
+127.0.0.1:3002、ログも別ファイル (`observe-share-headroom.log`) なので、2 つを同時に共有できる。
+caddy は同じポートに重ねて bind できてしまい、重なると 2 つのトンネルの接続が混ざるため、待ち受けの
+ポートが使用中なら起動を断る (同じ対象の `just share` を 2 つ起動したときも同じ)。
 
 headroom は同じポートでプロキシ本体 (`/v1/messages` など。手元の認証で Anthropic へ転送する) も返すので、
 8787 をそのまま出してはいけない。caddy (`just/share-headroom.Caddyfile`) は、ダッシュボードが使う読み取りの

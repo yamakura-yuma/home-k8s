@@ -16,9 +16,6 @@ log="$4"
 state="$5"
 target="$6"
 dir="$(cd "$(dirname "$0")" && pwd)"
-# cloudflared → caddy → 対象。caddy が待ち受ける 127.0.0.1 のポート
-export SHARE_PROXY_PORT=3001
-
 if ! command -v caddy >/dev/null; then
     echo "caddy が無い (flake.nix に足す前のコンテナ)。just devcontainer up を打ち直して入れる" >&2
     exit 1
@@ -35,6 +32,8 @@ grafana)
     fi
     # 前回の共有相手が今回の URL で入れないよう、共有のたびに viewer のパスワードを変える
     bash "$dir/grafana-viewer-rotate.sh" "$admin_file" "$viewer_file" "$ns"
+    # cloudflared → caddy → 対象。対象ごとに待ち受けるポートを分ける (grafana と headroom を同時に共有できる)
+    export SHARE_PROXY_PORT=3001
     caddyfile="$dir/observe-share.Caddyfile"
     health=/api/health
     user=viewer
@@ -45,6 +44,9 @@ headroom)
         echo "headroom (localhost:8787) が応答しない。headroom.cli proxy が動いているか確かめる" >&2
         exit 1
     fi
+    export SHARE_PROXY_PORT=3002
+    # ログも分ける (同じファイルだと、後から起動した側が上書きし、URL の取り違えも起きる)
+    log="${log%.log}-headroom.log"
     caddyfile="$dir/share-headroom.Caddyfile"
     health=/health
     user=viewer
@@ -60,6 +62,11 @@ headroom)
     exit 1
     ;;
 esac
+# caddy は SO_REUSEPORT で同じポートに重ねて bind できてしまい、2 つの共有の接続が混ざる。使用中なら断る
+if (exec 3<>"/dev/tcp/127.0.0.1/$SHARE_PROXY_PORT") 2>/dev/null; then
+    echo "127.0.0.1:$SHARE_PROXY_PORT が使用中 (同じ対象の just share が動いている)" >&2
+    exit 1
+fi
 
 mkdir -p "$(dirname "$log")"
 : > "$log"
