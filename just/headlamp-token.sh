@@ -34,3 +34,4 @@ mkdir -p "$(dirname "$token_file")"
 (umask 077; printf '%s' "$token" > "$token_file")
 # コンテナは root で動くので、ホストのユーザー (リポジトリの所有者) からも読めるようにする
 chown "$(stat -c %u:%g "$owner_ref")" "$token_file"
+# gate-probe: 段階 C のパスへのコメント 1 行 (ゲートの確認用)
