@@ -11,7 +11,7 @@ ArgoCD が GitHub の `yamakura-yuma/home-k8s` の `main` から同期する。v
 
 ```
 just up
-  0. kind のクラスタを作る (kind-config.yaml)
+  0. kind のクラスタを作る (kind-config.yaml)。PV の保存先ディレクトリを mkdir する
      Backstage のイメージを build して kind load する (backstage/、just/backstage.just)
   1. helm upgrade --install argocd (argo-cd chart、clusters/kind/argocd/values.yaml)
   2. Secret grafana-admin / grafana-viewer / grafana-backstage / backstage-grafana
@@ -22,6 +22,7 @@ just up
 
 Application root (clusters/kind/argocd/apps を同期する app-of-apps)
   ├── argocd          argo-cd chart          (1 と同じ chart・版・values。以後は自分自身を同期する)
+  ├── storage         clusters/kind/storage/ (StorageClass と PV。sync wave -1。persistence.md)
   ├── tempo           ┐
   ├── prometheus      │ chart + clusters/kind/observability/*-values.yaml
   ├── loki            │
@@ -37,6 +38,7 @@ Application root (clusters/kind/argocd/apps を同期する app-of-apps)
 | tempo / prometheus / loki / otel-collector / grafana | [claude-code-traces.md](../observability/claude-code-traces.md) の表 | 同左 | observability |
 | headlamp | `headlamp` (<https://kubernetes-sigs.github.io/headlamp>) | 0.45.0 | headlamp |
 | backstage | `backstage` (<https://backstage.github.io/charts>) | 2.10.2 | backstage |
+| storage | なし (マニフェストのみ) | - | なし (cluster-scoped) |
 
 子の Application は chart のリポジトリと home-k8s の 2 つをソースに持つ (multi-source)。
 home-k8s 側は `ref: values` で、chart に渡す values を `$values/clusters/kind/...` で指す。
@@ -96,7 +98,12 @@ ConfigMap は Application grafana に 2 つ目のソース (`path: clusters/kind
 
 ### 同期の順序 (sync wave)
 
-sync wave は使っていない。順序が要るのは次の 2 つで、どちらも wave なしで満たせる。
+sync wave は Application `storage` の `-1` だけ。root が子のヘルスを引き継ぐ設定 (下) があるので、
+ArgoCD は `storage` が Healthy になってから観測スタックの Application を作る。PV の保存先は
+`WaitForFirstConsumer` なので、wave が無くても PVC が Pending で待って最後はそろうが、先に置けば
+Pod が「PV が無い」でスケジュールされない時間が出ない ([persistence.md](persistence.md))。
+
+ほかに順序が要るのは次の 2 つで、どちらも wave なしで満たせる。
 
 - Grafana は Secret `grafana-admin`・`grafana-viewer`・`grafana-backstage` を、Backstage は `backstage-grafana` を読む。
   `just up` が root を apply する前に作る。Backstage のイメージも root より先に kind load する。

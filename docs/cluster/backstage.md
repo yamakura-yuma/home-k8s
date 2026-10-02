@@ -53,15 +53,15 @@ annotations:
 Grafana のプラグインは、Backstage のバックエンドのプロキシ (`/api/proxy/grafana/api`) を通して Grafana の
 API を読む。資格情報はプロキシが付けるので、ブラウザには渡らない。
 
-Grafana は永続化していないので、API で作るサービスアカウントのトークンは Pod の作り直しで消える。
-トークンは値を指定して作れないので、ホストのファイルから入れることもできない。そこで Viewer の専用
+API で作るサービスアカウントのトークンは値を指定して作れないので、ホストのファイルから入れられない
+(`grafana.db` を作り直すと消え、作り直したトークンを手で渡し直すことになる)。そこで Viewer の専用
 ユーザー `backstage` を作り、プロキシは Basic 認証で読む。
 
 1. `just up` (`just/grafana-secrets.sh`) が `~/.local/share/home-k8s/observability/grafana-backstage-password`
    を (無ければ作って) 読み、Secret `observability/grafana-backstage` と、Basic 認証の値
    (`backstage:<パスワード>` の base64) を入れた Secret `backstage/backstage-grafana` を作る。
-2. Grafana の Pod のサイドカー `viewer-user` が、ユーザー `backstage` が無ければ作り、居てパスワードが
-   Secret と違えば合わせる ([claude-code-traces.md](../observability/claude-code-traces.md) の「Grafana の認証」)。
+2. Grafana の Pod のサイドカー `viewer-user` が、Pod の起動ごとに一度だけ、ユーザー `backstage` が無ければ作り、
+   居ればパスワードを Secret の値に合わせる ([claude-code-traces.md](../observability/claude-code-traces.md) の「Grafana の認証」)。
 3. Backstage の chart が Secret `backstage-grafana` を環境変数 `GRAFANA_BASIC_AUTH` にし、`app-config.yaml`
    の `proxy.endpoints./grafana/api.headers.Authorization` が `Basic ${GRAFANA_BASIC_AUTH}` として使う。
 

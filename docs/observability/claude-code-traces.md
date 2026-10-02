@@ -149,7 +149,8 @@ export BETA_TRACING_ENDPOINT=http://localhost:4318
 ## 永続化の仕組み
 
 トレースはオブジェクトストレージではなく、Tempo の `local` backend でファイルとして
-保存する。保存先は次の 3 段でつながっている。
+保存する。保存先は次の 3 段でつながっている。StorageClass・PV・PVC の設計と運用は
+[persistence.md](../cluster/persistence.md)。
 
 1. `clusters/kind/kind-config.yaml` の `extraMounts` で、WSL2 ホストの
    `~/.local/share/home-k8s/observability` を `study-kind-worker` ノード (Docker コンテナ)
@@ -157,25 +158,29 @@ export BETA_TRACING_ENDPOINT=http://localhost:4318
    展開しないため、`${HOME}` は `just up` が sed で埋めてから `kind create cluster --config -`
    に渡している。開発用コンテナは docker.sock を共有しており、ノードは WSL2 の Docker 上で
    動くので、パスは WSL2 ホスト側のものになる。
-2. 同じノードに `home-k8s/observability-storage: "true"` のラベルを付け、Tempo の
-   `nodeSelector` でそのノードに固定する。
-3. Tempo の Pod は hostPath `/var/local/home-k8s/observability/tempo` を `/var/tempo` に
-   マウントし、`traces/` (ブロック)、`wal/`、`live-store/` をそこに書く。
+2. `clusters/kind/storage/pv-tempo.yaml` の `local` PV `tempo` が、そのノードの
+   `/var/local/home-k8s/observability/tempo` を指す。PV の `nodeAffinity` が同じノードの
+   ラベル `home-k8s/observability-storage: "true"` を指すので、Tempo の Pod はそのノードに置かれる。
+3. Tempo の StatefulSet が作る PVC `storage-tempo-0` が、PV の `claimRef` で PV `tempo` と結ばれ、
+   `/var/tempo` にマウントされる。Tempo は `traces/` (ブロック)、`wal/`、`live-store/` をそこに書く。
 
-クラスタを消しても 1 のホスト側ディレクトリは残るため、`just down` → `just up`
-のあとも同じトレースを引ける。保持期間は 14 日
+クラスタを消すと PV・PVC のオブジェクトは消えるが、1 のホスト側ディレクトリは残る。
+`just up` のあと ArgoCD が同じ名前の PV と PVC を作り直し、同じディレクトリに結び付くので、
+`just down` → `just up` のあとも同じトレースを引ける。保持期間は 14 日
 (`tempo.retention: 336h`) で、それより古いブロックは Tempo が消す。
 
-hostPath は root 所有で作られるため、initContainer が Tempo の実行ユーザー (UID 10001)
-に chown してから Tempo を起動する。その結果、ホスト側の `tempo/` 以下も UID 10001 の
-所有になる。トレースを全部消したいときは `sudo rm -rf ~/.local/share/home-k8s/observability/tempo`
-とする。
+所有者は Pod の `fsGroup` (Tempo は 10001) で kubelet が付け替える (`local` の volume は
+`fsGroup` が効く。hostPath は効かない)。ホスト側の `tempo/` 以下は UID 10001 の所有になる。
+トレースを全部消したいときは `sudo rm -rf ~/.local/share/home-k8s/observability/tempo` とし、
+`just up` を打ってディレクトリを作り直す (`local` の PV はディレクトリが先にあることが前提)。
 
-Prometheus と Loki も同じ仕組みで、同じノードに固定し、hostPath
-`/var/local/home-k8s/observability/prometheus` と `.../loki` に書く。保持期間はどちらも
-14 日 (Prometheus は `server.retention: 14d`、Loki は `limits_config.retention_period: 336h`
-と compactor の `retention_enabled`)。所有者は Prometheus が UID 65534 (nobody)、Loki が
-UID 10001 になる。PVC は使わない (kind の local-path は PVC を消すとデータも消えるため)。
+Prometheus・Loki・Grafana も同じ仕組みで、PV `prometheus`・`loki`・`grafana` がそれぞれ
+`/var/local/home-k8s/observability/prometheus`・`.../loki`・`.../grafana` を指す。保持期間は
+Prometheus・Loki とも 14 日 (Prometheus は `server.retention: 14d`、Loki は
+`limits_config.retention_period: 336h` と compactor の `retention_enabled`)。所有者は
+Prometheus が UID 65534 (nobody)、Loki が UID 10001、Grafana が GID 472 になる。
+kind 標準の StorageClass `standard` (local-path) は使わない (PVC を消すとデータも消え、
+クラスタを消せばノードの中の保存先ごと消えるため)。
 
 後で MinIO を立てて Tempo の backend を `s3` に切り替えると、オブジェクトストレージに
 保存する本番に近い構成を練習できる。
@@ -206,27 +211,33 @@ chart に Secret を作らせると同期のたびに乱数で作り直されて
 この形なら Secret の中身が変わらないので `just up` を打ち直しても Pod はそのまま残る。
 ArgoCD は Secret を名前で参照するだけで、中身は Git にも ArgoCD にも入らない。
 
+Grafana は `grafana.db` を PV に残すので、Secret の admin のパスワードを Grafana が使うのは
+DB が空の初回だけになる。そこで Grafana の Pod の initContainer `reset-admin-password` が、
+起動のたびに `grafana cli admin reset-admin-password` で DB の admin のパスワードを Secret の値に
+そろえる。Grafana のイメージは distroless で sh が無いので、同じイメージの `grafana` バイナリを
+exec 形式で直接打っている。
+
 viewer も同じく、`just up` が `grafana-viewer-password` を (無ければ作って) Secret
 `observability/grafana-viewer` (`password`) に入れる。Grafana には viewer を最初から作る設定が
-無いので、Grafana の Pod にサイドカー `viewer-user` (curl のイメージ) を足し、10 秒ごとに
-admin で `/api/users/lookup?loginOrEmail=viewer` を引いて、404 なら `/api/admin/users` で作る。
-ロールは `grafana.ini` の `users.auto_assign_org_role: Viewer` で決まる。Grafana は永続化して
-いないので Pod を作り直すと viewer は消えるが、サイドカーがそのときの Secret の値で作り直す。
-
-backstage も同じサイドカーが作る。パスワードは `just up` が `grafana-backstage-password` から Secret
-`observability/grafana-backstage` に入れる。こちらはサイドカーが 10 秒ごとに backstage 自身の資格情報で
-`/api/user` を引き、401 なら (居なければ作り、居ればパスワードを Secret の値に合わせる)。`just share` が
-作り直す viewer とは分けてあるので、共有しても Backstage は読み続けられる。Backstage 側の設定は
-[docs/cluster/backstage.md](../cluster/backstage.md)。
+無いので、Grafana の Pod にサイドカー `viewer-user` (curl のイメージ) を足し、Pod の起動ごとに一度だけ
+admin で `/api/users/lookup?loginOrEmail=viewer` を引き、居なければ `/api/admin/users` で作り、
+居れば `/api/admin/users/<id>/password` でパスワードを Secret の値に変える。
+ロールは `grafana.ini` の `users.auto_assign_org_role: Viewer` で決まる。
 Grafana のイメージは distroless で sh が無く、postStart で API を叩けないため別コンテナにした。
 
+backstage も同じサイドカーが同じ処理でそろえる。パスワードは `just up` が `grafana-backstage-password` から Secret
+`observability/grafana-backstage` に入れる。`just share` が作り直す viewer とは分けてあるので、共有しても
+Backstage は読み続けられる。Backstage 側の設定は [docs/cluster/backstage.md](../cluster/backstage.md)。
+
 viewer のパスワードは `just share` が起動のたびに作り直す (下の「別の PC から見る」)。
-サイドカーは viewer を作るだけで、パスワードは変えない。
+`just share` はファイル・Secret・動いている Grafana の 3 つを同時に変える。サイドカーの環境変数は
+Pod の起動時の値のままなので、サイドカーがそろえるのは起動時の一度だけにしてある
+(繰り返すと `just share` の変更を古い値に戻してしまう)。
 
 パスワードのファイルの所有者はホストのユーザーにしてあるので、WSL2 のシェルから `cat` しても読める。
-admin のパスワードを変えたいときはファイルを消して `just up` を打ち、Secret が変わったあとで
+admin のパスワードを変えたいときはファイルを消して (または書き換えて) `just up` を打ち、Secret が変わったあとで
 `kubectl --context kind-study-kind -n observability rollout restart deploy/grafana` とする
-(Grafana は永続化していないので、起動のたびに Secret の値で admin を作り直す)。
+(起動のたびに initContainer が DB の admin を Secret の値にそろえる)。viewer・backstage も同じ手順で変わる。
 
 開発用コンテナは `~/.local/share/home-k8s` をホストと同じパスでマウントしている。この
 マウントが無い古いコンテナで `just up` を打つと、パスワードがコンテナの中にだけ残らない
@@ -242,8 +253,8 @@ curl -u "admin:$(cat ~/.local/share/home-k8s/observability/grafana-admin-passwor
 データソース `Tempo` (uid `tempo`)・`Prometheus` (uid `prometheus`)・`Loki` (uid `loki`) は
 `datasources` の provisioning で登録しており、
 UI からは編集できない。変えるときは `grafana-values.yaml` を直して `main` に入れる
-(ArgoCD が同期する)。Grafana 自体は永続化していないので、UI で作ったダッシュボードは Pod の
-再起動で消える。
+(ArgoCD が同期する)。UI で作ったダッシュボードは `grafana.db` (PV `grafana`) に入り、
+Pod の再起動やクラスタの作り直しのあとも残る。
 
 ## 別の PC から見る
 
