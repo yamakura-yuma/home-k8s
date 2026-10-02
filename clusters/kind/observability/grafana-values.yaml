@@ -19,6 +19,8 @@ admin:
 # パスワードは `just up` が作る Secret grafana-viewer から読む。値はリポジトリに置かない。
 # サイドカーは作るだけで、パスワードを変えない。変えるのは `just share` (起動のたびに作り直す)。
 # 新しい Pod では環境変数が Secret のいまの値になるので、作り直しても最後に渡したパスワードで入れる。
+# 同じサイドカーが Backstage 用の閲覧用ユーザー backstage (パスワードは Secret grafana-backstage) も作る。
+# こちらは居てもパスワードが Secret と違えば合わせる。Secret が無いあいだは何もしない (optional)。
 # ここは chart が tpl に通すので、二重波括弧を書かないこと
 extraContainers: |
   - name: viewer-user
@@ -39,6 +41,13 @@ extraContainers: |
           secretKeyRef:
             name: grafana-viewer
             key: password
+      # Backstage が Grafana を読むための閲覧用ユーザー backstage のパスワード (`just up` が作る Secret)
+      - name: BACKSTAGE_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: grafana-backstage
+            key: password
+            optional: true
     command:
       - sh
       - -c
@@ -54,6 +63,23 @@ extraContainers: |
               | curl -sf -o /dev/null -u "$ADMIN_USER:$ADMIN_PASSWORD" \
                   -H 'Content-Type: application/json' --data-binary @- "$api/admin/users" \
               && echo "viewer を作った"
+          fi
+          # backstage は無ければ作り、居てパスワードが違えば Secret の値に合わせる
+          if [ -n "$BACKSTAGE_PASSWORD" ] && [ "$(curl -s -o /dev/null -w '%{http_code}' \
+              -u "backstage:$BACKSTAGE_PASSWORD" "$api/user")" = 401 ]; then
+            id=$(curl -sf -u "$ADMIN_USER:$ADMIN_PASSWORD" "$api/users/lookup?loginOrEmail=backstage" \
+              | sed -n 's/^{"id":\([0-9]*\),.*/\1/p')
+            if [ -n "$id" ]; then
+              printf '{"password":"%s"}' "$BACKSTAGE_PASSWORD" \
+                | curl -sf -o /dev/null -u "$ADMIN_USER:$ADMIN_PASSWORD" -X PUT \
+                    -H 'Content-Type: application/json' --data-binary @- "$api/admin/users/$id/password" \
+                && echo "backstage のパスワードを更新した"
+            else
+              printf '{"name":"backstage","login":"backstage","password":"%s"}' "$BACKSTAGE_PASSWORD" \
+                | curl -sf -o /dev/null -u "$ADMIN_USER:$ADMIN_PASSWORD" \
+                    -H 'Content-Type: application/json' --data-binary @- "$api/admin/users" \
+                && echo "backstage を作った"
+            fi
           fi
           sleep 10
         done

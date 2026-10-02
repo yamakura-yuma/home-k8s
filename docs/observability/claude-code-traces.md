@@ -183,14 +183,15 @@ UID 10001 になる。PVC は使わない (kind の local-path は PVC を消す
 ## Grafana の認証
 
 Grafana はログイン必須で、匿名アクセスは付けていない (閲覧のみの匿名も無い)。
-下の「別の PC から見る」で外に出すことがあるため。ユーザーは 2 つある。
+下の「別の PC から見る」で外に出すことがあるため。ユーザーは 3 つある。
 
 | ユーザー | ロール | 使う人 | パスワードのファイル | 表示するコマンド |
 | --- | --- | --- | --- | --- |
 | `admin` | Admin | 自分 (ダッシュボードの編集、Explore) | `grafana-admin-password` | `just show grafana-admin` |
 | `viewer` | Viewer | 共有相手 (ダッシュボードを見るだけ) | `grafana-viewer-password` | `just show grafana` |
+| `backstage` | Viewer | Backstage (ダッシュボードの一覧を読む。人は使わない) | `grafana-backstage-password` | なし |
 
-ファイルはどちらも `~/.local/share/home-k8s/observability/` (WSL2 ホスト側、パーミッション 600) に
+ファイルはどれも `~/.local/share/home-k8s/observability/` (WSL2 ホスト側、パーミッション 600) に
 置き、リポジトリには置かない。viewer はダッシュボードを見られるが、保存・編集と Explore はできない。
 
 admin のパスワードは次のように決まる。
@@ -211,6 +212,12 @@ viewer も同じく、`just up` が `grafana-viewer-password` を (無ければ�
 admin で `/api/users/lookup?loginOrEmail=viewer` を引いて、404 なら `/api/admin/users` で作る。
 ロールは `grafana.ini` の `users.auto_assign_org_role: Viewer` で決まる。Grafana は永続化して
 いないので Pod を作り直すと viewer は消えるが、サイドカーがそのときの Secret の値で作り直す。
+
+backstage も同じサイドカーが作る。パスワードは `just up` が `grafana-backstage-password` から Secret
+`observability/grafana-backstage` に入れる。こちらはサイドカーが 10 秒ごとに backstage 自身の資格情報で
+`/api/user` を引き、401 なら (居なければ作り、居ればパスワードを Secret の値に合わせる)。`just share` が
+作り直す viewer とは分けてあるので、共有しても Backstage は読み続けられる。Backstage 側の設定は
+[docs/cluster/backstage.md](../cluster/backstage.md)。
 Grafana のイメージは distroless で sh が無く、postStart で API を叩けないため別コンテナにした。
 
 viewer のパスワードは `just share` が起動のたびに作り直す (下の「別の PC から見る」)。
