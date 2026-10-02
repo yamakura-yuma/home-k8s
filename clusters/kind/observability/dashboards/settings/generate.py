@@ -2,7 +2,8 @@
 
 13 枚がほぼ同じ形なので、JSON を手で直さずにこのスクリプトを直して作り直す:
     python3 clusters/kind/observability/dashboards/settings/generate.py
-パネルの部品は lib.py。Grafana への反映は `just observe-up`。
+パネルの部品は lib.py。Grafana への反映は main に入れたあと ArgoCD が行う
+(ファイルを足したら dashboards/kustomization.yaml の files にも足す)。
 """
 import copy, json, os, sys
 sys.dont_write_bytecode = True  # lib.py の __pycache__ をリポジトリに作らない

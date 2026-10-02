@@ -221,7 +221,7 @@ Loki は同じストリームの最新の行より 1 時間以上古い行も捨
 
 ## ダッシュボード
 
-`clusters/kind/observability/dashboards/orca-orchestration.json` (`just observe-up` で入る)。
+`clusters/kind/observability/dashboards/orca-orchestration.json` (`main` に入れると ArgoCD が入れる)。
 
 | 節 | パネル | 使うデータ |
 |---|---|---|

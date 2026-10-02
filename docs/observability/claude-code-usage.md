@@ -148,4 +148,4 @@ Explore で `{service_name="claude-code"} | event_name="api_request"` のよう�
 - ダッシュボード: `clusters/kind/observability/dashboards/claude-code-usage.json`
 - データソースと相互リンク: `clusters/kind/observability/grafana-values.yaml` の `datasources`
 
-UI で直しても Pod の再起動で消えるので、JSON か values を直して `just observe-up` を打ち直す。
+UI で直しても Pod の再起動で消えるので、JSON か values を直して `main` に入れる (ArgoCD が同期する)。

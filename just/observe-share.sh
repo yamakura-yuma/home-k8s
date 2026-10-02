@@ -17,7 +17,7 @@ dir="$(cd "$(dirname "$0")" && pwd)"
 export SHARE_PROXY_PORT=3001
 
 if [ ! -s "$admin_file" ] || [ ! -s "$viewer_file" ]; then
-    echo "$admin_file か $viewer_file が無い。先に just observe-up を打つ" >&2
+    echo "$admin_file か $viewer_file が無い。先に just argocd-up を打つ" >&2
     exit 1
 fi
 if ! command -v caddy >/dev/null; then
@@ -25,7 +25,7 @@ if ! command -v caddy >/dev/null; then
     exit 1
 fi
 if ! curl -sf -o /dev/null --max-time 5 http://localhost:3000/api/health; then
-    echo "Grafana (localhost:3000) が応答しない。just observe-up を打ったか確かめる" >&2
+    echo "Grafana (localhost:3000) が応答しない。just argocd-up を打ったか確かめる" >&2
     exit 1
 fi
 # 前回の共有相手が今回の URL で入れないよう、共有のたびに viewer のパスワードを変える

@@ -9,7 +9,7 @@ password_file="$1"
 state="$2"
 
 if [ ! -s "$password_file" ]; then
-    echo "$password_file が無い。先に just observe-up を打つ" >&2
+    echo "$password_file が無い。先に just argocd-up を打つ" >&2
     exit 1
 fi
 

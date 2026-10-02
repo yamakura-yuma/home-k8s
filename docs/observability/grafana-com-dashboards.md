@@ -63,8 +63,8 @@ clusters/kind/observability/dashboards/grafana-com/
 └── claude-code/*.json    (1 枚)
 ```
 
-`just observe-up` は群のディレクトリの `*.json` をすべて `dashboards.grafana-com-<群>.<名前>.json` として
-Grafana の chart に渡す。chart は provider ごとに ConfigMap `grafana-dashboards-grafana-com-<群>` を作り、
+`dashboards/kustomization.yaml` が群のディレクトリの JSON を ConfigMap `grafana-dashboards-grafana-com-<群>` にし
+(ArgoCD の Application grafana が同期する)、chart の `dashboardsConfigMaps` が provider のディレクトリにマウントする。
 `grafana-values.yaml` の provider `grafana-com-<群>` がフォルダ「grafana.com / <群>」に置く。
 群ごとに分けているのは、ConfigMap が 1 MiB までだから (Kubernetes の 6 枚で約 480 KB)。
 
@@ -89,10 +89,12 @@ file provisioning はそのままでは読めない部分がある。
    python3 -B -m unittest discover -s clusters/kind/observability/dashboards/grafana-com
    ```
 3. `git diff` で上流の変更を読む (クエリのメトリクス名・ラベル・変数が変わっていないか)。
-4. `just observe-up` で反映し、Grafana で開いて確かめる。
+4. JSON を足したり消したりしたら `dashboards/kustomization.yaml` の `files` も直し、
+   `python3 -B -m unittest discover -s clusters/kind/observability/dashboards -p test_kustomization.py` で確かめる。
+5. `main` に入れると ArgoCD が反映する。Grafana で開いて確かめる。
 
-群を足すときは、manifest に群を足し、`grafana-values.yaml` に provider を、
-`just/observability.just` の observe-up のループに群の名前を足す。
+群を足すときは、manifest に群を足し、`grafana-values.yaml` に provider と `dashboardsConfigMaps` を、
+`dashboards/kustomization.yaml` に ConfigMap を、`test_kustomization.py` の `GROUPS` に群を足す。
 
 ## 空になるパネル
 
