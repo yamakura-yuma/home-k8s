@@ -1,0 +1,10 @@
+# kubernetes-sigs/headlamp chart の values。
+# ホストの localhost:4466 で開く (NodePort + kind の extraPortMappings)。
+service:
+  type: NodePort
+  nodePort: 30466
+
+# chart の既定は ServiceAccount headlamp に cluster-admin を付ける。眺める用途なので
+# 読み取りの権限だけにする (manifests/rbac.yaml)。ログインはこの ServiceAccount のトークンで行う
+clusterRoleBinding:
+  create: false

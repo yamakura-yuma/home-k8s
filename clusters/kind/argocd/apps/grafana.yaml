@@ -1,0 +1,35 @@
+# Grafana。chart と、ダッシュボードの ConfigMap (clusters/kind/observability/dashboards の
+# kustomization.yaml が repo の JSON から作る) を 1 つの Application で同期する。
+# ConfigMap は grafana-values.yaml の dashboardsConfigMaps で provider のディレクトリにマウントする。
+# admin と viewer のパスワードは `just grafana-secrets` が作る Secret を名前で参照する。
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://grafana-community.github.io/helm-charts
+      chart: grafana
+      targetRevision: 13.2.7
+      helm:
+        releaseName: grafana
+        valueFiles:
+          - $values/clusters/kind/observability/grafana-values.yaml
+    - repoURL: https://github.com/yamakura-yuma/home-k8s
+      targetRevision: main
+      ref: values
+      path: clusters/kind/observability/dashboards
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # ダッシュボードの ConfigMap は 256 KiB を超える。client-side apply では
+      # last-applied-configuration の注釈 (上限 256 KiB) に収まらず失敗する
+      - ServerSideApply=true

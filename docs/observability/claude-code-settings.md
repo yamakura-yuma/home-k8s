@@ -36,9 +36,9 @@ Claude Code が OpenTelemetry に何を送るかは、環境変数 (dotfiles の
 - 13 枚の JSON は `clusters/kind/observability/dashboards/settings/` にあり、同じディレクトリの
   `generate.py` (部品は `lib.py`) で作る。直すときは JSON ではなく `generate.py` を直し、
   `python3 clusters/kind/observability/dashboards/settings/generate.py` で作り直してコミットする。
-- `just observe-up` は `settings/*.json` をすべて `dashboards.settings.<名前>.json` として Grafana に渡す。
-  Grafana 側ではプロバイダ `settings` がフォルダ「Claude Code 設定項目別」に置く。ファイルを足せば
-  レシピを直さずに入る。
+- `dashboards/kustomization.yaml` が `settings/*.json` を ConfigMap `grafana-dashboards-settings` にし、
+  ArgoCD が同期する。Grafana 側ではプロバイダ `settings` がフォルダ「Claude Code 設定項目別」に置く。
+  ファイルを足したら `kustomization.yaml` の `files` にも足す (`test_kustomization.py` が突き合わせる)。
 - 「届いているか」のタイルは、その設定で増える属性ごとに期間中の件数を数える
   (Loki: `count_over_time(... | 属性!="")`、Prometheus: 系列数、Tempo: TraceQL の `count_over_time()`)。
   赤は届くはずなのに 0、灰色は「オフなので 0 が正しい」もの。

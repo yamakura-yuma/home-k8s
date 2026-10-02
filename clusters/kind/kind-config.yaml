@@ -3,7 +3,7 @@ apiVersion: kind.x-k8s.io/v1alpha4
 name: study-kind
 nodes:
   - role: control-plane
-    # 観測スタック (docs/observability/claude-code-traces.md) の受け口。
+    # 観測スタック (docs/observability/claude-code-traces.md) の受け口と、各画面。
     # NodePort はどのノードでも受けられるので、ホストへの公開は control-plane に集約する。
     extraPortMappings:
       - containerPort: 30318 # OTel Collector OTLP/HTTP
@@ -14,6 +14,16 @@ nodes:
         listenAddress: "127.0.0.1"
       - containerPort: 30300 # Grafana
         hostPort: 3000
+        listenAddress: "127.0.0.1"
+      # 画面 (docs/cluster/argocd.md)。ArgoCD・Headlamp は ArgoCD が入れる。Backstage の分も先に開けておく
+      - containerPort: 30080 # ArgoCD
+        hostPort: 8080
+        listenAddress: "127.0.0.1"
+      - containerPort: 30466 # Headlamp
+        hostPort: 4466
+        listenAddress: "127.0.0.1"
+      - containerPort: 30707 # Backstage
+        hostPort: 7007
         listenAddress: "127.0.0.1"
   - role: worker
     # Tempo・Prometheus・Loki の保存先。${HOME} は `just kind-up` が展開する (kind 自体は環境変数を展開しない)。

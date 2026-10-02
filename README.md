@@ -30,11 +30,12 @@ just devcontainer up      # イメージをbuildし、開発用コンテナを�
 just devcontainer shell   # コンテナにシェルで入る
 just kind-up              # kubeadmベースのマルチノードクラスタを起動
 kubectl --context kind-study-kind get nodes -o wide   # ノード状態を確認
-just observe-up           # OTel Collector/Tempo/Prometheus/Loki/Grafana を入れる
+just argocd-up            # ArgoCD を入れ、観測スタック (OTel Collector/Tempo/Prometheus/Loki/Grafana) と Headlamp を同期させる
+just argocd-show-admin    # ArgoCD (localhost:8080) の admin のパスワードを表示
+just headlamp-show-token  # Headlamp (localhost:4466) にログインするトークンを表示
 just observe-share        # Grafana を一時的に trycloudflare.com で公開し、URL と閲覧用 (viewer) のパスワードを表示 (Ctrl-C で停止)
 just observe-show-connection  # いまの接続先 (公開中なら公開 URL、止めていれば localhost:3000) と viewer のパスワードを表示
 just observe-show-admin   # Grafana の admin のパスワードを表示 (自分用。共有相手には渡さない)
-just observe-down         # 観測スタックを消す (トレース・メトリクス・ログはホストに残る)
 just orca-exporter-install  # Orca のオーケストレーションを観測スタックに送る exporter を systemd で常駐させる (ホストで動く例外)
 just kind-down             # クラスタを削除
 just devcontainer down    # 開発用コンテナを削除
@@ -60,6 +61,10 @@ just devcontainer down    # 開発用コンテナを削除
 kind自体は試験で問われないためクラスタの起動/削除は just で自動化しているが、
 `kubectl` は試験で直接問われるため意図的に just でラップしていない。素手で
 `kubectl --context kind-study-kind ...` を叩いて操作すること。
+
+観測スタックと Headlamp は ArgoCD が GitHub の `main` から同期する (GitOps)。values や
+ダッシュボードの変更は `main` に入れれば反映される。ArgoCD の入れ方・構成・本番のクラスタへの
+反映手順は `docs/cluster/argocd.md`。
 
 利用可能なrecipe一覧は `just --list` で確認できる。資格取得のロードマップは
 `docs/certification/roadmap.md` を参照。Claude Code のトレース・メトリクス・ログを見る

@@ -18,7 +18,7 @@ for _ in $(seq 30); do
     sleep 1
 done
 if [ -z "$id" ]; then
-    echo "Grafana に viewer が居ない。just observe-up を打ち直す (サイドカー viewer-user が作る)" >&2
+    echo "Grafana に viewer が居ない。kubectl -n argocd get application grafana で同期を確かめる (サイドカー viewer-user が作る)" >&2
     exit 1
 fi
 

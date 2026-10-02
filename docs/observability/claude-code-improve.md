@@ -75,5 +75,5 @@ curl -s -u "admin:$(cat ~/.local/share/home-k8s/observability/grafana-admin-pass
 
 ## ファイル
 
-- ダッシュボード: `clusters/kind/observability/dashboards/claude-code-improve.json` (`just observe-up` が provisioning で入れる)
+- ダッシュボード: `clusters/kind/observability/dashboards/claude-code-improve.json` (ArgoCD が ConfigMap にし、provisioning で入る)
 - 伏せ字: `clusters/kind/observability/otel-collector-values.yaml` の `transform/redact`

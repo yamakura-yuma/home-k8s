@@ -4,7 +4,8 @@
 manifest の rev を上げてこのスクリプトを打ち直す:
     python3 clusters/kind/observability/dashboards/grafana-com/fetch.py
 取得先は rev を固定した /revisions/<rev>/download (latest は使わない)。同じ rev なら何度打っても同じ
-JSON になる。Grafana への反映は `just observe-up` (群ごとに provider grafana-com-<群> を作る)。
+JSON になる。Grafana への反映は main に入れたあと ArgoCD が行う (群ごとに ConfigMap と provider grafana-com-<群>)。
+ファイルを足したり消したりしたら dashboards/kustomization.yaml の files も直す。
 """
 import json, os, re, sys, urllib.request
 
@@ -67,7 +68,7 @@ def main():
     for group, g in manifest.items():
         out = os.path.join(HERE, group)
         os.makedirs(out, exist_ok=True)
-        # manifest から外したものは消す (observe-up は群のディレクトリの *.json を全部流し込む)
+        # manifest から外したものは消す (消したら dashboards/kustomization.yaml からも外す)
         for f in os.listdir(out):
             if f.endswith(".json") and f[:-5] not in g["dashboards"]:
                 os.remove(os.path.join(out, f))

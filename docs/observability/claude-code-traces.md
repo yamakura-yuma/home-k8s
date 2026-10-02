@@ -5,6 +5,7 @@ Grafana でスパンの親子関係 (サブエージェントを含む) とし�
 同じ経路でメトリクスを Prometheus に、ログ (イベント) を Loki に入れている。
 オールインワンイメージ (`grafana/otel-lgtm`) は使わず、OTel Collector・Tempo・Prometheus・
 Loki・Grafana を別々の Helm chart で入れている。本番の構成に近い形で、部品ごとに差し替えて学べる。
+chart は ArgoCD が GitHub の `main` から同期する ([../cluster/argocd.md](../cluster/argocd.md))。
 
 ## 構成
 
@@ -85,13 +86,14 @@ Prometheus には 2 つの feature flag を付けている。
 
 ```sh
 just kind-up        # クラスタ作成 (受け口のポートと保存先のマウントも作られる)
-just observe-up     # Tempo → Prometheus → Loki → OTel Collector → Grafana の順に helm upgrade --install
+just argocd-up      # ArgoCD を入れ、Secret を作り、観測スタックと Headlamp を同期させる
+kubectl --context kind-study-kind -n argocd get applications
 kubectl --context kind-study-kind -n observability get pods -o wide
-just observe-down   # 観測スタックを消す (トレース・メトリクス・ログはホストに残る)
 ```
 
-`observe-up` は `helm upgrade --install` なので、values を変えたあとに打ち直せば反映される。
-chart のリポジトリは `--repo` で直接指定しており、`helm repo add` は不要。
+5 つの chart は ArgoCD の Application (`clusters/kind/argocd/apps/`) が入れる。chart の版は
+Application の `targetRevision`、values は上の表のファイルで、どちらも `main` に入れれば
+ArgoCD が反映する (既定で 3 分ごとに見に行く)。入れ方の詳細は [../cluster/argocd.md](../cluster/argocd.md)。
 
 Grafana は <http://localhost:3000> で開き、`admin` でログインする (パスワードは下の「Grafana の認証」)。Explore でデータソース `Tempo` を選び、
 TraceQL で `{resource.service.name="claude-code"}` や `{name="claude_code.interaction"}`
@@ -162,7 +164,7 @@ export BETA_TRACING_ENDPOINT=http://localhost:4318
    マウントし、`traces/` (ブロック)、`wal/`、`live-store/` をそこに書く。
 
 クラスタを消しても 1 のホスト側ディレクトリは残るため、`just kind-down` → `just kind-up`
-→ `just observe-up` のあとも同じトレースを引ける。保持期間は 14 日
+→ `just argocd-up` のあとも同じトレースを引ける。保持期間は 14 日
 (`tempo.retention: 336h`) で、それより古いブロックは Tempo が消す。
 
 hostPath は root 所有で作られるため、initContainer が Tempo の実行ユーザー (UID 10001)
@@ -194,16 +196,17 @@ Grafana はログイン必須で、匿名アクセスは付けていない (閲�
 
 admin のパスワードは次のように決まる。
 
-1. `just observe-up` が最初に `grafana-admin-password` を見る。無ければ `openssl rand` で
+1. `just grafana-secrets` (`just argocd-up` が先に打つ) が最初に `grafana-admin-password` を見る。無ければ `openssl rand` で
    32 文字の値を作って保存し、あればそれを使う。
 2. その値を Secret `observability/grafana-admin` (`admin-user` / `admin-password`) に
    `kubectl apply` で入れる。
 3. chart の `admin.existingSecret: grafana-admin` で、Grafana はこの Secret を環境変数として読む。
 
-chart に Secret を作らせると `observe-up` のたびに乱数で作り直されて Pod が再起動するが、
-この形なら Secret の中身が変わらないので `observe-up` を打ち直しても Pod はそのまま残る。
+chart に Secret を作らせると同期のたびに乱数で作り直されて Pod が再起動するが、
+この形なら Secret の中身が変わらないので `just grafana-secrets` を打ち直しても Pod はそのまま残る。
+ArgoCD は Secret を名前で参照するだけで、中身は Git にも ArgoCD にも入らない。
 
-viewer も同じく、`observe-up` が `grafana-viewer-password` を (無ければ作って) Secret
+viewer も同じく、`just grafana-secrets` が `grafana-viewer-password` を (無ければ作って) Secret
 `observability/grafana-viewer` (`password`) に入れる。Grafana には viewer を最初から作る設定が
 無いので、Grafana の Pod にサイドカー `viewer-user` (curl のイメージ) を足し、10 秒ごとに
 admin で `/api/users/lookup?loginOrEmail=viewer` を引いて、404 なら `/api/admin/users` で作る。
@@ -215,12 +218,12 @@ viewer のパスワードは `just observe-share` が起動のたびに作り直
 サイドカーは viewer を作るだけで、パスワードは変えない。
 
 パスワードのファイルの所有者はホストのユーザーにしてあるので、WSL2 のシェルから `cat` しても読める。
-admin のパスワードを変えたいときはファイルを消して `just observe-up` を打ち、Secret が変わったあとで
+admin のパスワードを変えたいときはファイルを消して `just grafana-secrets` を打ち、Secret が変わったあとで
 `kubectl --context kind-study-kind -n observability rollout restart deploy/grafana` とする
 (Grafana は永続化していないので、起動のたびに Secret の値で admin を作り直す)。
 
 開発用コンテナは `~/.local/share/home-k8s` をホストと同じパスでマウントしている。この
-マウントが無い古いコンテナで `observe-up` を打つと、パスワードがコンテナの中にだけ残らない
+マウントが無い古いコンテナで `just grafana-secrets` を打つと、パスワードがコンテナの中にだけ残らない
 よう止まるので、`just devcontainer down && just devcontainer up` で作り直す。
 
 API を curl で叩くときは Basic 認証を付ける。
@@ -232,8 +235,8 @@ curl -u "admin:$(cat ~/.local/share/home-k8s/observability/grafana-admin-passwor
 
 データソース `Tempo` (uid `tempo`)・`Prometheus` (uid `prometheus`)・`Loki` (uid `loki`) は
 `datasources` の provisioning で登録しており、
-UI からは編集できない。変えるときは `grafana-values.yaml` を直して `just observe-up`
-を打ち直す。Grafana 自体は永続化していないので、UI で作ったダッシュボードは Pod の
+UI からは編集できない。変えるときは `grafana-values.yaml` を直して `main` に入れる
+(ArgoCD が同期する)。Grafana 自体は永続化していないので、UI で作ったダッシュボードは Pod の
 再起動で消える。
 
 ## 別の PC から見る
@@ -326,7 +329,7 @@ Grafana Live の WebSocket もそのまま通る。設定は `just/observe-share
 ほかの方法は次の理由で採らなかった。
 
 - `root_url` を公開 URL にする: URL は起動ごとに変わるので、share のたびに Grafana を
-  再起動し、終わったら戻すためにもう一度再起動することになる。`observe-up` で不要に再起動
+  再起動し、終わったら戻すためにもう一度再起動することになる。同期で不要に再起動
   しない性質を崩し、share を強制終了すると公開 URL の設定が残る。
 - `root_url = /` (相対) にする: 短縮リンクが `invalid app URL configuration` で開けなくなる
   (Grafana 13.2.3 で確認)。
@@ -338,7 +341,7 @@ Chrome (= localhost:3000 に届かない別の PC と同じ条件) で通した�
 
 ## ダッシュボード
 
-`just observe-up` で Grafana にダッシュボード「Claude Code traces」
+Grafana にはダッシュボード「Claude Code traces」
 (<http://localhost:3000/d/claude-code-traces>) と「Claude Code usage」
 (<http://localhost:3000/d/claude-code-usage>、[claude-code-usage.md](claude-code-usage.md))
 が入る。ほかに「Claude Code improve」([claude-code-improve.md](claude-code-improve.md))、
@@ -347,16 +350,33 @@ Chrome (= localhost:3000 に届かない別の PC と同じ条件) で通した�
 内容は [playbook.md](playbook.md) の短縮版) が入る。
 上部の「Claude Code」リンク (タグ `claude-code`) で互いに行き来できる。定義は
 `clusters/kind/observability/dashboards/claude-code-traces.json` で、UI で直しても Pod の
-再起動で消えるので、変えるときは JSON を編集して `just observe-up` を打ち直す。
+再起動で消えるので、変えるときは JSON を編集して `main` に入れる (ArgoCD が ConfigMap を更新し、
+Grafana が 1 分ほどで読み直す)。
 
 ### 読み込みの仕組み
 
 chart の `dashboardProviders` で `/var/lib/grafana/dashboards/default` を読むプロバイダを
-作り、`observe-up` が `--set-file dashboards.default.<名前>.json=<JSON>` で
-JSON を values に流し込む。chart はそれを ConfigMap にしてそのディレクトリにマウントする。
-sidecar (ラベル付き ConfigMap を拾うコンテナ) は、ダッシュボードが数枚で ConfigMap を
-自分で書く必要も無いので使っていない。values に JSON を直書きしないのは、ファイルのままなら
-Grafana の Export / Import とそのまま行き来できるため。
+作る (フォルダごとに provider を分け、設定項目別と grafana.com も同じ形)。JSON は
+`clusters/kind/observability/dashboards/kustomization.yaml` の `configMapGenerator` が
+provider ごとの ConfigMap `grafana-dashboards-<provider>` にし、chart の `dashboardsConfigMaps` が
+それを `/var/lib/grafana/dashboards/<provider>` にマウントする。ConfigMap は Application grafana が
+chart と一緒に同期する。
+
+ArgoCD の Helm のソースには `--set-file` に当たるものが無く、chart の外 (repo のファイル) を
+values に読み込めない。kustomize ならファイルのまま ConfigMap にでき、provider とフォルダの
+設定も前のまま使える。sidecar (ラベル付き ConfigMap を拾うコンテナ) は、フォルダの割り当てを
+ConfigMap の注釈に移すことになり、変える所が増えるので使っていない。values に JSON を直書きしないのは、
+ファイルのままなら Grafana の Export / Import とそのまま行き来できるため。
+
+JSON を足したり消したりしたら `kustomization.yaml` の `files` も直す。書き忘れると Grafana に
+出ないので、`test_kustomization.py` で突き合わせる。
+
+```sh
+python3 -B -m unittest discover -s clusters/kind/observability/dashboards -p test_kustomization.py
+```
+
+ConfigMap は大きいもので 400 KiB を超え、client-side apply の注釈 `last-applied-configuration`
+(上限 256 KiB) に収まらない。Application grafana は `ServerSideApply=true` で同期する。
 
 ### 集計の方式
 

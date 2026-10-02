@@ -1,6 +1,6 @@
 """Orca orchestration ダッシュボード (orca-orchestration.json) を作る。JSON を手で直さずにこれを直して作り直す:
     python3 clusters/kind/observability/dashboards/orca-orchestration.py
-Grafana への反映は `just observe-up`。データの出どころと各メトリクスは docs/observability/orca-orchestration.md。"""
+Grafana への反映は main に入れたあと ArgoCD が行う。データの出どころと各メトリクスは docs/observability/orca-orchestration.md。"""
 import json, os, re
 
 PROM = {"type": "prometheus", "uid": "prometheus"}
