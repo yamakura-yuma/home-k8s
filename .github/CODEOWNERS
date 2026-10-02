@@ -19,7 +19,8 @@
 # ストレージ (StorageClass と PV)
 /clusters/kind/storage/    @yamakura-yuma
 
-# Secret を作る・回すスクリプト
+# Secret を作る・回すスクリプト (observability.just は grafana-secrets.sh の引数と、share の状態ファイルの置き場を決める)
+/just/observability.just        @yamakura-yuma
 /just/grafana-secrets.sh        @yamakura-yuma
 /just/grafana-viewer-rotate.sh  @yamakura-yuma
 /just/headlamp-token.sh         @yamakura-yuma
