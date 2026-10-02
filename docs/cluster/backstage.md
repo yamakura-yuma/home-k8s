@@ -181,5 +181,17 @@ just show backstage   # http://localhost:7007 (ゲストで入る)
 ブラウザで <http://localhost:7007> を開き、ゲストで入って `home-k8s` を開くと、Overview に
 「Grafana Dashboards」のカードが出る。
 
+TechDocs は、`home-k8s`・`knowledge-base`・`dotfiles` のページの「TechDocs」タブで本文が出ることを確かめる
+(初回は build で数秒待つ)。画面を開かずに確かめるなら、ゲストのトークンで API を引く。
+
+```sh
+tok=$(curl -s -X POST http://localhost:7007/api/auth/guest/refresh | jq -r .backstageIdentity.token)
+curl -s -H "Authorization: Bearer $tok" 'http://localhost:7007/api/catalog/entities?filter=kind=component' | jq -r '.[].metadata.name'
+for e in home-k8s knowledge-base dotfiles; do   # build させる (最後に event: finish が出る)
+  curl -s -H "Authorization: Bearer $tok" "http://localhost:7007/api/techdocs/sync/default/component/$e" | tail -n 2
+done
+curl -s -H "Authorization: Bearer $tok" http://localhost:7007/api/techdocs/static/docs/default/component/home-k8s/cluster/backstage/ | grep -o '<h1[^>]*>[^<]*'
+```
+
 マージから ArgoCD が `main` を読むまでに最大 3 分かかる。それより先に `just up` を打つと、`backstage` の
 Application がまだ無いので待ちが先に終わることがある。そのときはもう一度 `just up` を打つ。
