@@ -1,0 +1,48 @@
+# Grafana のダッシュボードの ConfigMap を repo の JSON から作る (ArgoCD の Application grafana が同期する)。
+# provider (grafana-values.yaml の dashboardProviders) ごとに ConfigMap を 1 つ作り、
+# dashboardsConfigMaps で /var/lib/grafana/dashboards/<provider> にマウントする。
+# ConfigMap は 1 MiB までなので、群を 1 つにまとめない。
+# JSON を足したり消したりしたら、ここの files も直す (test_kustomization.py が突き合わせる)。
+namespace: observability
+generatorOptions:
+  # 名前を固定し、grafana-values.yaml から名前で参照する。中身が変わると
+  # マウントしたファイルが入れ替わり、Grafana が読み直す (Pod は作り直さない)
+  disableNameSuffixHash: true
+configMapGenerator:
+  - name: grafana-dashboards-default
+    files:
+      - claude-code-improve.json
+      - claude-code-raw.json
+      - claude-code-start.json
+      - claude-code-traces.json
+      - claude-code-usage.json
+      - orca-orchestration.json
+  - name: grafana-dashboards-settings
+    files:
+      - settings/cc-setting-enable-telemetry.json
+      - settings/cc-setting-include-repository.json
+      - settings/cc-setting-include-session-id.json
+      - settings/cc-setting-log-assistant-responses.json
+      - settings/cc-setting-log-tool-content.json
+      - settings/cc-setting-log-tool-details.json
+      - settings/cc-setting-log-user-prompts.json
+      - settings/cc-setting-logs-exporter.json
+      - settings/cc-setting-metrics-exporter.json
+      - settings/cc-setting-off.json
+      - settings/cc-setting-resource-attributes.json
+      - settings/cc-setting-traces.json
+      - settings/cc-settings.json
+  - name: grafana-dashboards-grafana-com-kubernetes
+    files:
+      - grafana-com/kubernetes/k8s-system-api-server.json
+      - grafana-com/kubernetes/k8s-system-coredns.json
+      - grafana-com/kubernetes/k8s-views-global.json
+      - grafana-com/kubernetes/k8s-views-namespaces.json
+      - grafana-com/kubernetes/k8s-views-nodes.json
+      - grafana-com/kubernetes/k8s-views-pods.json
+  - name: grafana-dashboards-grafana-com-opentelemetry
+    files:
+      - grafana-com/opentelemetry/opentelemetry-collector.json
+  - name: grafana-dashboards-grafana-com-claude-code
+    files:
+      - grafana-com/claude-code/claude-code-metrics-prometheus.json

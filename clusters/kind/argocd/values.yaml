@@ -1,0 +1,34 @@
+# argoproj/argo-helm の argo-cd chart の values。
+# 初回は `just argocd-up` が helm でこの values を使って入れ、以後は Application argocd
+# (apps/argocd.yaml) が同じ chart・同じ版・同じ values で自分自身を同期する。
+# 版を上げるときは just/argocd.just と apps/argocd.yaml の両方を揃える。
+
+# ホストの localhost:8080 で開く (NodePort + kind の extraPortMappings)。
+# 127.0.0.1 にしか出さないので TLS は付けず、argocd-server を HTTP で動かす。
+configs:
+  params:
+    server.insecure: true
+  cm:
+    # root が子の Application のヘルスを引き継ぐようにする。ArgoCD は既定では
+    # Application のヘルスを評価しないので、子が Degraded でも root は Healthy のままになる
+    resource.customizations.health.argoproj.io_Application: |
+      hs = {}
+      hs.status = "Progressing"
+      hs.message = ""
+      if obj.status ~= nil and obj.status.health ~= nil then
+        hs.status = obj.status.health.status
+        if obj.status.health.message ~= nil then
+          hs.message = obj.status.health.message
+        end
+      end
+      return hs
+server:
+  service:
+    type: NodePort
+    nodePortHttp: 30080
+
+# ログインは admin だけ使う (パスワードは argocd-initial-admin-secret)。SSO も通知も使わない
+dex:
+  enabled: false
+notifications:
+  enabled: false

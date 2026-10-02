@@ -6,7 +6,7 @@ service:
   type: NodePort
   nodePort: 30300
 
-# admin のパスワードは `just observe-up` が作る Secret から読む。値はリポジトリに置かない。
+# admin のパスワードは `just grafana-secrets` が作る Secret から読む。値はリポジトリに置かない。
 # chart に Secret を作らせると upgrade のたびに乱数で作り直し、Pod が毎回再起動する。
 admin:
   existingSecret: grafana-admin
@@ -16,7 +16,7 @@ admin:
 # 共有相手に渡す閲覧用ユーザー viewer (Viewer ロール)。Grafana は永続化していないので、
 # Pod を作り直すと消える。そこで Grafana の横にサイドカーを置き、viewer が無ければ HTTP API で作る。
 # Grafana のイメージは distroless で sh が無く、postStart の exec では作れないため別コンテナにする。
-# パスワードは `just observe-up` が作る Secret grafana-viewer から読む。値はリポジトリに置かない。
+# パスワードは `just grafana-secrets` が作る Secret grafana-viewer から読む。値はリポジトリに置かない。
 # サイドカーは作るだけで、パスワードを変えない。変えるのは `just observe-share` (起動のたびに作り直す)。
 # 新しい Pod では環境変数が Secret のいまの値になるので、作り直しても最後に渡したパスワードで入れる。
 # ここは chart が tpl に通すので、二重波括弧を書かないこと
@@ -153,8 +153,8 @@ plugins:
   - yesoreyeram-infinity-datasource@4.0.0
 
 # ダッシュボードは JSON をリポジトリに置き、provisioning で読み込む。
-# 中身は `just observe-up` が --set-file で dashboards.default.<名前>.json に流し込む
-# (chart が ConfigMap にして下の path へマウントする)。
+# JSON は dashboards/kustomization.yaml が provider ごとの ConfigMap にし (ArgoCD の Application grafana が
+# 同期する)、下の dashboardsConfigMaps が /var/lib/grafana/dashboards/<provider> にマウントする。
 dashboardProviders:
   dashboardproviders.yaml:
     apiVersion: 1
@@ -167,8 +167,7 @@ dashboardProviders:
         allowUiUpdates: true
         options:
           path: /var/lib/grafana/dashboards/default
-      # 設定項目 (環境変数) ごとのダッシュボード。dashboards/settings/*.json を
-      # `just observe-up` が dashboards.settings.<名前>.json に流し込む
+      # 設定項目 (環境変数) ごとのダッシュボード。dashboards/settings/*.json
       - name: settings
         orgId: 1
         type: file
@@ -179,9 +178,8 @@ dashboardProviders:
         options:
           path: /var/lib/grafana/dashboards/settings
       # grafana.com の公開ダッシュボード (dashboards/grafana-com/、docs/observability/grafana-com-dashboards.md)。
-      # 上の 2 つとは混ぜず、群ごとに provider とフォルダを分ける。chart は provider ごとに ConfigMap を
-      # 1 つ作り、ConfigMap は 1 MiB までなので、群を 1 つにまとめると大きくなりすぎる。
-      # JSON は fetch.py が作り、`just observe-up` が dashboards.grafana-com-<群>.<名前>.json に流し込む
+      # 上の 2 つとは混ぜず、群ごとに provider とフォルダを分ける。ConfigMap は provider ごとに 1 つで、
+      # ConfigMap は 1 MiB までなので、群を 1 つにまとめると大きくなりすぎる。JSON は fetch.py が作る
       - name: grafana-com-kubernetes
         orgId: 1
         type: file
@@ -209,3 +207,11 @@ dashboardProviders:
         allowUiUpdates: true
         options:
           path: /var/lib/grafana/dashboards/grafana-com-claude-code
+
+# provider の名前 → ConfigMap の名前 (dashboards/kustomization.yaml の configMapGenerator)
+dashboardsConfigMaps:
+  default: grafana-dashboards-default
+  settings: grafana-dashboards-settings
+  grafana-com-kubernetes: grafana-dashboards-grafana-com-kubernetes
+  grafana-com-opentelemetry: grafana-dashboards-grafana-com-opentelemetry
+  grafana-com-claude-code: grafana-dashboards-grafana-com-claude-code

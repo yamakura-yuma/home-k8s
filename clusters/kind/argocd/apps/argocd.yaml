@@ -1,0 +1,28 @@
+# ArgoCD 自身。`just argocd-up` が helm で入れたリリース argocd を、同じ chart・版・values で引き継ぐ。
+# 版は just/argocd.just の argocd_chart_version と揃える
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://argoproj.github.io/argo-helm
+      chart: argo-cd
+      targetRevision: 10.9.6
+      helm:
+        releaseName: argocd
+        valueFiles:
+          - $values/clusters/kind/argocd/values.yaml
+    - repoURL: https://github.com/yamakura-yuma/home-k8s
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      # 自分自身を消すと戻せないので、ArgoCD 本体だけは prune しない (要らなくなったものは手で消す)
+      prune: false
+      selfHeal: true

@@ -1,0 +1,31 @@
+# Headlamp (クラスタの状態を眺める Web UI)。localhost:4466 で開く。
+# 操作の練習は引き続き kubectl を素手で叩く。Headlamp は読み取り専用の ServiceAccount で入る
+# (clusters/kind/headlamp/rbac.yaml)。ログインのトークンは `just headlamp-token` が作る。
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: headlamp
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://kubernetes-sigs.github.io/headlamp
+      chart: headlamp
+      targetRevision: 0.45.0
+      helm:
+        releaseName: headlamp
+        valueFiles:
+          - $values/clusters/kind/headlamp/values.yaml
+    - repoURL: https://github.com/yamakura-yuma/home-k8s
+      targetRevision: main
+      ref: values
+      path: clusters/kind/headlamp/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: headlamp
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

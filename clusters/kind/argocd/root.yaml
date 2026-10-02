@@ -1,0 +1,20 @@
+# app-of-apps の root。`just argocd-up` が一度だけ apply する。
+# apps/ にある子の Application (ArgoCD 自身・観測スタック・Headlamp) を GitHub の main から同期する。
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/yamakura-yuma/home-k8s
+    targetRevision: main
+    path: clusters/kind/argocd/apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
