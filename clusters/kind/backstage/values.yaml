@@ -1,0 +1,30 @@
+# backstage/charts の backstage chart の values。
+# ホストの localhost:7007 で開く (NodePort + kind の extraPortMappings)。
+# イメージは repo の backstage/ から `just up` が手元で build して kind load したもの。
+# レジストリから pull しないので、タグは固定して pullPolicy は Never にする。
+# タグを変えるときは just/backstage.just の backstage_image と揃える。
+backstage:
+  image:
+    registry: ""
+    repository: home-k8s-backstage
+    tag: "0.1.0"
+    pullPolicy: Never
+
+  # イメージの app-config.yaml に、下の appConfig (chart が ConfigMap にする) を重ねる
+  args: ["--config", "app-config.yaml"]
+
+  # GRAFANA_BASIC_AUTH (Grafana の閲覧用ユーザー backstage の資格情報)。`just up` が作る Secret を名前で参照する
+  extraEnvVarsSecrets:
+    - backstage-grafana
+
+  appConfig:
+    catalog:
+      # home-k8s の catalog-info.yaml。ArgoCD と同じく GitHub の main を正本にする
+      locations:
+        - type: url
+          target: https://github.com/yamakura-yuma/home-k8s/blob/main/catalog-info.yaml
+
+service:
+  type: NodePort
+  nodePorts:
+    backend: 30707

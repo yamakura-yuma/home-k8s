@@ -1,0 +1,24 @@
+# Backstage のカタログに載せる home-k8s のエンティティ。Backstage (localhost:7007) が GitHub の main から読む
+# (clusters/kind/backstage/values.yaml の catalog.locations)。
+# エンティティのページには、grafana/dashboard-selector に合う Grafana のダッシュボードの一覧が出る。
+# セレクタはダッシュボードの JSON の tags を見る。いま repo が Grafana に入れるダッシュボードはすべてこの 4 つの
+# どれかのタグを持つので、全部が出る。書き方は docs/cluster/backstage.md
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: home-k8s
+  description: kind クラスタで Kubernetes を学ぶ環境と、Claude Code・Orca の観測スタック
+  annotations:
+    github.com/project-slug: yamakura-yuma/home-k8s
+    grafana/dashboard-selector: "tags @> 'claude-code' || tags @> 'claude-code-setting' || tags @> 'Kubernetes' || tags @> 'opentelemetry'"
+  links:
+    - url: http://localhost:3000
+      title: Grafana
+    - url: http://localhost:8080
+      title: ArgoCD
+    - url: http://localhost:4466
+      title: Headlamp
+spec:
+  type: service
+  lifecycle: experimental
+  owner: user:yamakura-yuma

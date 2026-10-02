@@ -4,6 +4,7 @@
 レシピは実行せず `just --dry-run` / `just --list` の出力だけを見る (クラスタにもコンテナにも触れない)。
 `just` が無い環境では飛ばす。
 """
+import re
 import shutil
 import subprocess
 import sys
@@ -32,6 +33,7 @@ class Recipes(unittest.TestCase):
             "grafana-admin": "grafana-admin-password",
             "argocd": "argocd-initial-admin-secret",
             "headlamp": "headlamp/token",
+            "backstage": "localhost:7007",
         }
         for target, marker in expect.items():
             out = just("--dry-run", "show", target).stderr
@@ -45,11 +47,21 @@ class Recipes(unittest.TestCase):
 
     def test_up_runs_in_order(self):
         out = just("--dry-run", "up").stderr
-        steps = ["kind create cluster", "helm upgrade --install argocd", "grafana-secrets.sh",
+        steps = ["kind create cluster", "docker build -t home-k8s-backstage:", "kind load docker-image home-k8s-backstage:",
+                 "helm upgrade --install argocd", "grafana-secrets.sh",
                  "argocd/root.yaml", "argocd-wait.sh", "headlamp-token.sh"]
         pos = [out.find(step) for step in steps]
         self.assertNotIn(-1, pos, out)
         self.assertEqual(pos, sorted(pos))
+
+    def test_backstage_image_tag_matches_values(self):
+        # kind load するイメージのタグと、chart が使うタグ (pull しない) がずれると Pod が起動しない
+        image = re.search(r"docker build -t (\S+) backstage", just("--dry-run", "up").stderr).group(1)
+        values = (ROOT / "clusters/kind/backstage/values.yaml").read_text()
+        repo = re.search(r"repository: (\S+)", values).group(1)
+        tag = re.search(r'tag: "([^"]+)"', values).group(1)
+        self.assertEqual(image, f"{repo}:{tag}")
+        self.assertIn("pullPolicy: Never", values)
 
     def test_orca_exporter_passes_action(self):
         for action in ["install", "uninstall", "status"]:
