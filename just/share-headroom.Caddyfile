@@ -1,0 +1,26 @@
+# just share headroom が cloudflared と headroom (localhost:8787) の間に挟むリバースプロキシ。
+# headroom は同じポートでプロキシ本体 (/v1/messages など。手元の Anthropic の認証を使って転送する) と
+# ダッシュボードを返すので、8787 をそのまま出すとプロキシ本体まで外から使われる。
+# ここでは認証 (basic_auth) を通った、ダッシュボードが使う読み取りの GET だけを通し、残りは 404 にする。
+# 設定の変更 (POST /settings、/dashboard/settings) や /stats/reset、/cache/clear も通さない。
+{
+	admin off
+	auto_https off
+}
+
+http://:{$SHARE_PROXY_PORT} {
+	bind 127.0.0.1
+	@dashboard {
+		method GET HEAD
+		path /dashboard /health /stats /stats-history /stats-lifetime /transformations/feed /favicon.ico
+	}
+	handle @dashboard {
+		basic_auth {
+			{$SHARE_USER} {$SHARE_PASSWORD_HASH}
+		}
+		reverse_proxy localhost:8787
+	}
+	handle {
+		respond 404
+	}
+}

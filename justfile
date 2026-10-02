@@ -58,9 +58,10 @@ show what="":
     @{{ if what =~ '^(|backstage)$' { 'echo "  URL:      http://localhost:7007"' } else { "" } }}
     @{{ if what =~ '^(|backstage)$' { 'echo "  ログイン: ゲスト"' } else { "" } }}
 
-# viewer のパスワードを作り直してから公開し、URL が開けるようになった時点で URL と viewer の資格情報を表示する。
-# Ctrl-C で止めれば URL は無効になる。
+# grafana は viewer のパスワードを作り直してから、headroom は使い捨てのパスワードを作って公開する。
+# URL が開けるようになった時点で URL と資格情報を表示する。Ctrl-C で止めれば URL は無効になる。
 
-# Grafana (localhost:3000) だけを Cloudflare Quick Tunnel で一時公開する
-share:
-    @bash just/observe-share.sh "{{grafana_password_file}}" "{{grafana_viewer_password_file}}" {{observe_ns}} "{{share_log_file}}" "{{share_state_file}}"
+# localhost のサービスを Cloudflare Quick Tunnel で一時公開する (what: grafana (localhost:3000) | headroom (localhost:8787))
+share what="grafana":
+    {{ if what =~ '^(grafana|headroom)$' { "" } else { error("usage: just share [grafana|headroom]") } }}
+    @bash just/observe-share.sh "{{grafana_password_file}}" "{{grafana_viewer_password_file}}" {{observe_ns}} "{{share_log_file}}" "{{share_state_file}}" {{what}}
