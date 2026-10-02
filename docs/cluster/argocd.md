@@ -124,6 +124,8 @@ ArgoCD は `main` しか見ないので、マージ前の変更は次のよう�
 
 1. 作業ブランチから検証用のブランチを切り、`clusters/kind/argocd` の中の `targetRevision: main` を
    そのブランチ名に置き換えてコミットし、push する (マージしない)。
-2. 検証用のクラスタ (別の名前・別の hostPort の kind-config) で、検証用のブランチを checkout して
-   `HOME_K8S_KUBE_CONTEXT=kind-<名前> just up` を打つ (`kube_context` の既定は `kind-study-kind`。`up`・`down` が作る・消す kind のクラスタは、この context の `kind-` を除いた名前)。
+2. 検証用のクラスタを、別の名前・別の hostPort の kind-config で先に `kind create cluster --name <名前> --config <設定>` で作る
+   (`up` は標準の kind-config で作るので、動いているクラスタと hostPort がぶつかる)。検証用のブランチを checkout して
+   `HOME_K8S_KUBE_CONTEXT=kind-<名前> just up` を打つ。作成済みのクラスタは作り直さず、ArgoCD の導入から進む
+   (`kube_context` の既定は `kind-study-kind`。`up`・`down` が作る・消す kind のクラスタは、この context の `kind-` を除いた名前)。
 3. 終わったら検証用のブランチとクラスタを消す。
