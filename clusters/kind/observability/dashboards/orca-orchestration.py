@@ -78,7 +78,7 @@ def by_name(name, props):
 panels.append({"id": pid(), "type": "text", "title": "このダッシュボードの使い方",
                "gridPos": {"x": 0, "y": 0, "w": 24, "h": 7},
                "options": {"mode": "markdown", "content": """coordinator が Orca でワーカーをどう回したか (Run → Task → ワーカー (Dispatch) → メッセージ) と、**手戻り** (追加指示、worker_done までの時間、拒否・user_takeover) を見る。
-データはホストの `orca-exporter` (systemd のユーザーユニット) が 30 秒ごとに `orca orchestration ... --json` を読んで送る。止まっていたら `just orca-exporter-status`。詳しくはリポジトリの `docs/observability/orca-orchestration.md`、困りごと別の見方は `playbook.md` の「手戻りを減らす」。
+データはホストの `orca-exporter` (systemd のユーザーユニット) が 30 秒ごとに `orca orchestration ... --json` を読んで送る。止まっていたら `just orca-exporter status`。詳しくはリポジトリの `docs/observability/orca-orchestration.md`、困りごと別の見方は `playbook.md` の「手戻りを減らす」。
 
 - **追加指示** = coordinator からワーカーへの、返事ではないメッセージ (`orca orchestration send` の訂正・追加依頼)。`ask` への返事は数えない。**0 が理想**。1 以上は最初の依頼 (spec) に足りないものがあった印
 - 数字は Orca にいま残っている Run が元。右上の期間は「その期間に**出した**ワーカー」で絞る (メッセージの推移は送った時刻で絞る)
@@ -102,7 +102,7 @@ stat("拒否された worker_done", "Orca が受け取らなかった worker_don
      thresholds=[{"color": "green", "value": None}, {"color": "red", "value": 1}], dy=4)
 stat("user_takeover", "端末を人が引き取った (release されずに残った) ワーカー。多いのは、完了後に人が確かめる運用か、ワーカーが止まって人が入った印", 8, 8,
      prom("A", f'count(last_over_time(orca_dispatch_info{{{W}, orca_release_retained_reason="user_takeover"}}[15m]) {IN_RANGE}) or vector(0)'), decimals=0, dy=4)
-stat("exporter の最終送信", "orca-exporter が最後に Orca を読んで送れた時刻からの経過。数分以上なら `just orca-exporter-status` を見る", 16, 8,
+stat("exporter の最終送信", "orca-exporter が最後に Orca を読んで送れた時刻からの経過。数分以上なら `just orca-exporter status` を見る", 16, 8,
      prom("A", 'time() - max(orca_exporter_last_success_seconds)'), unit="s",
      thresholds=[{"color": "green", "value": None}, {"color": "orange", "value": 120}, {"color": "red", "value": 600}], dy=4)
 y[0] += 8

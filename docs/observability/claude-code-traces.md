@@ -85,8 +85,7 @@ Prometheus には 2 つの feature flag を付けている。
 ホストでもコンテナ (`just devcontainer shell`) の中でも打てる。ホストで打つと自動で開発用コンテナの中で実行される (README の「ホストで打つか、コンテナで打つか」)。
 
 ```sh
-just kind-up        # クラスタ作成 (受け口のポートと保存先のマウントも作られる)
-just argocd-up      # ArgoCD を入れ、Secret を作り、観測スタックと Headlamp を同期させる
+just up   # クラスタ作成 (受け口のポートと保存先のマウントも作られる)、ArgoCD の導入、Secret の作成、観測スタックと Headlamp の同期
 kubectl --context kind-study-kind -n argocd get applications
 kubectl --context kind-study-kind -n observability get pods -o wide
 ```
@@ -155,7 +154,7 @@ export BETA_TRACING_ENDPOINT=http://localhost:4318
 1. `clusters/kind/kind-config.yaml` の `extraMounts` で、WSL2 ホストの
    `~/.local/share/home-k8s/observability` を `study-kind-worker` ノード (Docker コンテナ)
    の `/var/local/home-k8s/observability` にマウントする。kind は設定ファイル中の環境変数を
-   展開しないため、`${HOME}` は `just kind-up` が sed で埋めてから `kind create cluster --config -`
+   展開しないため、`${HOME}` は `just up` が sed で埋めてから `kind create cluster --config -`
    に渡している。開発用コンテナは docker.sock を共有しており、ノードは WSL2 の Docker 上で
    動くので、パスは WSL2 ホスト側のものになる。
 2. 同じノードに `home-k8s/observability-storage: "true"` のラベルを付け、Tempo の
@@ -163,8 +162,8 @@ export BETA_TRACING_ENDPOINT=http://localhost:4318
 3. Tempo の Pod は hostPath `/var/local/home-k8s/observability/tempo` を `/var/tempo` に
    マウントし、`traces/` (ブロック)、`wal/`、`live-store/` をそこに書く。
 
-クラスタを消しても 1 のホスト側ディレクトリは残るため、`just kind-down` → `just kind-up`
-→ `just argocd-up` のあとも同じトレースを引ける。保持期間は 14 日
+クラスタを消しても 1 のホスト側ディレクトリは残るため、`just down` → `just up`
+のあとも同じトレースを引ける。保持期間は 14 日
 (`tempo.retention: 336h`) で、それより古いブロックは Tempo が消す。
 
 hostPath は root 所有で作られるため、initContainer が Tempo の実行ユーザー (UID 10001)
@@ -188,25 +187,25 @@ Grafana はログイン必須で、匿名アクセスは付けていない (閲�
 
 | ユーザー | ロール | 使う人 | パスワードのファイル | 表示するコマンド |
 | --- | --- | --- | --- | --- |
-| `admin` | Admin | 自分 (ダッシュボードの編集、Explore) | `grafana-admin-password` | `just observe-show-admin` |
-| `viewer` | Viewer | 共有相手 (ダッシュボードを見るだけ) | `grafana-viewer-password` | `just observe-show-connection` |
+| `admin` | Admin | 自分 (ダッシュボードの編集、Explore) | `grafana-admin-password` | `just show grafana-admin` |
+| `viewer` | Viewer | 共有相手 (ダッシュボードを見るだけ) | `grafana-viewer-password` | `just show grafana` |
 
 ファイルはどちらも `~/.local/share/home-k8s/observability/` (WSL2 ホスト側、パーミッション 600) に
 置き、リポジトリには置かない。viewer はダッシュボードを見られるが、保存・編集と Explore はできない。
 
 admin のパスワードは次のように決まる。
 
-1. `just grafana-secrets` (`just argocd-up` が先に打つ) が最初に `grafana-admin-password` を見る。無ければ `openssl rand` で
+1. `just up` の中の Secret の作成 (`just/grafana-secrets.sh`) が最初に `grafana-admin-password` を見る。無ければ `openssl rand` で
    32 文字の値を作って保存し、あればそれを使う。
 2. その値を Secret `observability/grafana-admin` (`admin-user` / `admin-password`) に
    `kubectl apply` で入れる。
 3. chart の `admin.existingSecret: grafana-admin` で、Grafana はこの Secret を環境変数として読む。
 
 chart に Secret を作らせると同期のたびに乱数で作り直されて Pod が再起動するが、
-この形なら Secret の中身が変わらないので `just grafana-secrets` を打ち直しても Pod はそのまま残る。
+この形なら Secret の中身が変わらないので `just up` を打ち直しても Pod はそのまま残る。
 ArgoCD は Secret を名前で参照するだけで、中身は Git にも ArgoCD にも入らない。
 
-viewer も同じく、`just grafana-secrets` が `grafana-viewer-password` を (無ければ作って) Secret
+viewer も同じく、`just up` が `grafana-viewer-password` を (無ければ作って) Secret
 `observability/grafana-viewer` (`password`) に入れる。Grafana には viewer を最初から作る設定が
 無いので、Grafana の Pod にサイドカー `viewer-user` (curl のイメージ) を足し、10 秒ごとに
 admin で `/api/users/lookup?loginOrEmail=viewer` を引いて、404 なら `/api/admin/users` で作る。
@@ -214,16 +213,16 @@ admin で `/api/users/lookup?loginOrEmail=viewer` を引いて、404 なら `/ap
 いないので Pod を作り直すと viewer は消えるが、サイドカーがそのときの Secret の値で作り直す。
 Grafana のイメージは distroless で sh が無く、postStart で API を叩けないため別コンテナにした。
 
-viewer のパスワードは `just observe-share` が起動のたびに作り直す (下の「別の PC から見る」)。
+viewer のパスワードは `just share` が起動のたびに作り直す (下の「別の PC から見る」)。
 サイドカーは viewer を作るだけで、パスワードは変えない。
 
 パスワードのファイルの所有者はホストのユーザーにしてあるので、WSL2 のシェルから `cat` しても読める。
-admin のパスワードを変えたいときはファイルを消して `just grafana-secrets` を打ち、Secret が変わったあとで
+admin のパスワードを変えたいときはファイルを消して `just up` を打ち、Secret が変わったあとで
 `kubectl --context kind-study-kind -n observability rollout restart deploy/grafana` とする
 (Grafana は永続化していないので、起動のたびに Secret の値で admin を作り直す)。
 
 開発用コンテナは `~/.local/share/home-k8s` をホストと同じパスでマウントしている。この
-マウントが無い古いコンテナで `just grafana-secrets` を打つと、パスワードがコンテナの中にだけ残らない
+マウントが無い古いコンテナで `just up` を打つと、パスワードがコンテナの中にだけ残らない
 よう止まるので、`just devcontainer down && just devcontainer up` で作り直す。
 
 API を curl で叩くときは Basic 認証を付ける。
@@ -245,7 +244,7 @@ Cloudflare Quick Tunnel で Grafana だけを一時的に公開する。Cloudfla
 `https://<ランダム>.trycloudflare.com` の URL が発行される。次を打つ (ホストから打ってよい)。
 
 ```
-$ just observe-share
+$ just share
 Grafana を公開しました（Ctrl-C で停止）
   URL:        https://xxxx.trycloudflare.com
   ユーザー:   viewer
@@ -255,27 +254,27 @@ Grafana を公開しました（Ctrl-C で停止）
 
 表示された URL・ユーザー・パスワードの 3 行を別の PC に渡し、ブラウザで開いてログインする。
 表示するのは閲覧用の `viewer` で、admin の資格情報は出さない (自分で編集するときは
-`just observe-show-admin` で admin のパスワードを見る)。
+`just show grafana-admin` で admin のパスワードを見る)。
 Ctrl-C で止めると URL は無効になり、次に打つと別の URL になる。
 
-observe-share は公開の前に viewer のパスワードを作り直す (`just/grafana-viewer-rotate.sh`)。
+`just share` は公開の前に viewer のパスワードを作り直す (`just/grafana-viewer-rotate.sh`)。
 ファイルと Secret `grafana-viewer` を新しい値にし、動いている Grafana の viewer のパスワードを
 `/api/admin/users/<id>/password` で変え、`/api/admin/users/<id>/logout` でログイン中のセッションも
 切る。前の共有相手は、次の共有の URL を知っても前のパスワードでは入れない。
 
-あとから接続先を確かめるときは、別のターミナルで `just observe-show-connection` を打つ。
+あとから接続先を確かめるときは、別のターミナルで `just show grafana` を打つ。
 share が動いていれば同じ URL を、止まっていれば `http://localhost:3000` と「share は停止中」を、
 viewer のユーザー・パスワードと一緒に表示する。
 
 ```
-$ just observe-show-connection
-Grafana は公開中 (just observe-share)
+$ just show grafana
+Grafana は公開中 (just share)
   URL:        https://xxxx.trycloudflare.com
   ユーザー:   viewer
   パスワード: <値>
 ```
 
-observe-share は URL が応答した時点で、URL と cloudflared の pid を
+`just share` は URL が応答した時点で、URL と cloudflared の pid を
 `~/.local/share/home-k8s/observability/observe-share.state` に書き、止めるときに消す。
 kill -9 などで消されずに残っても、show-connection はその pid の cloudflared が生きているかを
 確かめるので、無効になった古い URL は出さない。
@@ -287,7 +286,7 @@ kill -9 などで消されずに残っても、show-connection はその pid の
 - URL を知っていれば誰でもログイン画面まで来られる。URL と viewer のパスワードは見せたい相手にだけ渡す。
   admin のパスワードは渡さない。
 - viewer は自分のプロフィールからパスワードを変えられる。共有相手が変えると、その共有のあいだ
-  自分も viewer では入れなくなる (admin では入れる)。次の observe-share で作り直される。
+  自分も viewer では入れなくなる (admin では入れる)。次の `just share` で作り直される。
 - 使い終わったら必ず止める。開きっぱなしにしない。
 - Quick Tunnel は試用向けで、稼働の保証は無い (同時リクエスト数の上限もある)。
   長く使う場合は Cloudflare のアカウントで名前付きトンネルと Access を組む。
@@ -335,7 +334,7 @@ Grafana Live の WebSocket もそのまま通る。設定は `just/observe-share
   (Grafana 13.2.3 で確認)。
 
 公開中も localhost:3000 は従来どおり Grafana に直接つながり、caddy を通らない。
-`observe-share` でブラウザから確かめた項目 (ログイン、2 つのダッシュボード、ダッシュボード
+`just share` でブラウザから確かめた項目 (ログイン、2 つのダッシュボード、ダッシュボード
 リンク、ログ→トレース、短縮リンク) は、`--network host` を付けないコンテナのヘッドレス
 Chrome (= localhost:3000 に届かない別の PC と同じ条件) で通した。
 

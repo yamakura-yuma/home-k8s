@@ -1,4 +1,4 @@
-# just observe-share が cloudflared と Grafana の間に挟むリバースプロキシ。
+# just share が cloudflared と Grafana の間に挟むリバースプロキシ。
 # Grafana の root_url は http://localhost:3000/ のままなので、短縮リンク (/goto/<uid>) などの
 # リダイレクトは Location: http://localhost:3000/... を返す。別の PC のブラウザではそれが
 # その PC 自身を指して開けないため、ここで相対パスに書き換える。

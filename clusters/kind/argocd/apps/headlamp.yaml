@@ -1,6 +1,6 @@
 # Headlamp (クラスタの状態を眺める Web UI)。localhost:4466 で開く。
 # 操作の練習は引き続き kubectl を素手で叩く。Headlamp は読み取り専用の ServiceAccount で入る
-# (clusters/kind/headlamp/rbac.yaml)。ログインのトークンは `just headlamp-token` が作る。
+# (clusters/kind/headlamp/rbac.yaml)。ログインのトークンは `just up` が作る。
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

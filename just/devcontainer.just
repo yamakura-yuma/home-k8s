@@ -3,8 +3,13 @@
 #
 # `just devcontainer up` / `just devcontainer shell` / `just devcontainer down`
 # の形式で呼び出す。
+
+# up はイメージを build して起動し、nix profile install も実行する。shell はコンテナにシェルで入り、down はコンテナを削除する。
+
+# 開発用コンテナを操作する (action: up | shell | down)
 devcontainer action:
     #!/usr/bin/env bash
+    {{ if action =~ '^(up|shell|down)$' { "" } else { error("usage: just devcontainer <up|shell|down>") } }}
     set -euo pipefail
     name=home-k8s-dev
     root="{{justfile_directory()}}"
@@ -15,7 +20,7 @@ devcontainer action:
     case "{{action}}" in
       up)
         # ~/.local/share/home-k8s には Grafana の admin パスワードを置く
-        # (`just grafana-secrets` が書く)。コンテナを作り直しても残るようホストと共有する。
+        # (`just up` が書く)。コンテナを作り直しても残るようホストと共有する。
         mkdir -p "$HOME/.kube" "$HOME/.local/share/home-k8s"
         docker build -t "$name" "$root"
         if docker ps -aq -f "name=^${name}$" | grep -q .; then
@@ -45,9 +50,5 @@ devcontainer action:
         ;;
       down)
         docker rm -f "$name" 2>/dev/null || echo "コンテナは起動していません"
-        ;;
-      *)
-        echo "usage: just devcontainer <up|shell|down>" >&2
-        exit 1
         ;;
     esac

@@ -1,7 +1,7 @@
 # Grafana。chart と、ダッシュボードの ConfigMap (clusters/kind/observability/dashboards の
 # kustomization.yaml が repo の JSON から作る) を 1 つの Application で同期する。
 # ConfigMap は grafana-values.yaml の dashboardsConfigMaps で provider のディレクトリにマウントする。
-# admin と viewer のパスワードは `just grafana-secrets` が作る Secret を名前で参照する。
+# admin と viewer のパスワードは `just up` が作る Secret を名前で参照する。
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

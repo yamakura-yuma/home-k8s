@@ -21,9 +21,9 @@ orca CLI (relay 経由) --読むだけ--> orca_exporter.py (systemd のユーザ
 ホスト (WSL) の、Orca の端末で打つ。
 
 ```sh
-just orca-exporter-install    # ~/.config/systemd/user/orca-exporter.service を置いて起動 (入れ直しも同じ)
-just orca-exporter-status     # systemd の状態、直近のログ、送った件数、最後に送れた時刻
-just orca-exporter-uninstall  # 止めて消す。送信済みの状態は残す (消すと入れ直したときに二重に送る)
+just orca-exporter install    # ~/.config/systemd/user/orca-exporter.service を置いて起動 (入れ直しも同じ)
+just orca-exporter status     # systemd の状態、直近のログ、送った件数、最後に送れた時刻
+just orca-exporter uninstall  # 止めて消す。送信済みの状態は残す (消すと入れ直したときに二重に送る)
 ```
 
 - ユニットはこの checkout の `orca_exporter.py` を直接指す。worktree で入れたら、main に戻ってから入れ直す。
@@ -37,7 +37,7 @@ just orca-exporter-uninstall  # 止めて消す。送信済みの状態は残す
 ### ホストで動かす理由 (開発用コンテナへの転送の例外)
 
 このリポジトリの just レシピは、ホストで打っても開発用コンテナ `home-k8s-dev` の中で動く (README の
-「ホストで打つか、コンテナで打つか」)。`orca-exporter-*` の 3 つだけは例外で、ホストで動かす。
+「ホストで打つか、コンテナで打つか」)。`just orca-exporter` だけは例外で、ホストで動かす。
 
 - `orca` CLI は `~/.orca-relay/bin/orca` のラッパで、Orca が WSL に置いた relay の Unix ソケットと
   資格情報 (`~/.orca-remote/relay-<版>/`) を使う。開発用コンテナにはこれが無く、マウントしても

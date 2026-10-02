@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# just argocd-up の後段。root と子の Application がすべて Synced/Healthy になるまで待つ。
+# just up の後段。root と子の Application がすべて Synced/Healthy になるまで待つ。
 # 引数: <kube context> <ArgoCD の namespace>
 set -euo pipefail
 ctx="$1"

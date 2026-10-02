@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# just observe-share の本体。
+# just share の本体。
 # 引数: <admin のパスワードファイル> <viewer のパスワードファイル> <namespace> <ログファイル> <状態ファイル>
 # viewer のパスワードを作り直してから、Grafana (localhost:3000) を Cloudflare Quick Tunnel で公開し、
 # URL が外から引けて応答するようになってから URL と viewer のユーザー・パスワードだけを表示する。
 # admin の資格情報は表示しない (共有相手に渡すのは閲覧用の viewer だけ)。cloudflared と caddy のログはファイルへ流す。
 # Ctrl-C (または TERM) で両方を止めてから抜ける。
-# 公開中は状態ファイルに URL と cloudflared の pid を書き、just observe-show-connection が読む。
+# 公開中は状態ファイルに URL と cloudflared の pid を書き、just show grafana が読む。
 set -euo pipefail
 admin_file="$1"
 viewer_file="$2"
@@ -17,7 +17,7 @@ dir="$(cd "$(dirname "$0")" && pwd)"
 export SHARE_PROXY_PORT=3001
 
 if [ ! -s "$admin_file" ] || [ ! -s "$viewer_file" ]; then
-    echo "$admin_file か $viewer_file が無い。先に just argocd-up を打つ" >&2
+    echo "$admin_file か $viewer_file が無い。先に just up を打つ" >&2
     exit 1
 fi
 if ! command -v caddy >/dev/null; then
@@ -25,7 +25,7 @@ if ! command -v caddy >/dev/null; then
     exit 1
 fi
 if ! curl -sf -o /dev/null --max-time 5 http://localhost:3000/api/health; then
-    echo "Grafana (localhost:3000) が応答しない。just argocd-up を打ったか確かめる" >&2
+    echo "Grafana (localhost:3000) が応答しない。just up を打ったか確かめる" >&2
     exit 1
 fi
 # 前回の共有相手が今回の URL で入れないよう、共有のたびに viewer のパスワードを変える

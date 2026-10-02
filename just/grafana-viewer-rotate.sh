@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# just observe-share の前段。viewer のパスワードを作り直し、前の共有相手が次の共有で入れないようにする。
+# just share の前段。viewer のパスワードを作り直し、前の共有相手が次の共有で入れないようにする。
 # 引数: <admin のパスワードファイル> <viewer のパスワードファイル> <namespace>
 # 1. 新しいパスワードをファイルと Secret grafana-viewer に書く (Pod を作り直したときにサイドカーが使う)
 # 2. 動いている Grafana の viewer のパスワードを API で変え、ログイン中のセッションも切る

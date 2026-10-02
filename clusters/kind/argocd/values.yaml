@@ -1,5 +1,5 @@
 # argoproj/argo-helm の argo-cd chart の values。
-# 初回は `just argocd-up` が helm でこの values を使って入れ、以後は Application argocd
+# 初回は `just up` が helm でこの values を使って入れ、以後は Application argocd
 # (apps/argocd.yaml) が同じ chart・同じ版・同じ values で自分自身を同期する。
 # 版を上げるときは just/argocd.just と apps/argocd.yaml の両方を揃える。
 

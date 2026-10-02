@@ -95,7 +95,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "coordinator が Orca でワーカーをどう回したか (Run → Task → ワーカー (Dispatch) → メッセージ) と、**手戻り** (追加指示、worker_done までの時間、拒否・user_takeover) を見る。\nデータはホストの `orca-exporter` (systemd のユーザーユニット) が 30 秒ごとに `orca orchestration ... --json` を読んで送る。止まっていたら `just orca-exporter-status`。詳しくはリポジトリの `docs/observability/orca-orchestration.md`、困りごと別の見方は `playbook.md` の「手戻りを減らす」。\n\n- **追加指示** = coordinator からワーカーへの、返事ではないメッセージ (`orca orchestration send` の訂正・追加依頼)。`ask` への返事は数えない。**0 が理想**。1 以上は最初の依頼 (spec) に足りないものがあった印\n- 数字は Orca にいま残っている Run が元。右上の期間は「その期間に**出した**ワーカー」で絞る (メッセージの推移は送った時刻で絞る)\n- 上の「ワーカー」で絞ると全パネルが絞られる。ワーカー名は Claude Code 側の `orca_worktree_name` と同じなので、[improve](/d/claude-code-improve) や [usage](/d/claude-code-usage) にもそのまま持っていける"
+        "content": "coordinator が Orca でワーカーをどう回したか (Run → Task → ワーカー (Dispatch) → メッセージ) と、**手戻り** (追加指示、worker_done までの時間、拒否・user_takeover) を見る。\nデータはホストの `orca-exporter` (systemd のユーザーユニット) が 30 秒ごとに `orca orchestration ... --json` を読んで送る。止まっていたら `just orca-exporter status`。詳しくはリポジトリの `docs/observability/orca-orchestration.md`、困りごと別の見方は `playbook.md` の「手戻りを減らす」。\n\n- **追加指示** = coordinator からワーカーへの、返事ではないメッセージ (`orca orchestration send` の訂正・追加依頼)。`ask` への返事は数えない。**0 が理想**。1 以上は最初の依頼 (spec) に足りないものがあった印\n- 数字は Orca にいま残っている Run が元。右上の期間は「その期間に**出した**ワーカー」で絞る (メッセージの推移は送った時刻で絞る)\n- 上の「ワーカー」で絞ると全パネルが絞られる。ワーカー名は Claude Code 側の `orca_worktree_name` と同じなので、[improve](/d/claude-code-improve) や [usage](/d/claude-code-usage) にもそのまま持っていける"
       }
     },
     {
@@ -520,7 +520,7 @@
       "id": 9,
       "type": "stat",
       "title": "exporter の最終送信",
-      "description": "orca-exporter が最後に Orca を読んで送れた時刻からの経過。数分以上なら `just orca-exporter-status` を見る",
+      "description": "orca-exporter が最後に Orca を読んで送れた時刻からの経過。数分以上なら `just orca-exporter status` を見る",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
