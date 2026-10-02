@@ -22,3 +22,11 @@ spec:
   type: service
   lifecycle: experimental
   owner: user:yamakura-yuma
+---
+# 上の owner。Backstage にユーザーの連携は入れていないので、ここで 1 人だけ置く
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: yamakura-yuma
+spec:
+  memberOf: []

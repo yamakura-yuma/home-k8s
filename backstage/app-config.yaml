@@ -56,6 +56,6 @@ auth:
 
 catalog:
   rules:
-    - allow: [Component, System, API, Resource, Location]
+    - allow: [Component, System, API, Resource, Location, User]
   # 読み込む catalog-info.yaml (locations) は clusters/kind/backstage/values.yaml に置く。
   # ArgoCD と同じく GitHub の main を指すので、検証用のブランチではそこも書き換える
