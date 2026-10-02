@@ -12,6 +12,13 @@
 	auto_https off
 }
 
+# TechDocs の文書の CSS や画像は cookie (backstage-auth) で認証する。Backstage はその cookie に
+# backend.baseUrl のホスト名 (Domain=localhost) を付けるので、trycloudflare のホストではブラウザが捨て、
+# 文書が表示されない。Domain を外して、開いたホストの cookie にする
+(backstage_cookie) {
+	header_down Set-Cookie "; Domain=localhost" ""
+}
+
 http://:{$SHARE_PROXY_PORT} {
 	bind 127.0.0.1
 	@read {
@@ -31,8 +38,12 @@ http://:{$SHARE_PROXY_PORT} {
 		header @nosession Set-Cookie "share_session={$SHARE_SESSION}; Path=/; HttpOnly; Secure; SameSite=Lax"
 		# basic_auth の資格情報は Backstage に渡さない (Backstage は Bearer のトークンだけを見る)
 		request_header @basic -Authorization
-		reverse_proxy @read localhost:7007
-		reverse_proxy @write localhost:7007
+		reverse_proxy @read localhost:7007 {
+			import backstage_cookie
+		}
+		reverse_proxy @write localhost:7007 {
+			import backstage_cookie
+		}
 		respond 404
 	}
 }

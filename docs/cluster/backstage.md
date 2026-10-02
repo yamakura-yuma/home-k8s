@@ -109,7 +109,8 @@ ArgoCD の管理対象は Secret を名前で参照するだけで、公開 repo
   コピーするので、`roadmap.md` からのリンク (`index.html`) で開ける。TechDocs の見た目にはならない
 - 文書の画面 (TechDocs のタブと `/docs`) は検索欄を出し、検索の API が無いと開けない。そのため検索の
   プラグインも載せている。索引はメモリに持ち、起動後と 10 分ごとに作り直す。TechDocs の索引に
-  入るのは、build 済みの文書だけ
+  入るのは、build 済みの文書だけ。起動直後はどの文書も build していないので、TechDocs の索引は次の作り直し
+  (最初に文書を開いてから最大 10 分後) まで無く、それまで検索欄は何も返さない (ログに `Missing index for techdocs`)
 
 手元で文書の見た目を確かめるなら、リポジトリの直下で `mkdocs serve` (要 `pip install mkdocs-techdocs-core`)。
 
@@ -143,6 +144,10 @@ Backstage は誰でもゲストで入れるので、パスワードは caddy の
 API を呼ぶときに `Authorization: Bearer` (Backstage のトークン) を付けるため、すべての要求に basic_auth を
 掛けると画面が動かない。そこで最初のページの読み込みで basic_auth を通ったブラウザに cookie
 (`share_session`、値は共有のたびに作る) を渡し、以後はその cookie を持つ要求だけを通す。
+
+TechDocs の文書の CSS や画像は、Backstage が発行する cookie (`backstage-auth`) で認証する。Backstage は
+この cookie に `backend.baseUrl` のホスト名 (`Domain=localhost`) を付けるので、そのままでは trycloudflare の
+ホストで捨てられ、文書の画面が読み込み中のまま止まる。caddy はこの `Domain` を外して返す。
 
 7007 をそのまま出すと、Backstage が Grafana の資格情報で読むプロキシ (`/api/proxy/grafana/api`) や、
 カタログに任意の URL を読ませる API まで外から使える。caddy (`just/share-backstage.Caddyfile`) は、
