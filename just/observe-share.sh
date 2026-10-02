@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # just share の本体。
 # 引数: <admin のパスワードファイル> <viewer のパスワードファイル> <namespace> <ログファイル> <状態ファイル> <対象>
-# 対象は grafana (localhost:3000) か headroom (localhost:8787)。Cloudflare Quick Tunnel で公開し、
+# 対象は grafana (localhost:3000)・headroom (localhost:8787)・backstage (localhost:7007)。Cloudflare Quick Tunnel で公開し、
 # URL が外から引けて応答するようになってから URL とユーザー・パスワードだけを表示する。
 # grafana は viewer のパスワードを作り直してから公開する。admin の資格情報は表示しない
 # (共有相手に渡すのは閲覧用の viewer だけ)。headroom は共有のたびに使い捨てのパスワードを作り、
 # ダッシュボードに要る GET だけを通す (プロキシ本体の /v1/* などは通さない)。
+# backstage も使い捨てのパスワードを作り、画面と TechDocs に要る経路だけを通す (Grafana へのプロキシなどは通さない)。
 # cloudflared と caddy のログはファイルへ流す。Ctrl-C (または TERM) で両方を止めてから抜ける。
 # 公開中は状態ファイルに URL と cloudflared の pid を書き、just show grafana が読む (grafana のときだけ)。
 set -euo pipefail
@@ -57,8 +58,25 @@ headroom)
     SHARE_PASSWORD_HASH="$(caddy hash-password --plaintext "$password")"
     export SHARE_USER SHARE_PASSWORD_HASH
     ;;
+backstage)
+    if ! curl -sf -o /dev/null --max-time 5 http://localhost:7007/.backstage/health/v1/readiness; then
+        echo "Backstage (localhost:7007) が応答しない。just up を打ったか確かめる" >&2
+        exit 1
+    fi
+    export SHARE_PROXY_PORT=3003
+    log="${log%.log}-backstage.log"
+    caddyfile="$dir/share-backstage.Caddyfile"
+    health=/.backstage/health/v1/readiness
+    user=viewer
+    password="$(openssl rand -hex 16)"
+    SHARE_USER="$user"
+    SHARE_PASSWORD_HASH="$(caddy hash-password --plaintext "$password")"
+    # basic_auth を通ったブラウザに渡す cookie の値 (share-backstage.Caddyfile)。共有のたびに作り直す
+    SHARE_SESSION="$(openssl rand -hex 16)"
+    export SHARE_USER SHARE_PASSWORD_HASH SHARE_SESSION
+    ;;
 *)
-    echo "対象は grafana か headroom: $target" >&2
+    echo "対象は grafana・headroom・backstage のどれか: $target" >&2
     exit 1
     ;;
 esac

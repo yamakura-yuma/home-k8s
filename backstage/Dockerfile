@@ -43,9 +43,18 @@ RUN mkdir packages/backend/dist/skeleton packages/backend/dist/bundle \
 # Stage 3 - 実行用のイメージ。production の依存だけを入れる
 FROM node:24-trixie-slim
 
+# python3-venv と pip は TechDocs の mkdocs を入れるのに要る
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends python3 g++ build-essential libsqlite3-dev && \
+    apt-get install -y --no-install-recommends python3 python3-pip python3-venv g++ build-essential libsqlite3-dev && \
     rm -rf /var/lib/apt/lists/*
+
+# TechDocs の文書を Pod の中で build する mkdocs (app-config.yaml の techdocs.generator.runIn: local)。
+# 上流の Dockerfile のコメントにある pip の手順の通り、venv に入れて PATH に足す。
+# mkdocs-techdocs-core が mkdocs と mkdocs-material の版を固定するので、ここではそれだけを固定する
+ENV VIRTUAL_ENV=/opt/venv
+RUN python3 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+RUN pip3 install --no-cache-dir mkdocs-techdocs-core==1.7.1
 
 # BuildKit でない docker build では WORKDIR が root の持ち物で作られるので、先に node に渡す
 RUN mkdir /app && chown node:node /app
