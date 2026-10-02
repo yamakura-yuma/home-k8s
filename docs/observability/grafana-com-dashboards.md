@@ -74,8 +74,8 @@ file provisioning はそのままでは読めない部分がある。
 - `__inputs`・`__requires`・`__elements` を消す。`${DS_PROMETHEUS}` のような `__inputs` の参照は
   インポート画面が置き換えるもので、file provisioning は解決しない。リテラルの UID (`prometheus`) に置き換える。
 - `id` を null にする。`uid` は上流のまま。25255 は上流の `uid` が空なので、manifest の
-  `uid` (`gcom-claude-code-metrics`) を使う。Grafana は永続化していないので、空のままだと再起動のたびに
-  uid が変わり、URL が切れる。
+  `uid` (`gcom-claude-code-metrics`) を使う。空のままだと Grafana が uid を振り、`grafana.db` を
+  作り直すたびに変わって URL が切れる。
 - `datasource` 型の変数 (dotdc・15983 が使う) の選択を Prometheus にそろえる。
 - description の末尾に元リンクと rev を足す。
 
@@ -104,7 +104,7 @@ file provisioning はそのままでは読めない部分がある。
 |---|---|---|
 | 15757・15758・15760 | OOM Events・Container Restarts・Pods Status Reason・Pods unexpected status・Pods with Container Issues・Unscheduled Pods | 事象待ち |
 | 15757・15759 | CPU Core Throttled | 事象待ち (`node_cpu_core_throttles_total` が 0 のまま) |
-| 15758・15759 | Persistent Volumes の 3 枚 | `kubelet_volume_stats_*` は kubelet 自身のメトリクスで、スクレイプ `kubernetes-nodes` が要る。このクラスタは PVC も使っていない (Tempo・Prometheus・Loki は hostPath) ので入れていない |
+| 15758・15759 | Persistent Volumes の 3 枚 | `kubelet_volume_stats_*` は kubelet 自身のメトリクスで、スクレイプ `kubernetes-nodes` が要る。スクレイプ `kubernetes-nodes` は切っているので入れていない (PVC は [persistence.md](../cluster/persistence.md) で使うようになった) |
 | 15760 | Information 行 (Created by・Running on など) | 変数 `pod` が All のときは空。Pod を 1 つ選ぶと出る (上流の作り) |
 | 15762 | DNS Errors | 事象待ち (SERVFAIL・REFUSED の転送が無い) |
 | 15983 | Service Instance Details、Processors 1 段目 (incoming/outgoing items の Spans・Metric Points・Log Records) | 変数 `divider` が `service_instance_id` ラベルを前提にしている。OTLP で入れると `instance` になり、このラベルが無い |

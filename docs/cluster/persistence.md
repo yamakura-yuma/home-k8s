@@ -1,11 +1,11 @@
-# データの永続化 (設計)
+# データの永続化
 
 kind のクラスタを `just down` → `just up` で作り直しても、状態を持つアプリのデータが残るようにする。
 手段は StorageClass・PV・PVC を正しく使う形にそろえる (CKA の Storage の範囲をそのまま練習できるように)。
 
-この文書は設計で、まだ実装していない。実装は argocd-grafana-backstage の PR が `main` に入ってから行う。
-実装後は [claude-code-traces.md](../observability/claude-code-traces.md) の「永続化の仕組み」を
-この文書に合わせて書き直す。
+下の推奨案 D を実装した。マニフェストは `clusters/kind/storage/` と各 `clusters/kind/observability/*-values.yaml`、
+Tempo を例にしたつながりの説明は [claude-code-traces.md](../observability/claude-code-traces.md) の「永続化の仕組み」。
+実クラスタでの確認結果は末尾の「確認の結果」。
 
 ## 結論
 
@@ -27,7 +27,7 @@ WSL2 ホスト                                  kind ノード study-kind-worker
 クラスタを消すと PV・PVC のオブジェクトは消えるが、ホストのディレクトリは残る。
 `just up` のあと ArgoCD が同じ名前の PV と PVC を作り直し、同じディレクトリにまた結び付く。
 
-## 現状
+## 実装前の状態
 
 | アプリ | 保存の仕方 | ノードへの固定 | 所有者の調整 | 作り直し後 |
 |---|---|---|---|---|
@@ -89,7 +89,7 @@ clusters/kind/argocd/apps/storage.yaml (新規。Application storage)
 ```
 
 ```yaml
-# StorageClass (形だけ。値は実装で決める)
+# StorageClass (clusters/kind/storage/storageclass.yaml からコメントを除いたもの)
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
@@ -130,7 +130,7 @@ spec:
 | 作り直し後も残る | データはホストのディレクトリにあり、PV オブジェクトは Git から毎回作り直す。no-provisioner なので Kubernetes がディレクトリを消すことは無い |
 | 既存データの引き継ぎ | PV の `local.path` を今の hostPath と同じパスにする。マウント先も今と同じなので (下の表)、ディレクトリの移動は要らない |
 | reclaimPolicy | `Retain`。PVC を消しても PV は `Released` になるだけで中身は残る (出典 2)。`kind down` ではそもそも PV ごと消えて作り直されるので、この状態にはならない |
-| 所有権 | `local` は Pod の `fsGroup` で volume のグループを付け替える (出典 6)。hostPath は付け替えない。chart はすでに `fsGroup` を持つ (Grafana 472、Tempo・Loki 10001、Prometheus 65534) ので、chown の initContainer は外せる見込み。既存ディレクトリはすでに各 UID の所有なので変化は無い。毎回の再帰的な付け替えを避けるため `fsGroupChangePolicy: OnRootMismatch` を付ける |
+| 所有権 | `local` は Pod の `fsGroup` で volume のグループを付け替える (出典 6)。hostPath は付け替えない。chart はすでに `fsGroup` を持つ (Grafana 472、Tempo・Loki 10001、Prometheus 65534) ので、chown の initContainer は外した。既存ディレクトリはすでに各 UID の所有だが、グループの書き込みと setgid が無いので、最初の起動で 1 度だけ付け替わる。毎回の再帰的な付け替えを避けるため `fsGroupChangePolicy: OnRootMismatch` を付ける |
 | ノードへの固定 | PV の `nodeAffinity` に任せ、各 values の `nodeSelector` を外す。WFFC なので、スケジューラは PV の置けるノードに Pod を置く |
 | ArgoCD | SC と PV は cluster-scoped のリソースとして Application `storage` が持つ。PVC は各 chart が作る |
 | 今後のアプリ | PV を 1 枚足し、chart の PVC 名を `claimRef` に書くだけ |
@@ -139,8 +139,9 @@ spec:
 
 `docs/cluster/argocd.md` の「同期の順序」には今は wave が無い。WFFC なので PV が後から来ても PVC は
 Pending のまま待ち、PV ができたところで結ばれるため、wave が無くても最後はそろう。
-ただし初回の同期で一時的に Pending が出て `just up` の待ちが長くなるので、Application `storage` に
-`argocd.argoproj.io/sync-wave: "-1"` を付けて先に作るのがわかりやすい。
+ただし初回の同期で一時的に Pending が出るので、Application `storage` に
+`argocd.argoproj.io/sync-wave: "-1"` を付けて先に作る。ArgoCD は子の Application のヘルスを評価する設定
+(`clusters/kind/argocd/values.yaml`) なので、wave -1 の `storage` が Healthy になってから観測スタックを作る。
 
 ## 移行手順の概要
 
@@ -177,13 +178,20 @@ StatefulSet の `volumeClaimTemplates` を足すことになり、これは既�
 | ユーザー | パスワードの正本 | 今 | 永続化後に起きること | 永続化後のそろえ方 |
 |---|---|---|---|---|
 | admin | ホストのファイル → Secret `grafana-admin` | Grafana が初回起動で Secret の値で作る | `admin_password` は初回起動のときしか使われない (出典 5)。ファイルを作り直すと Secret と DB がずれ、サイドカーも `just share` も admin で入れなくなる | initContainer で `grafana cli admin reset-admin-password` を打ち、起動のたびに Secret の値にそろえる |
-| viewer | ホストのファイル → Secret `grafana-viewer` | サイドカーが「無ければ作る」 | DB に残るので作られない。`just share` が API で変えた値は DB にも Secret にも入るので、普段はずれない | サイドカーを「無ければ作る、居ればパスワードを Secret の値に更新する」(`PUT /api/admin/users/:id/password`) に変える |
+| viewer | ホストのファイル → Secret `grafana-viewer` | サイドカーが「無ければ作る」 | DB に残るので作られない。`just share` が API で変えた値は DB にも Secret にも入るので、普段はずれない | サイドカーを Pod の起動ごとに一度だけ「無ければ作る、居ればパスワードを Secret の値に更新する」(`PUT /api/admin/users/:id/password`) に変える |
 | backstage (argocd-grafana-backstage で追加予定) | ホストのファイル → Secret | サイドカーが「無ければ作る」予定 | viewer と同じ | viewer と同じ処理に載せる |
 
 admin をサイドカーでそろえないのは、サイドカーが admin の資格情報で API を叩くため、
 ずれた後は入れないから。Grafana のイメージは distroless で `sh` が無いので、initContainer は
-exec 形式で `grafana cli --homepath /usr/share/grafana admin reset-admin-password "$(ADMIN_PASSWORD)"`
-とし、`GF_PATHS_DATA` を PV のマウント先に向ける (実装で動くことを確かめる)。
+同じイメージで exec 形式の `/usr/share/grafana/bin/grafana cli --homepath=/usr/share/grafana --config=/etc/grafana/grafana.ini admin reset-admin-password $(ADMIN_PASSWORD)`
+とし、`config` (grafana.ini) と `storage` (PV) を本体と同じ場所にマウントする。DB の場所は
+イメージの環境変数 `GF_PATHS_DATA` の既定 `/var/lib/grafana` がそのまま PV のマウント先になる。
+DB が空の初回 (Grafana がまだ一度も起動していない) でも動き、そのとき admin はこのコマンドが作る
+(13.2.3-distroless で、空の DB と既存の DB の両方を docker で確かめた)。
+
+サイドカーがそろえるのを起動時の一度だけにするのは、`just share` が動いている Grafana の viewer の
+パスワードを変えるため。サイドカーの環境変数は Pod の起動時の Secret の値のままなので、繰り返しそろえると
+`just share` の変更を古い値に戻してしまう。
 
 ## 実装時の確認方法
 
@@ -236,9 +244,27 @@ kubectl --context kind-study-kind -n observability delete pod -l app.kubernetes.
 - ラベル名 `home-k8s/observability-storage` とホストのディレクトリ `observability/` を、Backstage の DB などを
   載せるときに一般的な名前 (例: `home-k8s/storage`、`~/.local/share/home-k8s/volumes`) に替えるか。
   替えるとクラスタの作り直しとディレクトリの移動が要るので、最初のアプリを足すときに決める。
-- Grafana の `reset-admin-password` を distroless のイメージの initContainer で打てるか (打てなければ
-  busybox ではなく同じ Grafana のイメージで `grafana` バイナリを直接指す形を試す)。
-- Application `storage` に sync wave を付けるか、wave 無しで Pending からの自然な収束に任せるか。
+
+設計の時点で未決だった次の 2 つは、実装で決めた。
+
+- Grafana の `reset-admin-password` は distroless のイメージの initContainer で打てる (上の「Grafana のユーザーを Secret にそろえる」)。
+- Application `storage` に sync wave `-1` を付けた (上の「同期の順序」)。
+
+## 確認の結果
+
+2026-10-02 (UTC) に本番のクラスタ `study-kind` で、上の「実装時の確認方法」を次の順に行った
+(ArgoCD の参照先を検証用のブランチに向け、`just down` → `just up` を 3 回)。
+1 回目は hostPath から PV への移行で、この時点の Grafana は emptyDir なので、ダッシュボードが残るかは 2 回目で見た。
+3 回目は Backstage (#27) が `main` に入った後の、backstage ユーザーをサイドカーにまとめた形で行った。
+
+| 確認 | 結果 |
+|---|---|
+| 1 回目の作り直し (移行) | `just up` 2 分 40 秒で 9 つの Application が Synced / Healthy。PV 4 枚は PVC より先に `Available` になり (wave -1)、PVC 4 つは同名の PV と `Bound`、RECLAIM POLICY は `Retain`。Pod は PV の nodeAffinity で `study-kind-worker` に置かれた |
+| 移行前のデータ | 作り直しの前後で同じ。Prometheus は 2026-09-30 00:17 から、Tempo は 2026-09-19 からのトレース、Loki は 2026-09-30 00:16 からのログが引ける |
+| Grafana の保存 | `persistence-check` ダッシュボードを保存 (UI の操作ではなく admin で HTTP API から作成) → 2 回目・3 回目の作り直し → 同じ作成時刻のまま残っていた |
+| サイドカー | 1 回目は「viewer を作った」、2 回目は「viewer のパスワードを Secret の値にそろえた」。3 回目は backstage を作り、Backstage のプロキシから Grafana の検索が 200 |
+| パスワードの書き換え | admin・viewer・backstage のファイルを書き換え → `just up` (Secret が `configured`) → Grafana の Pod を削除。3 ユーザーとも新しい値で 200、古い値で 401。Backstage の Pod を作り直すとプロキシも 200 |
+| `just share` の前段 | トンネルは開かず、`grafana-viewer-rotate.sh` だけを打った。viewer は新しい値で入れ、20〜30 秒後もそのまま (サイドカーが古い値に戻さない)。backstage は影響を受けない |
 
 ## 出典
 

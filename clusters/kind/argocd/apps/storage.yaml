@@ -1,0 +1,23 @@
+# StorageClass home-k8s-local と、観測スタックの PV (clusters/kind/storage)。設計は docs/cluster/persistence.md。
+# PVC は各 chart が作り、PV の claimRef で名前どうしが結ばれる。
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: storage
+  namespace: argocd
+  annotations:
+    # PV を観測スタックより先に作る。無くても PVC が Pending で待つだけで最後はそろうが、
+    # 先に置けば Pod が「PV が無い」でスケジュールされない時間が出ない
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/yamakura-yuma/home-k8s
+    targetRevision: main
+    path: clusters/kind/storage
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

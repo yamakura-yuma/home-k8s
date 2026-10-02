@@ -8,6 +8,9 @@ _kind-up:
     # kind は設定ファイル中の環境変数を展開しないので、extraMounts の ${HOME} をここで埋める。
     # 作成済みなら作らない (`just up` を打ち直せるように)。
     if kind get clusters | grep -qx {{kind_cluster}}; then echo "kind のクラスタ {{kind_cluster}} は作成済み"; else sed 's|${HOME}|'"$HOME"'|g' clusters/kind/kind-config.yaml | kind create cluster --name {{kind_cluster}} --config -; fi
+    # local の PV (clusters/kind/storage) はディレクトリが先にあることを前提にする (無いと Pod が起動しない)。
+    # extraMounts の下に作れば、作り直さずにノードからも見える (docs/cluster/persistence.md)
+    mkdir -p "$HOME"/.local/share/home-k8s/observability/{tempo,prometheus,loki,grafana}
     # 開発用コンテナはrootで動いており kubeconfig も root:root/600 で書かれるため、
     # ホスト側ユーザー(や他リポジトリ)からも読めるように緩める。
     chmod 644 "$HOME/.kube/config"

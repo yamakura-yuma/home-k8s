@@ -1,7 +1,7 @@
 # grafana-community/tempo chart (単一バイナリ構成) の values。
-# トレースはオブジェクトストレージではなくローカルファイルに置く。保存先は
-# kind の extraMounts で WSL2 ホストの ~/.local/share/home-k8s/observability に
-# つながっており、クラスタを作り直しても残る (docs/observability/claude-code-traces.md)。
+# トレースはオブジェクトストレージではなくローカルファイルに置く。保存先は PV tempo
+# (clusters/kind/storage) で、WSL2 ホストの ~/.local/share/home-k8s/observability/tempo に
+# つながっており、クラスタを作り直しても残る (docs/cluster/persistence.md)。
 tempo:
   retention: 336h # 14日
   reportingEnabled: false
@@ -29,28 +29,14 @@ tempo:
       max_duration: 336h
     search:
       max_duration: 336h
-  extraVolumeMounts:
-    - name: tempo-data
-      mountPath: /var/tempo
 
-# extraMounts を持つ worker にだけ置く (clusters/kind/kind-config.yaml の labels)
-nodeSelector:
-  home-k8s/observability-storage: "true"
+# PVC storage-tempo-0 を /var/tempo にマウントする。PV tempo が claimRef で待っている。
+# ノードは PV の nodeAffinity が決めるので nodeSelector は要らない
+persistence:
+  enabled: true
+  storageClassName: home-k8s-local
 
-extraVolumes:
-  - name: tempo-data
-    hostPath:
-      path: /var/local/home-k8s/observability/tempo
-      type: DirectoryOrCreate
-
-# hostPath は root 所有で作られるため、Tempo の実行ユーザー (10001) に渡してから起動する
-initContainers:
-  - name: chown-tempo-data
-    image: busybox:1.37
-    command: ["chown", "-R", "10001:10001", "/var/tempo"]
-    securityContext:
-      runAsUser: 0
-      runAsNonRoot: false
-    volumeMounts:
-      - name: tempo-data
-        mountPath: /var/tempo
+# local の volume は fsGroup (chart の既定 10001) でグループを付け替える。
+# 毎回の再帰的な付け替えを避け、根の所有が違うときだけ付け替える
+securityContext:
+  fsGroupChangePolicy: OnRootMismatch
