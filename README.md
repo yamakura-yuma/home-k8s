@@ -32,7 +32,7 @@ just up                   # kind のクラスタを作り (control-plane x1 + wo
                           # (OTel Collector/Tempo/Prometheus/Loki/Grafana)・Headlamp を立ち上げて同期を待つ
 kubectl --context kind-study-kind get nodes -o wide   # ノード状態を確認
 just show                 # Grafana・ArgoCD・Headlamp の接続先と資格情報を全部表示 (下の表)
-just share                # Grafana を一時的に trycloudflare.com で公開し、URL と閲覧用 (viewer) のパスワードを表示 (Ctrl-C で停止)
+just share [grafana|headroom]  # localhost のサービス (既定は Grafana) を一時的に trycloudflare.com で公開し、URL と閲覧用のパスワードを表示 (Ctrl-C で停止)
 just orca-exporter install  # Orca のオーケストレーションを観測スタックに送る exporter を systemd で常駐させる (ホストで動く例外)
 just down                 # クラスタを削除
 just devcontainer down    # 開発用コンテナを削除
@@ -46,7 +46,7 @@ just devcontainer down    # 開発用コンテナを削除
 | `just up` | kind のクラスタを作り、ArgoCD を入れ、Secret を作り、同期を待つ。打ち直しても同じ状態に戻る |
 | `just down` | kind のクラスタを削除する |
 | `just show [grafana\|grafana-admin\|argocd\|headlamp]` | 接続先と資格情報を表示する。省略で全部。`grafana` は共有相手に渡してよい viewer の接続先 (公開中なら公開 URL、止めていれば localhost:3000)、`grafana-admin` は自分用 |
-| `just share` | Grafana (localhost:3000) だけを Cloudflare Quick Tunnel で一時的に公開する |
+| `just share [grafana\|headroom]` | Grafana (localhost:3000) か headroom のダッシュボード (localhost:8787) を Cloudflare Quick Tunnel で一時的に公開する |
 | `just orca-exporter <install\|uninstall\|status>` | Orca の exporter を systemd のユーザーユニットとして入れる・消す・状態を見る |
 | `just devcontainer <up\|shell\|down>` | 開発用コンテナを起動する・シェルで入る・削除する |
 

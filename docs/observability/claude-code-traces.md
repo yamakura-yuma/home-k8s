@@ -291,6 +291,20 @@ kill -9 などで消されずに残っても、show-connection はその pid の
 - Quick Tunnel は試用向けで、稼働の保証は無い (同時リクエスト数の上限もある)。
   長く使う場合は Cloudflare のアカウントで名前付きトンネルと Access を組む。
 
+### headroom のダッシュボードを公開する
+
+`just share headroom` は、WSL ホストで動いている headroom (`localhost:8787`) のダッシュボードを同じ
+仕組みで公開する。Grafana と違い viewer のようなアカウントは無いので、共有のたびに使い捨てのパスワードを作り、
+caddy の basic_auth (ユーザーは `viewer`) で守る。URL・ユーザー・パスワードは起動時に表示するだけで、
+ファイルには残さない (`just show` には出ない)。
+
+headroom は同じポートでプロキシ本体 (`/v1/messages` など。手元の認証で Anthropic へ転送する) も返すので、
+8787 をそのまま出してはいけない。caddy (`just/share-headroom.Caddyfile`) は、ダッシュボードが使う読み取りの
+GET (`/dashboard`、`/health`、`/stats`、`/stats-history`、`/stats-lifetime`、`/transformations/feed`) だけを
+通し、残り (`/v1/*`、`/settings`、`/dashboard/settings`、`/stats/reset`、`/cache/clear` など) は 404 にする。
+`/docs` も通さない。確かめた結果は、認証なしの `/dashboard` が 401、認証ありの上の 6 本が 200、
+認証ありの `POST /v1/messages` が 404 だった。
+
 ### 仕組み (`just/observe-share.sh`)
 
 ```
