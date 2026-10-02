@@ -1,4 +1,4 @@
-# ArgoCD 自身。`just argocd-up` が helm で入れたリリース argocd を、同じ chart・版・values で引き継ぐ。
+# ArgoCD 自身。`just up` が helm で入れたリリース argocd を、同じ chart・版・values で引き継ぐ。
 # 版は just/argocd.just の argocd_chart_version と揃える
 apiVersion: argoproj.io/v1alpha1
 kind: Application

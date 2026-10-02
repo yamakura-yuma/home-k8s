@@ -3,19 +3,20 @@
 kind クラスタの観測スタック (Tempo・Prometheus・Loki・OTel Collector・Grafana) と Headlamp は、
 ArgoCD が GitHub の `yamakura-yuma/home-k8s` の `main` から同期する。values やダッシュボードを
 変えるときは `main` に入れるだけで、クラスタに手で helm を打たない。ArgoCD 自身も ArgoCD が
-管理する (self-manage)。helm を打つのは最初の 1 回 (`just argocd-up`) だけ。
+管理する (self-manage)。helm を打つのは最初の 1 回 (`just up`) だけ。
 
 状態の確認は今までどおり kubectl を素手で叩く (`kubectl --context kind-study-kind -n argocd get applications`)。
 
 ## 構成
 
 ```
-just argocd-up
+just up
+  0. kind のクラスタを作る (kind-config.yaml)
   1. helm upgrade --install argocd (argo-cd chart、clusters/kind/argocd/values.yaml)
-  2. just grafana-secrets   … Secret grafana-admin / grafana-viewer (Git の外のファイルから)
+  2. Secret grafana-admin / grafana-viewer (Git の外のファイルから。just/grafana-secrets.sh)
   3. kubectl apply -f clusters/kind/argocd/root.yaml
   4. 全 Application が Synced/Healthy になるまで待つ
-  5. just headlamp-token    … Headlamp にログインするトークン
+  5. Headlamp にログインするトークン (just/headlamp-token.sh)
 
 Application root (clusters/kind/argocd/apps を同期する app-of-apps)
   ├── argocd          argo-cd chart          (1 と同じ chart・版・values。以後は自分自身を同期する)
@@ -41,8 +42,8 @@ chart のリポジトリは今までの `helm --repo` と同じく URL で直接
 
 | 画面 | URL | ログイン |
 |---|---|---|
-| ArgoCD | <http://localhost:8080> | `admin`、パスワードは `just argocd-show-admin` |
-| Headlamp | <http://localhost:4466> | `just headlamp-show-token` のトークン |
+| ArgoCD | <http://localhost:8080> | `admin`、パスワードは `just show argocd` |
+| Headlamp | <http://localhost:4466> | `just show headlamp` のトークン |
 | Grafana | <http://localhost:3000> | [claude-code-traces.md](../observability/claude-code-traces.md) の「Grafana の認証」 |
 
 どれも NodePort (30080・30466・30300) を kind の `extraPortMappings` で `127.0.0.1` に出している
@@ -59,8 +60,8 @@ Node・PersistentVolume・StorageClass・CRD・ClusterRole を読むだけの `h
 
 | Secret | 作るもの | 中身の出どころ |
 |---|---|---|
-| `observability/grafana-admin`・`grafana-viewer` | `just grafana-secrets` | `~/.local/share/home-k8s/observability/grafana-*-password` (無ければ作る) |
-| `headlamp/headlamp-token` | `just headlamp-token` | kube-controller-manager が ServiceAccount `headlamp` のトークンを入れる。取り出して `~/.local/share/home-k8s/headlamp/token` に書く |
+| `observability/grafana-admin`・`grafana-viewer` | `just up` | `~/.local/share/home-k8s/observability/grafana-*-password` (無ければ作る) |
+| `headlamp/headlamp-token` | `just up` | kube-controller-manager が ServiceAccount `headlamp` のトークンを入れる。取り出して `~/.local/share/home-k8s/headlamp/token` に書く |
 | `argocd/argocd-initial-admin-secret` | ArgoCD (初回の起動時) | ArgoCD が乱数で作る |
 
 `headlamp-token` は ArgoCD の追跡ラベルが付かないので、ArgoCD は prune しない。
@@ -80,7 +81,7 @@ ConfigMap は Application grafana に 2 つ目のソース (`path: clusters/kind
 
 ### self-manage の組み方
 
-`just argocd-up` は helm でリリース `argocd` を入れ、Application `argocd` は同じリリース名・chart・版・values で
+`just up` の 1 は helm でリリース `argocd` を入れ、Application `argocd` は同じリリース名・chart・版・values で
 同じものを描く。描いた結果が helm の入れたものと同じなので、ArgoCD は最初の同期で既存のリソースに
 追跡用の注釈 (`argocd.argoproj.io/tracking-id`。ArgoCD 3 の既定) を足すだけで、作り直さずに引き継ぐ。
 版を上げるときは `just/argocd.just` の `argocd_chart_version` と `clusters/kind/argocd/apps/argocd.yaml` の
@@ -91,7 +92,7 @@ ConfigMap は Application grafana に 2 つ目のソース (`path: clusters/kind
 
 sync wave は使っていない。順序が要るのは次の 2 つで、どちらも wave なしで満たせる。
 
-- Grafana は Secret `grafana-admin`・`grafana-viewer` を読む。`just argocd-up` が root を apply する前に作る。
+- Grafana は Secret `grafana-admin`・`grafana-viewer` を読む。`just up` が root を apply する前に作る。
 - Grafana はダッシュボードの ConfigMap をマウントする。同じ Application に入れたので、ArgoCD は
   ConfigMap を Deployment より先に apply する (種類ごとの既定の順序)。
 
@@ -107,14 +108,14 @@ kind-config にポートを足したので、クラスタの作り直しが要�
 Grafana のパスワードも同じファイルを使い続ける。orca-exporter は再開後にまた送る。
 
 ```sh
-just kind-down && just kind-up   # ポートを足したクラスタに作り直す
-just argocd-up                   # ArgoCD を入れ、Secret を作り、root を apply し、同期を待つ
+just down      # 今のクラスタを消す
+just up        # ポートを足したクラスタを作り、ArgoCD を入れ、Secret を作り、root を apply し、同期を待つ
 kubectl --context kind-study-kind -n argocd get applications   # 全部 Synced / Healthy
-just argocd-show-admin           # ArgoCD (localhost:8080) の admin のパスワード
-just headlamp-show-token         # Headlamp (localhost:4466) のトークン
+just show argocd     # ArgoCD (localhost:8080) の admin のパスワード
+just show headlamp   # Headlamp (localhost:4466) のトークン
 ```
 
-`just argocd-up` の中で Secret を作る (`just grafana-secrets`) ので、別に打つものは無い。
+Secret も `just up` の中で作るので、別に打つものは無い。
 初回は image の pull で数分かかる。打ち直しても同じ状態に戻るだけで、Secret の中身も変わらない。
 
 ## main 以外のブランチで確かめる
@@ -123,6 +124,8 @@ ArgoCD は `main` しか見ないので、マージ前の変更は次のよう�
 
 1. 作業ブランチから検証用のブランチを切り、`clusters/kind/argocd` の中の `targetRevision: main` を
    そのブランチ名に置き換えてコミットし、push する (マージしない)。
-2. 検証用のクラスタ (別の名前・別の hostPort の kind-config) で、検証用のブランチを checkout して
-   `HOME_K8S_KUBE_CONTEXT=kind-<名前> just argocd-up` を打つ。`kube_context` の既定は `kind-study-kind`。
+2. 検証用のクラスタを、別の名前・別の hostPort の kind-config で先に `kind create cluster --name <名前> --config <設定>` で作る
+   (`up` は標準の kind-config で作るので、動いているクラスタと hostPort がぶつかる)。検証用のブランチを checkout して
+   `HOME_K8S_KUBE_CONTEXT=kind-<名前> just up` を打つ。作成済みのクラスタは作り直さず、ArgoCD の導入から進む
+   (`kube_context` の既定は `kind-study-kind`。`up`・`down` が作る・消す kind のクラスタは、この context の `kind-` を除いた名前)。
 3. 終わったら検証用のブランチとクラスタを消す。

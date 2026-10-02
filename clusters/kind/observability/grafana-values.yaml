@@ -6,7 +6,7 @@ service:
   type: NodePort
   nodePort: 30300
 
-# admin のパスワードは `just grafana-secrets` が作る Secret から読む。値はリポジトリに置かない。
+# admin のパスワードは `just up` が作る Secret から読む。値はリポジトリに置かない。
 # chart に Secret を作らせると upgrade のたびに乱数で作り直し、Pod が毎回再起動する。
 admin:
   existingSecret: grafana-admin
@@ -16,8 +16,8 @@ admin:
 # 共有相手に渡す閲覧用ユーザー viewer (Viewer ロール)。Grafana は永続化していないので、
 # Pod を作り直すと消える。そこで Grafana の横にサイドカーを置き、viewer が無ければ HTTP API で作る。
 # Grafana のイメージは distroless で sh が無く、postStart の exec では作れないため別コンテナにする。
-# パスワードは `just grafana-secrets` が作る Secret grafana-viewer から読む。値はリポジトリに置かない。
-# サイドカーは作るだけで、パスワードを変えない。変えるのは `just observe-share` (起動のたびに作り直す)。
+# パスワードは `just up` が作る Secret grafana-viewer から読む。値はリポジトリに置かない。
+# サイドカーは作るだけで、パスワードを変えない。変えるのは `just share` (起動のたびに作り直す)。
 # 新しい Pod では環境変数が Secret のいまの値になるので、作り直しても最後に渡したパスワードで入れる。
 # ここは chart が tpl に通すので、二重波括弧を書かないこと
 extraContainers: |

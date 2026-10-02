@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# just grafana-secrets の本体。Grafana の admin と viewer (共有相手に渡す閲覧用) のパスワードを
+# just up の本体。Grafana の admin と viewer (共有相手に渡す閲覧用) のパスワードを
 # (無ければ生成して) Secret grafana-admin と grafana-viewer に入れる。Grafana (ArgoCD が同期する) は名前で参照する。
 # 引数: <admin のパスワードファイル> <viewer のパスワードファイル> <namespace> <リポジトリの所有者を調べるディレクトリ> <kube context>
 set -euo pipefail

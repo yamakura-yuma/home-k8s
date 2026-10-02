@@ -28,25 +28,34 @@ Kubernetes資格 (KCNA → KCSA → CKA → CKAD → CKS → Kubestronaut/Golden
 ```sh
 just devcontainer up      # イメージをbuildし、開発用コンテナを起動 (nix profile install も実行)
 just devcontainer shell   # コンテナにシェルで入る
-just kind-up              # kubeadmベースのマルチノードクラスタを起動
+just up                   # kind のクラスタを作り (control-plane x1 + worker x2)、ArgoCD・Secret・観測スタック
+                          # (OTel Collector/Tempo/Prometheus/Loki/Grafana)・Headlamp を立ち上げて同期を待つ
 kubectl --context kind-study-kind get nodes -o wide   # ノード状態を確認
-just argocd-up            # ArgoCD を入れ、観測スタック (OTel Collector/Tempo/Prometheus/Loki/Grafana) と Headlamp を同期させる
-just argocd-show-admin    # ArgoCD (localhost:8080) の admin のパスワードを表示
-just headlamp-show-token  # Headlamp (localhost:4466) にログインするトークンを表示
-just observe-share        # Grafana を一時的に trycloudflare.com で公開し、URL と閲覧用 (viewer) のパスワードを表示 (Ctrl-C で停止)
-just observe-show-connection  # いまの接続先 (公開中なら公開 URL、止めていれば localhost:3000) と viewer のパスワードを表示
-just observe-show-admin   # Grafana の admin のパスワードを表示 (自分用。共有相手には渡さない)
-just orca-exporter-install  # Orca のオーケストレーションを観測スタックに送る exporter を systemd で常駐させる (ホストで動く例外)
-just kind-down             # クラスタを削除
+just show                 # Grafana・ArgoCD・Headlamp の接続先と資格情報を全部表示 (下の表)
+just share                # Grafana を一時的に trycloudflare.com で公開し、URL と閲覧用 (viewer) のパスワードを表示 (Ctrl-C で停止)
+just orca-exporter install  # Orca のオーケストレーションを観測スタックに送る exporter を systemd で常駐させる (ホストで動く例外)
+just down                 # クラスタを削除
 just devcontainer down    # 開発用コンテナを削除
 ```
 
+公開レシピは次の 6 つだけ (`just --list`)。kind の作成や ArgoCD の導入などの内部用は `_` 付きで隠してあり、
+`up` が呼ぶ。サブコマンド形のものは、引数を間違えると使い方を出して止まる。
+
+| レシピ | 中身 |
+|---|---|
+| `just up` | kind のクラスタを作り、ArgoCD を入れ、Secret を作り、同期を待つ。打ち直しても同じ状態に戻る |
+| `just down` | kind のクラスタを削除する |
+| `just show [grafana\|grafana-admin\|argocd\|headlamp]` | 接続先と資格情報を表示する。省略で全部。`grafana` は共有相手に渡してよい viewer の接続先 (公開中なら公開 URL、止めていれば localhost:3000)、`grafana-admin` は自分用 |
+| `just share` | Grafana (localhost:3000) だけを Cloudflare Quick Tunnel で一時的に公開する |
+| `just orca-exporter <install\|uninstall\|status>` | Orca の exporter を systemd のユーザーユニットとして入れる・消す・状態を見る |
+| `just devcontainer <up\|shell\|down>` | 開発用コンテナを起動する・シェルで入る・削除する |
+
 ### ホストで打つか、コンテナで打つか
 
-どちらで打っても同じに動く。ホストで打った `just kind-up` などは、`justfile` の
+どちらで打っても同じに動く。ホストで打った `just up` などは、`justfile` の
 `set shell` が `just/dev-shell` を経由させ、開発用コンテナ `home-k8s-dev` の中の
 同じディレクトリで各行を `docker exec` する (端末に繋がっていれば `-it` なので、
-`just observe-share` の Ctrl-C も効く)。コンテナの中で打てばそのまま実行する。
+`just share` の Ctrl-C も効く)。コンテナの中で打てばそのまま実行する。
 ホストかコンテナかは環境変数 `HOME_K8S_DEV` で見分ける。Dockerfile の `ENV` と
 `docker exec -e` で立てる明示的な印で、ツールの有無 (`cloudflared` が無い、など) や
 `/.dockerenv` (どのコンテナにもある) では「この開発用コンテナか」が分からないため。
@@ -76,6 +85,6 @@ OTel の設定 (環境変数) ごとに何が届くかは `docs/observability/cl
 (Grafana のフォルダ「Claude Code 設定項目別」)。
 coordinator が Orca でワーカーをどう回したか (手戻り) は `docs/observability/orca-orchestration.md`
 (Grafana の「Orca orchestration」)。exporter は `orca` CLI を使うためホスト (WSL) で動かし、
-`just orca-exporter-*` の 3 つだけは開発用コンテナに転送しない。
+`just orca-exporter` だけは開発用コンテナに転送しない。
 Kubernetes・OTel Collector・Claude Code の grafana.com 公開ダッシュボード (フォルダ「grafana.com / …」) の構成と更新手順は
 `docs/observability/grafana-com-dashboards.md`。

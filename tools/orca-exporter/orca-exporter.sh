@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # orca-exporter の systemd ユーザーユニットを入れる / 消す / 状態を見る。
-# `just orca-exporter-install|uninstall|status` から呼ばれる。ホスト (WSL) で動かす。
+# `just orca-exporter install|uninstall|status` から呼ばれる。ホスト (WSL) で動かす。
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"

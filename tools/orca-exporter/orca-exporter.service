@@ -1,4 +1,4 @@
-# systemd のユーザーユニット。`just orca-exporter-install` が @EXPORTER@ と @ORCA_BIN@ を埋めて
+# systemd のユーザーユニット。`just orca-exporter install` が @EXPORTER@ と @ORCA_BIN@ を埋めて
 # ~/.config/systemd/user/orca-exporter.service に置く (docs/observability/orca-orchestration.md)。
 [Unit]
 Description=Orca orchestration -> OTLP exporter (home-k8s)

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# just headlamp-token の本体。Headlamp にログインするトークンを作ってファイルに書く。
+# just up の本体。Headlamp にログインするトークンを作ってファイルに書く。
 # ServiceAccount headlamp (Application headlamp が作る) に結び付いた Secret を作り、
 # kube-controller-manager が入れたトークンを取り出す。Secret の中身は Git に置かない。
 # 引数: <kube context> <トークンのファイル> <リポジトリの所有者を調べるディレクトリ>

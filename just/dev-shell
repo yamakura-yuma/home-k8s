@@ -24,7 +24,7 @@ if ! docker exec "$name" test -d "$dir"; then
     exit 1
 fi
 
-# 端末に繋がっているとき (observe-share の Ctrl-C など) は -t を付ける。Ctrl-C がそのままコンテナ内に届く。
+# 端末に繋がっているとき (just share の Ctrl-C など) は -t を付ける。Ctrl-C がそのままコンテナ内に届く。
 if [ -t 0 ] && [ -t 1 ]; then
     exec docker exec -it -e HOME_K8S_DEV=1 -w "$dir" "$name" bash "$@"
 fi

@@ -1,4 +1,4 @@
-# app-of-apps の root。`just argocd-up` が一度だけ apply する。
+# app-of-apps の root。`just up` が一度だけ apply する。
 # apps/ にある子の Application (ArgoCD 自身・観測スタック・Headlamp) を GitHub の main から同期する。
 apiVersion: argoproj.io/v1alpha1
 kind: Application

@@ -131,18 +131,18 @@ Grafana のダッシュボードを、困りごとから引くための手引き
 - 環境変数を足した・外したときは、設定項目別のダッシュボード (`/d/cc-settings`) の該当する 1 枚を開く。
   先頭のタイルがその設定で増える属性の件数で、0 なら届いていない。オフの項目は `/d/cc-setting-off` にまとめてある。
 
-### 10. observe-share で人に見せるとき
+### 10. just share で人に見せるとき
 
-- `just observe-share` は Grafana を trycloudflare.com の URL で公開する。URL とパスワードを知っている人は、
+- `just share` は Grafana を trycloudflare.com の URL で公開する。URL とパスワードを知っている人は、
   ダッシュボードのすべてを見られる。特定のパネルだけを見せる仕組みは無い。
 - 依頼文、コマンド、読んだファイルのパスがそのまま見える。秘密っぽい値 (トークン、パスワード、鍵) は
   Collector が `<REDACTED>` に伏せてから保存しているが、判定は正規表現によるので、形の決まらない秘密は伏せられない。
   見せる前に raw の `user_prompt` と `tool_result` を開き、見せたくないものが無いかを確かめる。
 - 相手に渡すのは閲覧用の `viewer` (Viewer ロール) で、表示されるのもその資格情報。相手はダッシュボードを
-  見られるが、編集・保存と Explore はできない。admin のパスワードは `just observe-show-admin` で見る自分用で、渡さない。
-- viewer のパスワードは observe-share を打つたびに作り直され、ログイン中のセッションも切れる。前に見せた相手は
+  見られるが、編集・保存と Explore はできない。admin のパスワードは `just show grafana-admin` で見る自分用で、渡さない。
+- viewer のパスワードは `just share` を打つたびに作り直され、ログイン中のセッションも切れる。前に見せた相手は
   次の共有には入れないので、見せるたびに新しいパスワードを渡す。
-- 見せ終わったら Ctrl-C で止める。止めると URL は無効になる。`just observe-show-connection` で
+- 見せ終わったら Ctrl-C で止める。止めると URL は無効になる。`just show grafana` で
   いま公開中かどうかを確かめられる。
 
 ### 11. ワーカーの手戻りを減らす (追加指示・やり直しが多い)
@@ -184,7 +184,7 @@ Grafana のダッシュボードを、困りごとから引くための手引き
   1. main-chat にコストの大きいモデル (Opus) が入っていたら、main-chat は Sonnet で開く約束が守られていない。
   2. 調整コスト比が切り替え後に下がっていなければ、話題チャットが重い (Opus で回している・長く居座っている)。
      話題別の表で、ワーカーより話題チャット本体が大きい話題を探す。
-  3. `(不明)` が大きいときは、exporter が動いていたか (`just orca-exporter-status`) と、`terminal list` が通っているかを見る。
+  3. `(不明)` が大きいときは、exporter が動いていたか (`just orca-exporter status`) と、`terminal list` が通っているかを見る。
 - ワーカー分は近似 (`rate` を足したもの) で、短いセッションでは誤差が出る。
 
 ## raw ダッシュボードの作り
