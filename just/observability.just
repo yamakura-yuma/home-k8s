@@ -8,12 +8,15 @@ observe_ns := "observability"
 grafana_password_file := env_var("HOME") + "/.local/share/home-k8s/observability/grafana-admin-password"
 # 共有相手に渡す閲覧用ユーザー viewer のパスワード。`just share` が起動のたびに作り直す
 grafana_viewer_password_file := env_var("HOME") + "/.local/share/home-k8s/observability/grafana-viewer-password"
+# Backstage が Grafana を読む閲覧用ユーザー backstage のパスワード。無ければ `just up` が作り、以後は再利用する
+grafana_backstage_password_file := env_var("HOME") + "/.local/share/home-k8s/observability/grafana-backstage-password"
 # `just share` の cloudflared と caddy のログ (起動のたびに上書きする)
 share_log_file := env_var("HOME") + "/.local/share/home-k8s/observability/observe-share.log"
 # `just share` が動いている間だけ置く、公開 URL と cloudflared の pid (`just show grafana` が読む)
 share_state_file := env_var("HOME") + "/.local/share/home-k8s/observability/observe-share.state"
 
-# admin と viewer のパスワードを (無ければ生成して) Secret grafana-admin と grafana-viewer に入れる。
+# admin・viewer・backstage のパスワードを (無ければ生成して) Secret grafana-admin・grafana-viewer・grafana-backstage と
+# backstage-grafana (Backstage 側) に入れる。
 # `just up` が先に打つ。中身が同じなら apply は何も変えないので、Grafana の Pod は再起動しない
 _grafana-secrets:
-    bash just/grafana-secrets.sh "{{grafana_password_file}}" "{{grafana_viewer_password_file}}" {{observe_ns}} "{{justfile_directory()}}" {{kube_context}}
+    bash just/grafana-secrets.sh "{{grafana_password_file}}" "{{grafana_viewer_password_file}}" "{{grafana_backstage_password_file}}" {{observe_ns}} "{{justfile_directory()}}" {{kube_context}}

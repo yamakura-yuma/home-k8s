@@ -1,0 +1,61 @@
+# home-k8s の Backstage の設定。イメージに入れ、kind クラスタで動かす (clusters/kind/backstage)。
+# 画面はホストの localhost:7007 で開く (NodePort 30707 + kind の extraPortMappings)。
+# フロントエンドもバックエンド (app-backend) が配るので、app と backend の baseUrl は同じにする。
+app:
+  title: home-k8s
+  baseUrl: http://localhost:7007
+  packages: all
+  extensions:
+    # カタログを入口にする
+    - page:catalog:
+        config:
+          path: /
+    # Grafana のダッシュボードの一覧を、注釈 grafana/dashboard-selector を持つエンティティのページに出す
+    - entity-card:grafana/dashboards
+    # アラートは使わない (Grafana にアラートのルールを置いていない)
+    - entity-card:grafana/alerts: false
+
+organization:
+  name: home-k8s
+
+backend:
+  baseUrl: http://localhost:7007
+  listen:
+    port: 7007
+  csp:
+    connect-src: ["'self'", 'http:', 'https:']
+  cors:
+    origin: http://localhost:7007
+    methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
+    credentials: true
+  # DB はインメモリの SQLite。カタログは Git から読み直せるので、Pod を作り直して消えても困らない
+  database:
+    client: better-sqlite3
+    connection: ':memory:'
+
+# Grafana の API はバックエンドのプロキシ経由で読む。資格情報はブラウザに渡らない。
+# GRAFANA_BASIC_AUTH は Grafana の閲覧用ユーザー backstage の「ユーザー:パスワード」の base64。
+# `just up` が Git の外のファイルから Secret backstage-grafana を作り、chart が環境変数にする
+proxy:
+  endpoints:
+    '/grafana/api':
+      target: http://grafana.observability.svc.cluster.local
+      headers:
+        Authorization: Basic ${GRAFANA_BASIC_AUTH}
+
+grafana:
+  # ダッシュボードのリンク先 (ブラウザが開く URL)
+  domain: http://localhost:3000
+  unifiedAlerting: false
+
+# ログインはゲストだけ。127.0.0.1 にしか出さないので、production でもゲストを許す
+auth:
+  providers:
+    guest:
+      dangerouslyAllowOutsideDevelopment: true
+
+catalog:
+  rules:
+    - allow: [Component, System, API, Resource, Location, User]
+  # 読み込む catalog-info.yaml (locations) は clusters/kind/backstage/values.yaml に置く。
+  # ArgoCD と同じく GitHub の main を指すので、検証用のブランチではそこも書き換える
