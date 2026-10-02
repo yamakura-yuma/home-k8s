@@ -81,8 +81,8 @@ ConfigMap は Application grafana に 2 つ目のソース (`path: clusters/kind
 ### self-manage の組み方
 
 `just argocd-up` は helm でリリース `argocd` を入れ、Application `argocd` は同じリリース名・chart・版・values で
-同じものを描く。ArgoCD は自分が入れたものを `app.kubernetes.io/instance` のラベルで追跡し、
-helm のリリース名がそのままこのラベルになるので、helm が入れたものをそのまま引き継ぐ。
+同じものを描く。描いた結果が helm の入れたものと同じなので、ArgoCD は最初の同期で既存のリソースに
+追跡用の注釈 (`argocd.argoproj.io/tracking-id`。ArgoCD 3 の既定) を足すだけで、作り直さずに引き継ぐ。
 版を上げるときは `just/argocd.just` の `argocd_chart_version` と `clusters/kind/argocd/apps/argocd.yaml` の
 `targetRevision` を揃えて `main` に入れる (ArgoCD が自分で上げる)。
 自分自身を消すと戻せないので、Application `argocd` だけは `prune: false` にしている。
