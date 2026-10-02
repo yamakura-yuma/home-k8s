@@ -7,7 +7,7 @@ backstage:
   image:
     registry: ""
     repository: home-k8s-backstage
-    tag: "0.1.0"
+    tag: "0.2.0"
     pullPolicy: Never
 
   # イメージの app-config.yaml に、下の appConfig (chart が ConfigMap にする) を重ねる
@@ -23,6 +23,11 @@ backstage:
       locations:
         - type: url
           target: https://github.com/yamakura-yuma/home-k8s/blob/main/catalog-info.yaml
+        # TechDocs で文書を読むナレッジ。どちらも公開リポジトリで、catalog-info.yaml と mkdocs.yml を置いてある
+        - type: url
+          target: https://github.com/yamakura-yuma/knowledge-base/blob/main/catalog-info.yaml
+        - type: url
+          target: https://github.com/yamakura-yuma/dotfiles/blob/main/catalog-info.yaml
 
 service:
   type: NodePort

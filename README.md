@@ -32,7 +32,7 @@ just up                   # kind のクラスタを作り (control-plane x1 + wo
                           # (OTel Collector/Tempo/Prometheus/Loki/Grafana)・Headlamp・Backstage を立ち上げて同期を待つ
 kubectl --context kind-study-kind get nodes -o wide   # ノード状態を確認
 just show                 # Grafana・ArgoCD・Headlamp・Backstage の接続先と資格情報を全部表示 (下の表)
-just share [grafana|headroom]  # localhost のサービス (既定は Grafana) を一時的に trycloudflare.com で公開し、URL と閲覧用のパスワードを表示 (Ctrl-C で停止)
+just share [grafana|headroom|backstage]  # localhost のサービス (既定は Grafana) を一時的に trycloudflare.com で公開し、URL と閲覧用のパスワードを表示 (Ctrl-C で停止)
 just orca-exporter install  # Orca のオーケストレーションを観測スタックに送る exporter を systemd で常駐させる (ホストで動く例外)
 just down                 # クラスタを削除
 just devcontainer down    # 開発用コンテナを削除
@@ -46,7 +46,7 @@ just devcontainer down    # 開発用コンテナを削除
 | `just up` | kind のクラスタを作り、Backstage のイメージを build して kind load し、ArgoCD を入れ、Secret を作り、同期を待つ。打ち直しても同じ状態に戻る |
 | `just down` | kind のクラスタを削除する |
 | `just show [grafana\|grafana-admin\|argocd\|headlamp\|backstage]` | 接続先と資格情報を表示する。省略で全部。`grafana` は共有相手に渡してよい viewer の接続先 (公開中なら公開 URL、止めていれば localhost:3000)、`grafana-admin` は自分用 |
-| `just share [grafana\|headroom]` | Grafana (localhost:3000) か headroom のダッシュボード (localhost:8787) を Cloudflare Quick Tunnel で一時的に公開する |
+| `just share [grafana\|headroom\|backstage]` | Grafana (localhost:3000)、headroom のダッシュボード (localhost:8787)、Backstage (localhost:7007) のどれかを Cloudflare Quick Tunnel で一時的に公開する。Backstage は画面と TechDocs を読む経路だけを通す |
 | `just orca-exporter <install\|uninstall\|status>` | Orca の exporter を systemd のユーザーユニットとして入れる・消す・状態を見る |
 | `just devcontainer <up\|shell\|down>` | 開発用コンテナを起動する・シェルで入る・削除する |
 
@@ -74,7 +74,8 @@ kind自体は試験で問われないためクラスタの起動/削除は just 
 観測スタック・Headlamp・Backstage は ArgoCD が GitHub の `main` から同期する (GitOps)。values や
 ダッシュボードの変更は `main` に入れれば反映される。ArgoCD の入れ方・構成・本番のクラスタへの
 反映手順は `docs/cluster/argocd.md`。データの永続化の設計 (StorageClass・PV・PVC) は `docs/cluster/persistence.md`。
-Backstage (localhost:7007) は home-k8s のエンティティのページに Grafana のダッシュボードの一覧を出す。
+Backstage (localhost:7007) は home-k8s のエンティティのページに Grafana のダッシュボードの一覧を出し、
+home-k8s・knowledge-base・dotfiles の文書を TechDocs で読ませる (`just share backstage` で一時的に外にも出せる)。
 アプリは `backstage/` にあり、イメージは `just up` が手元で build する。構成と本番への反映手順は `docs/cluster/backstage.md`。
 
 利用可能なrecipe一覧は `just --list` で確認できる。資格取得のロードマップは

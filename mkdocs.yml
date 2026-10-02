@@ -1,0 +1,6 @@
+# Backstage の TechDocs が docs/ を HTML にするための設定 (Backstage の Pod の中の mkdocs が読む)。
+# 目次はディレクトリの並びから作る。どのエンティティの文書かは catalog-info.yaml の backstage.io/techdocs-ref
+site_name: home-k8s
+docs_dir: docs
+plugins:
+  - techdocs-core

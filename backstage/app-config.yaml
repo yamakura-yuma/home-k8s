@@ -48,11 +48,22 @@ grafana:
   domain: http://localhost:3000
   unifiedAlerting: false
 
-# ログインはゲストだけ。127.0.0.1 にしか出さないので、production でもゲストを許す
+# ログインはゲストだけ。127.0.0.1 と、パスワード付きの just share にしか出さないので、production でもゲストを許す
 auth:
   providers:
     guest:
       dangerouslyAllowOutsideDevelopment: true
+
+# TechDocs。catalog-info.yaml に backstage.io/techdocs-ref を持つエンティティの文書を、
+# 開かれたときに Pod の中で mkdocs が build し (mkdocs はイメージに入れてある)、Pod の中に置いて配る。
+# 置き場は Pod を作り直すと消えるが、次に開いたときに build し直すだけ。
+# 文書は GitHub から読む。トークンは渡さない (公開リポジトリだけを読む。レート制限は docs/cluster/backstage.md)
+techdocs:
+  builder: local
+  generator:
+    runIn: local
+  publisher:
+    type: local
 
 catalog:
   rules:

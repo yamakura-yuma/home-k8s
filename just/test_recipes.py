@@ -68,8 +68,12 @@ class Recipes(unittest.TestCase):
         for action in ["install", "uninstall", "status"]:
             self.assertRegex(just("--dry-run", "orca-exporter", action).stderr, rf"orca-exporter\.sh\" {action}\n")
 
+    def test_share_passes_target(self):
+        for target in ["grafana", "headroom", "backstage"]:
+            self.assertRegex(just("--dry-run", "share", target).stderr, rf"observe-share\.sh\b.* {target}\n")
+
     def test_bad_arguments_stop_with_usage(self):
-        for args in [("show", "nope"), ("orca-exporter", "nope"), ("orca-exporter",), ("devcontainer", "nope")]:
+        for args in [("show", "nope"), ("share", "nope"), ("orca-exporter", "nope"), ("orca-exporter",), ("devcontainer", "nope")]:
             r = just("--dry-run", *args)
             self.assertNotEqual(r.returncode, 0, args)
             if len(args) > 1:
