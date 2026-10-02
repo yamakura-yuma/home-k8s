@@ -253,17 +253,18 @@ kubectl --context kind-study-kind -n observability delete pod -l app.kubernetes.
 ## 確認の結果
 
 2026-10-02 (UTC) に本番のクラスタ `study-kind` で、上の「実装時の確認方法」を次の順に行った
-(ArgoCD の参照先を検証用のブランチに向け、`just down` → `just up` を 2 回)。
+(ArgoCD の参照先を検証用のブランチに向け、`just down` → `just up` を 3 回)。
 1 回目は hostPath から PV への移行で、この時点の Grafana は emptyDir なので、ダッシュボードが残るかは 2 回目で見た。
+3 回目は Backstage (#27) が `main` に入った後の、backstage ユーザーをサイドカーにまとめた形で行った。
 
 | 確認 | 結果 |
 |---|---|
 | 1 回目の作り直し (移行) | `just up` 2 分 40 秒で 9 つの Application が Synced / Healthy。PV 4 枚は PVC より先に `Available` になり (wave -1)、PVC 4 つは同名の PV と `Bound`、RECLAIM POLICY は `Retain`。Pod は PV の nodeAffinity で `study-kind-worker` に置かれた |
 | 移行前のデータ | 作り直しの前後で同じ。Prometheus は 2026-09-30 00:17 から、Tempo は 2026-09-19 からのトレース、Loki は 2026-09-30 00:16 からのログが引ける |
-| Grafana の保存 | `persistence-check` ダッシュボードを保存 (API で作成) → 2 回目の作り直し → 同じ作成時刻のまま残っていた |
-| サイドカー | 1 回目は「viewer を作った」、2 回目は「viewer のパスワードを Secret の値にそろえた」 |
-| パスワードの書き換え | admin・viewer のファイルを書き換え → `just up` (Secret が `configured`) → Grafana の Pod を削除。新しい値で 200、古い値で 401 (admin・viewer とも) |
-| `just share` の前段 | `grafana-viewer-rotate.sh` で viewer を変え、30 秒後も新しい値で入れる (サイドカーが古い値に戻さない) |
+| Grafana の保存 | `persistence-check` ダッシュボードを保存 (UI の操作ではなく admin で HTTP API から作成) → 2 回目・3 回目の作り直し → 同じ作成時刻のまま残っていた |
+| サイドカー | 1 回目は「viewer を作った」、2 回目は「viewer のパスワードを Secret の値にそろえた」。3 回目は backstage を作り、Backstage のプロキシから Grafana の検索が 200 |
+| パスワードの書き換え | admin・viewer・backstage のファイルを書き換え → `just up` (Secret が `configured`) → Grafana の Pod を削除。3 ユーザーとも新しい値で 200、古い値で 401。Backstage の Pod を作り直すとプロキシも 200 |
+| `just share` の前段 | トンネルは開かず、`grafana-viewer-rotate.sh` だけを打った。viewer は新しい値で入れ、20〜30 秒後もそのまま (サイドカーが古い値に戻さない)。backstage は影響を受けない |
 
 ## 出典
 
