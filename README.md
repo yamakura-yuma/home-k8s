@@ -29,9 +29,9 @@ Kubernetes資格 (KCNA → KCSA → CKA → CKAD → CKS → Kubestronaut/Golden
 just devcontainer up      # イメージをbuildし、開発用コンテナを起動 (nix profile install も実行)
 just devcontainer shell   # コンテナにシェルで入る
 just up                   # kind のクラスタを作り (control-plane x1 + worker x2)、ArgoCD・Secret・観測スタック
-                          # (OTel Collector/Tempo/Prometheus/Loki/Grafana)・Headlamp を立ち上げて同期を待つ
+                          # (OTel Collector/Tempo/Prometheus/Loki/Grafana)・Headlamp・Backstage を立ち上げて同期を待つ
 kubectl --context kind-study-kind get nodes -o wide   # ノード状態を確認
-just show                 # Grafana・ArgoCD・Headlamp の接続先と資格情報を全部表示 (下の表)
+just show                 # Grafana・ArgoCD・Headlamp・Backstage の接続先と資格情報を全部表示 (下の表)
 just share                # Grafana を一時的に trycloudflare.com で公開し、URL と閲覧用 (viewer) のパスワードを表示 (Ctrl-C で停止)
 just orca-exporter install  # Orca のオーケストレーションを観測スタックに送る exporter を systemd で常駐させる (ホストで動く例外)
 just down                 # クラスタを削除
@@ -43,9 +43,9 @@ just devcontainer down    # 開発用コンテナを削除
 
 | レシピ | 中身 |
 |---|---|
-| `just up` | kind のクラスタを作り、ArgoCD を入れ、Secret を作り、同期を待つ。打ち直しても同じ状態に戻る |
+| `just up` | kind のクラスタを作り、Backstage のイメージを build して kind load し、ArgoCD を入れ、Secret を作り、同期を待つ。打ち直しても同じ状態に戻る |
 | `just down` | kind のクラスタを削除する |
-| `just show [grafana\|grafana-admin\|argocd\|headlamp]` | 接続先と資格情報を表示する。省略で全部。`grafana` は共有相手に渡してよい viewer の接続先 (公開中なら公開 URL、止めていれば localhost:3000)、`grafana-admin` は自分用 |
+| `just show [grafana\|grafana-admin\|argocd\|headlamp\|backstage]` | 接続先と資格情報を表示する。省略で全部。`grafana` は共有相手に渡してよい viewer の接続先 (公開中なら公開 URL、止めていれば localhost:3000)、`grafana-admin` は自分用 |
 | `just share` | Grafana (localhost:3000) だけを Cloudflare Quick Tunnel で一時的に公開する |
 | `just orca-exporter <install\|uninstall\|status>` | Orca の exporter を systemd のユーザーユニットとして入れる・消す・状態を見る |
 | `just devcontainer <up\|shell\|down>` | 開発用コンテナを起動する・シェルで入る・削除する |
@@ -71,9 +71,11 @@ kind自体は試験で問われないためクラスタの起動/削除は just 
 `kubectl` は試験で直接問われるため意図的に just でラップしていない。素手で
 `kubectl --context kind-study-kind ...` を叩いて操作すること。
 
-観測スタックと Headlamp は ArgoCD が GitHub の `main` から同期する (GitOps)。values や
+観測スタック・Headlamp・Backstage は ArgoCD が GitHub の `main` から同期する (GitOps)。values や
 ダッシュボードの変更は `main` に入れれば反映される。ArgoCD の入れ方・構成・本番のクラスタへの
-反映手順は `docs/cluster/argocd.md`。
+反映手順は `docs/cluster/argocd.md`。Backstage (localhost:7007) は home-k8s のエンティティのページに
+Grafana のダッシュボードの一覧を出す。アプリは `backstage/` にあり、イメージは `just up` が手元で build する。
+構成と本番への反映手順は `docs/cluster/backstage.md`。
 
 利用可能なrecipe一覧は `just --list` で確認できる。資格取得のロードマップは
 `docs/certification/roadmap.md` を参照。Claude Code のトレース・メトリクス・ログを見る

@@ -1,6 +1,6 @@
-# ArgoCD で観測スタックと Headlamp を入れる
+# ArgoCD で観測スタック・Headlamp・Backstage を入れる
 
-kind クラスタの観測スタック (Tempo・Prometheus・Loki・OTel Collector・Grafana) と Headlamp は、
+kind クラスタの観測スタック (Tempo・Prometheus・Loki・OTel Collector・Grafana)・Headlamp・Backstage は、
 ArgoCD が GitHub の `yamakura-yuma/home-k8s` の `main` から同期する。values やダッシュボードを
 変えるときは `main` に入れるだけで、クラスタに手で helm を打たない。ArgoCD 自身も ArgoCD が
 管理する (self-manage)。helm を打つのは最初の 1 回 (`just up`) だけ。
@@ -12,8 +12,10 @@ ArgoCD が GitHub の `yamakura-yuma/home-k8s` の `main` から同期する。v
 ```
 just up
   0. kind のクラスタを作る (kind-config.yaml)
+     Backstage のイメージを build して kind load する (backstage/、just/backstage.just)
   1. helm upgrade --install argocd (argo-cd chart、clusters/kind/argocd/values.yaml)
-  2. Secret grafana-admin / grafana-viewer (Git の外のファイルから。just/grafana-secrets.sh)
+  2. Secret grafana-admin / grafana-viewer / grafana-backstage / backstage-grafana
+     (Git の外のファイルから。just/grafana-secrets.sh)
   3. kubectl apply -f clusters/kind/argocd/root.yaml
   4. 全 Application が Synced/Healthy になるまで待つ
   5. Headlamp にログインするトークン (just/headlamp-token.sh)
@@ -25,7 +27,8 @@ Application root (clusters/kind/argocd/apps を同期する app-of-apps)
   ├── loki            │
   ├── otel-collector  ┘
   ├── grafana         chart + grafana-values.yaml + dashboards/kustomization.yaml (ダッシュボードの ConfigMap)
-  └── headlamp        chart + clusters/kind/headlamp/ (values と読み取り専用の RBAC)
+  ├── headlamp        chart + clusters/kind/headlamp/ (values と読み取り専用の RBAC)
+  └── backstage       chart + clusters/kind/backstage/values.yaml (イメージは 0 で入れたもの)
 ```
 
 | Application | chart | 版 | namespace |
@@ -33,6 +36,7 @@ Application root (clusters/kind/argocd/apps を同期する app-of-apps)
 | argocd | `argo-cd` (<https://argoproj.github.io/argo-helm>) | 10.9.6 (ArgoCD v3.5.3) | argocd |
 | tempo / prometheus / loki / otel-collector / grafana | [claude-code-traces.md](../observability/claude-code-traces.md) の表 | 同左 | observability |
 | headlamp | `headlamp` (<https://kubernetes-sigs.github.io/headlamp>) | 0.45.0 | headlamp |
+| backstage | `backstage` (<https://backstage.github.io/charts>) | 2.10.2 | backstage |
 
 子の Application は chart のリポジトリと home-k8s の 2 つをソースに持つ (multi-source)。
 home-k8s 側は `ref: values` で、chart に渡す values を `$values/clusters/kind/...` で指す。
@@ -45,9 +49,10 @@ chart のリポジトリは今までの `helm --repo` と同じく URL で直接
 | ArgoCD | <http://localhost:8080> | `admin`、パスワードは `just show argocd` |
 | Headlamp | <http://localhost:4466> | `just show headlamp` のトークン |
 | Grafana | <http://localhost:3000> | [claude-code-traces.md](../observability/claude-code-traces.md) の「Grafana の認証」 |
+| Backstage | <http://localhost:7007> | ゲスト ([backstage.md](backstage.md)) |
 
-どれも NodePort (30080・30466・30300) を kind の `extraPortMappings` で `127.0.0.1` に出している
-([kind-cluster.md](kind-cluster.md))。Backstage 用の 7007 (NodePort 30707) も先に開けてある。
+どれも NodePort (30080・30466・30300・30707) を kind の `extraPortMappings` で `127.0.0.1` に出している
+([kind-cluster.md](kind-cluster.md))。
 ArgoCD は 127.0.0.1 にしか出さないので TLS を付けず、`server.insecure: true` で HTTP にしている。
 
 Headlamp は ServiceAccount `headlamp` のトークンでログインする。権限は組み込みの `view` と、
@@ -60,7 +65,8 @@ Node・PersistentVolume・StorageClass・CRD・ClusterRole を読むだけの `h
 
 | Secret | 作るもの | 中身の出どころ |
 |---|---|---|
-| `observability/grafana-admin`・`grafana-viewer` | `just up` | `~/.local/share/home-k8s/observability/grafana-*-password` (無ければ作る) |
+| `observability/grafana-admin`・`grafana-viewer`・`grafana-backstage` | `just up` | `~/.local/share/home-k8s/observability/grafana-*-password` (無ければ作る) |
+| `backstage/backstage-grafana` | `just up` | 上の `grafana-backstage-password` から、Backstage のプロキシが使う Basic 認証の値を作る ([backstage.md](backstage.md)) |
 | `headlamp/headlamp-token` | `just up` | kube-controller-manager が ServiceAccount `headlamp` のトークンを入れる。取り出して `~/.local/share/home-k8s/headlamp/token` に書く |
 | `argocd/argocd-initial-admin-secret` | ArgoCD (初回の起動時) | ArgoCD が乱数で作る |
 
@@ -92,7 +98,8 @@ ConfigMap は Application grafana に 2 つ目のソース (`path: clusters/kind
 
 sync wave は使っていない。順序が要るのは次の 2 つで、どちらも wave なしで満たせる。
 
-- Grafana は Secret `grafana-admin`・`grafana-viewer` を読む。`just up` が root を apply する前に作る。
+- Grafana は Secret `grafana-admin`・`grafana-viewer`・`grafana-backstage` を、Backstage は `backstage-grafana` を読む。
+  `just up` が root を apply する前に作る。Backstage のイメージも root より先に kind load する。
 - Grafana はダッシュボードの ConfigMap をマウントする。同じ Application に入れたので、ArgoCD は
   ConfigMap を Deployment より先に apply する (種類ごとの既定の順序)。
 
@@ -103,6 +110,7 @@ root が子のヘルスを引き継ぐよう、`values.yaml` に Application の
 
 ## 本番のクラスタに反映する手順
 
+(ArgoCD を入れた PR #23 のとき。Backstage を足すときの手順は [backstage.md](backstage.md)。)
 kind-config にポートを足したので、クラスタの作り直しが要る。その間は観測スタックが止まるが、
 トレース・メトリクス・ログはホストの `~/.local/share/home-k8s/observability` に残り、
 Grafana のパスワードも同じファイルを使い続ける。orca-exporter は再開後にまた送る。
@@ -123,7 +131,8 @@ Secret も `just up` の中で作るので、別に打つものは無い。
 ArgoCD は `main` しか見ないので、マージ前の変更は次のように確かめる。
 
 1. 作業ブランチから検証用のブランチを切り、`clusters/kind/argocd` の中の `targetRevision: main` を
-   そのブランチ名に置き換えてコミットし、push する (マージしない)。
+   そのブランチ名に置き換えてコミットし、push する (マージしない)。Backstage が読む `catalog-info.yaml` の
+   URL (`clusters/kind/backstage/values.yaml` の `blob/main/`) も同じブランチに向ける。
 2. 検証用のクラスタを、別の名前・別の hostPort の kind-config で先に `kind create cluster --name <名前> --config <設定>` で作る
    (`up` は標準の kind-config で作るので、動いているクラスタと hostPort がぶつかる)。検証用のブランチを checkout して
    `HOME_K8S_KUBE_CONTEXT=kind-<名前> just up` を打つ。作成済みのクラスタは作り直さず、ArgoCD の導入から進む
