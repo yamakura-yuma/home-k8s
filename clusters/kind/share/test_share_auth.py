@@ -482,6 +482,28 @@ class KubernetesSource(unittest.TestCase):
         self.api.server_close()
         self.assertEqual(sa.CachedSource(self.source(), ttl=0).load(), ({}, b""))
 
+    def test_secrets_created_after_start_are_picked_up_without_restart(self):
+        # #64: Pod は Secret が無くても起動する (参照は optional)。auth は Secret を実行時に API から読み直すので、Secret ができれば再起動なしで効く。
+        # できるまでは全部 401 (閉じる側)。反映の遅れの上限はキャッシュの ttl
+        secrets = FakeKubernetesAPI.secrets
+        FakeKubernetesAPI.secrets = {}
+        now = [0.0]
+        cache = sa.CachedSource(self.source(), ttl=2, clock=lambda: now[0])
+        credentials, key = cache.load()
+        self.assertEqual(sa.decide(credentials, with_basic("alice", "pw"), T0, key)[0], 401)
+        FakeKubernetesAPI.secrets = secrets
+        self.assertEqual(cache.load(), ({}, b""), "ttl の間は読み直さない")
+        now[0] = 2.0
+        credentials, key = cache.load()
+        self.assertEqual(sa.decide(credentials, with_basic("alice", "pw"), T0, key)[0], 200)
+
+    def test_only_one_of_the_two_secrets_is_still_closed(self):
+        # 署名鍵だけ・資格情報だけが先にできても、1 つでも無ければ全部 401 (cookie も Basic も通さない)
+        for missing in (sa.CREDENTIALS_SECRET, sa.SESSION_KEY_SECRET):
+            del FakeKubernetesAPI.secrets[missing]
+            self.assertEqual(sa.CachedSource(self.source(), ttl=0).load(), ({}, b""), missing)
+            FakeKubernetesAPI.secrets[missing] = {"alice": json.dumps(entry("pw"))} if missing == sa.CREDENTIALS_SECRET else {"key": "k"}
+
 
 class Server(unittest.TestCase):
     """forward_auth が見る応答 (状態コードと Set-Cookie・WWW-Authenticate) を、実際の HTTP で確かめる。"""
@@ -559,6 +581,15 @@ class Server(unittest.TestCase):
         self.assertEqual(self.get(request)[0], 200)
         Path(self.path).write_text("{broken", encoding="utf-8")
         self.assertEqual(self.get(request)[0], 401)
+
+    def test_secret_created_later_is_picked_up_by_the_running_server(self):
+        # #64: Secret が無いまま起動した認証サービス (全部 401) が、Secret ができたら、再起動なしで次の要求から通す
+        request = {"Authorization": basic("alice", "pw")}
+        Path(self.path).unlink()
+        self.assertEqual(self.get(request)[0], 401)
+        self.assertEqual(self.get()[0], 401)
+        self.write()
+        self.assertEqual(self.get(request)[0], 200)
 
 
 if __name__ == "__main__":

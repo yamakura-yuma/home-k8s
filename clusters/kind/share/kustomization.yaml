@@ -11,6 +11,8 @@ configMapGenerator:
   - name: share-caddy
     files:
       - Caddyfile
+      - Caddyfile.closed
+      - entrypoint.sh
   - name: share-auth
     files:
       - share_auth.py

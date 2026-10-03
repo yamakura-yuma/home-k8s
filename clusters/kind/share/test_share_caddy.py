@@ -6,6 +6,8 @@
 起動し、upstream (grafana・headroom の中継・backstage) は偽の HTTP サーバー (標準ライブラリ)。
 確かめるのは拒否: 認証なしは全経路 401、認証があっても許可リストの外は 404 で upstream に届かない、
 delete・期限切れは次の要求から 401 (Backstage の cookie 経路でも)、特権 viewer に追加の経路が通らない。
+#64: Secret が揃っていない Pod (起動スクリプト entrypoint.sh が全拒否の Caddyfile.closed を選ぶ) は、3 つの経路がすべて 503 で、
+資格情報が正しくても upstream に届かない。Secret ができて Pod が作り直されたあと (環境変数が揃う) は、同じポートで通常どおり動く。
 
 `caddy` が無い環境では飛ばす (`just ci` は devShells.ci に caddy を入れて必ず走らせる)。
 """
@@ -30,6 +32,7 @@ sys.path.insert(0, str(HERE))
 import share_auth  # noqa: E402
 
 CADDYFILE = HERE / "Caddyfile"
+ENTRYPOINT = HERE / "entrypoint.sh"
 AUTH_SERVICE = HERE / "share_auth.py"
 RELAY_TOKEN = "0123456789abcdef0123456789abcdef"
 GRAFANA_BASIC = base64.b64encode(b"viewer:viewer-secret").decode()
@@ -434,6 +437,134 @@ class ShareCaddy(unittest.TestCase):
         # #52: SHARE_AUTH_ADDR が空でも caddy は起動するが、全経路が通らない (安全側。caddy は宛先なしで 503 を返す)。
         # Deployment が env を渡し損ねたときに当たる。許可リストの内も外も、Basic があっても通らない
         self.assert_everything_closed(self.closed_caddy("empty", ""))
+
+
+@unittest.skipUnless(shutil.which("caddy"), "caddy が無い")
+class ShareCaddyEntrypoint(unittest.TestCase):
+    """#64: Deployment と同じ起動 (entrypoint.sh) で caddy を立てる。Secret の値 (環境変数) の有無で、全拒否か通常かが決まる。
+
+    認証サービスは正しい資格情報を持っている。全拒否のときは、それがあっても通らない (認証サービスに聞くことすらしない)。
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = Path(tempfile.mkdtemp())
+        cls.source = cls.tmp / "credentials.json"
+        cls.source.write_text(json.dumps({"credentials": {"alice": credential(PASSWORDS["alice"])}, "session_key": SESSION_KEY}), encoding="utf-8")
+        cls.auth_port = free_port()
+        cls.auth = subprocess.Popen(
+            [sys.executable, "-B", str(AUTH_SERVICE)], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+            env={**os.environ, "AUTH_SOURCE": f"file:{cls.source}", "AUTH_LISTEN": f"127.0.0.1:{cls.auth_port}", "AUTH_CACHE_TTL": "0", "AUTH_VERIFY_TTL": "0"})
+        wait_listening(cls.auth, cls.auth_port, "認証サービス")
+        cls.grafana, cls.headroom_relay, cls.backstage = start_upstream(), start_upstream(), start_upstream()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.auth.terminate()
+        cls.auth.wait(timeout=10)
+        cls.auth.stderr.close()
+        for upstream in (cls.grafana, cls.headroom_relay, cls.backstage):
+            upstream.shutdown()
+            upstream.server_close()
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def setUp(self):
+        self.upstreams = {GRAFANA: self.grafana, HEADROOM: self.headroom_relay, BACKSTAGE: self.backstage}
+        for upstream in self.upstreams.values():
+            upstream.seen.clear()
+        self.ports = {GRAFANA: free_port(), HEADROOM: free_port(), BACKSTAGE: free_port()}
+
+    def start(self, name, **secret_env):
+        """entrypoint.sh から caddy を起動する (self.ports で待ち受ける)。secret_env は Pod の環境変数になる Secret の値。"""
+        env = caddy_env(
+            self.tmp / name,
+            SHARE_CADDY_DIR=str(HERE), SHARE_AUTH_ADDR=f"127.0.0.1:{self.auth_port}",
+            SHARE_GRAFANA_UPSTREAM=f"127.0.0.1:{self.grafana.server_port}", SHARE_BACKSTAGE_UPSTREAM=f"127.0.0.1:{self.backstage.server_port}",
+            SHARE_GRAFANA_PORT=str(self.ports[GRAFANA]), SHARE_HEADROOM_PORT=str(self.ports[HEADROOM]), SHARE_BACKSTAGE_PORT=str(self.ports[BACKSTAGE]))
+        for var in ("GRAFANA_VIEWER_PASSWORD", "SHARE_RELAY_TOKEN", "SHARE_RELAY_ADDR", "SHARE_GRAFANA_BASIC"):
+            env.pop(var, None)
+        env.update(secret_env)
+        log_path = self.tmp / f"{name}.log"
+        with open(log_path, "w") as log:
+            proc = subprocess.Popen(["sh", str(ENTRYPOINT)], env=env, stdout=subprocess.DEVNULL, stderr=log)
+        proc.log_path = log_path
+        for port in self.ports.values():
+            wait_listening(proc, port, "caddy")
+        return proc
+
+    def stop(self, proc):
+        proc.terminate()
+        proc.wait(timeout=10)
+
+    complete = {"GRAFANA_VIEWER_PASSWORD": "viewer-secret", "SHARE_RELAY_TOKEN": RELAY_TOKEN}
+
+    def secrets(self):
+        return {**self.complete, "SHARE_RELAY_ADDR": f"127.0.0.1:{self.headroom_relay.server_port}"}
+
+    def all_requests(self):
+        return (
+            [(GRAFANA, m, p) for m, p in GRAFANA_ALLOWED + GRAFANA_DENIED]
+            + [(HEADROOM, m, p) for m, p in [("GET", p) for p in HEADROOM_ALLOWED] + HEADROOM_DENIED]
+            + [(BACKSTAGE, m, p) for m, p in BACKSTAGE_ALLOWED + BACKSTAGE_DENIED]
+        )
+
+    def assert_everything_denied(self):
+        # 正しい Basic (alice) も、署名の合わない cookie も、何も無しも、許可リストの内も外も、3 つの経路のどれも 503。upstream には 1 つも届かない
+        headers = [{}, basic("alice", PASSWORDS["alice"]), {"Cookie": "share_session=alice.deadbeef"}, {"Authorization": "Bearer abc"}, {"X-Share-Relay-Token": RELAY_TOKEN}]
+        for target, method, path in self.all_requests():
+            for h in headers:
+                status, _ = request(self.ports[target], method, path, h)
+                self.assertEqual(status, 503, (target, method, path, h))
+        for target, upstream in self.upstreams.items():
+            self.assertEqual(upstream.seen, [], f"Secret が揃っていないのに {target} の upstream に届いた")
+
+    def test_no_secret_denies_every_route(self):
+        # share-host も share-grafana も無い (optional の参照で環境変数が 1 つも無い) Pod
+        proc = self.start("none")
+        self.addCleanup(self.stop, proc)
+        self.assert_everything_denied()
+
+    def test_empty_secret_values_deny_every_route(self):
+        # Secret はあるが値が空 (viewer のパスワードのファイルが空だった、など)。空の Basic や空のトークンで通さない
+        for name, env in {"empty-all": {k: "" for k in [*self.complete, "SHARE_RELAY_ADDR"]}, "no-password": {**self.secrets(), "GRAFANA_VIEWER_PASSWORD": ""}}.items():
+            proc = self.start(name, **env)
+            try:
+                self.assert_everything_denied()
+            finally:
+                self.stop(proc)
+
+    def test_a_missing_secret_value_denies_every_route(self):
+        # 3 つ (中継の宛先・トークン・viewer のパスワード) のどれが欠けても全拒否。一部だけ揃った状態で、揃った分の経路だけが開かない
+        for missing in [*self.complete, "SHARE_RELAY_ADDR"]:
+            proc = self.start(f"missing-{missing}", **{k: v for k, v in self.secrets().items() if k != missing})
+            try:
+                self.assert_everything_denied()
+            finally:
+                self.stop(proc)
+
+    def test_closed_startup_says_why(self):
+        proc = self.start("why")
+        self.addCleanup(self.stop, proc)
+        self.assertIn("全経路を 503 で拒否", proc.log_path.read_text())
+
+    def test_after_the_secrets_exist_the_recreated_pod_serves_normally(self):
+        # Secret ができて Pod が作り直された (環境変数が揃った) あとは、同じポートで通常どおり: 認証なしは 401、許可リストの内は 200・外は 404、
+        # Grafana には viewer の鍵が渡る (Basic は起動スクリプトが viewer のパスワードから組み立てる)
+        closed = self.start("before")
+        self.assert_everything_denied()
+        self.stop(closed)
+        proc = self.start("after", **self.secrets())
+        self.addCleanup(self.stop, proc)
+        for target, path in [(GRAFANA, "/api/search"), (HEADROOM, "/health"), (BACKSTAGE, "/")]:
+            self.assertEqual(request(self.ports[target], "GET", path)[0], 401, (target, path))
+        self.assertEqual(request(self.ports[GRAFANA], "GET", "/profile/password", basic("alice", PASSWORDS["alice"]))[0], 404)
+        self.assertEqual(request(self.ports[GRAFANA], "GET", "/api/search", basic("alice", PASSWORDS["alice"]))[0], 200)
+        (_, _, headers), = self.grafana.seen
+        self.assertEqual(headers["Authorization"], f"Basic {GRAFANA_BASIC}")
+        self.assertEqual(request(self.ports[HEADROOM], "GET", "/health", basic("alice", PASSWORDS["alice"]))[0], 200)
+        (_, _, headers), = self.headroom_relay.seen
+        self.assertEqual(headers["X-Share-Relay-Token"], RELAY_TOKEN)
+        self.assertEqual(request(self.ports[BACKSTAGE], "GET", "/", basic("alice", PASSWORDS["alice"]))[0], 200)
 
 
 if __name__ == "__main__":

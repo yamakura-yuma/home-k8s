@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # just up の `_share-secrets` の本体。share Pod (clusters/kind/share) が起動に要る Secret のうち、中継 (share-relay.sh) が作る share-host 以外を作る。
-# Secret の中身は git に置かない (ArgoCD の selfHeal が中身を戻さない)。Pod は Secret が無いと起動できないので、just up は ArgoCD の同期より前に打つ。
+# Secret の中身は git に置かない (ArgoCD の selfHeal が中身を戻さない)。Pod は Secret が無くても起動する (参照は optional で、揃うまで全経路 503) ので、
+# ArgoCD の同期が先でも止まらない。caddy は環境変数を起動時にしか読まないので、Secret が揃う前に起動した Pod は最後に作り直す (restart_share_pod_if_closed、#64)。
 #   share-credentials  人ごとの資格情報 (just share add が項目を足す)。空で作る。あれば何もしない (打ち直しで人の資格情報を消さない)
 #   share-session-key  Backstage の cookie の署名鍵 (キー key)。無ければ作り、あれば何もしない
 #   share-grafana      Grafana の viewer のパスワード (キー viewer-password)。Secret grafana-viewer は別 namespace (observability) にあって
@@ -32,3 +33,9 @@ create_secret_if_missing "$ctx" share share-session-key --from-file=key="$tmp/ke
 kubectl --context "$ctx" -n share create secret generic share-grafana \
     --from-file=viewer-password="$viewer_file" \
     --dry-run=client -o yaml | put_secret "$ctx" share share-grafana
+
+# share-host は _share-relay-up (just up のこの前の段) が作る。無いまま作り直しても閉じたままなので、あるときだけ。
+# share-grafana は上で作った (set -e)。閉じて起動していた Pod だけを作り直し、開いている Pod (2 回目以降の just up) には触れない
+if secret_exists "$ctx" share share-host; then
+    restart_share_pod_if_closed "$ctx"
+fi
