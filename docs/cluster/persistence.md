@@ -177,7 +177,7 @@ StatefulSet の `volumeClaimTemplates` を足すことになり、これは既�
 
 | ユーザー | パスワードの正本 | 今 | 永続化後に起きること | 永続化後のそろえ方 |
 |---|---|---|---|---|
-| admin | ホストのファイル → Secret `grafana-admin` | Grafana が初回起動で Secret の値で作る | `admin_password` は初回起動のときしか使われない (出典 5)。ファイルを作り直すと Secret と DB がずれ、サイドカーも `just share` も admin で入れなくなる | initContainer で `grafana cli admin reset-admin-password` を打ち、起動のたびに Secret の値にそろえる |
+| admin | ホストのファイル → Secret `grafana-admin` | Grafana が初回起動で Secret の値で作る | `admin_password` は初回起動のときしか使われない (出典 5)。ファイルを作り直すと Secret と DB がずれ、サイドカーも admin で入れなくなる | initContainer で `grafana cli admin reset-admin-password` を打ち、起動のたびに Secret の値にそろえる |
 | viewer | ホストのファイル → Secret `grafana-viewer` | サイドカーが「無ければ作る」 | DB に残るので作られない。viewer のパスワードを変えるのはファイルを書き換えて `just up` を打つときだけで、Secret にも share の写しにも同じ値が入る。DB へは Pod の起動時にそろえる | サイドカーを Pod の起動ごとに一度だけ「無ければ作る、居ればパスワードを Secret の値に更新する」(`PUT /api/admin/users/:id/password`) に変える |
 | backstage (argocd-grafana-backstage で追加予定) | ホストのファイル → Secret | サイドカーが「無ければ作る」予定 | viewer と同じ | viewer と同じ処理に載せる |
 
