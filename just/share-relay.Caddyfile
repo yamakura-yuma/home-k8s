@@ -19,9 +19,11 @@ http://:{$SHARE_RELAY_PORT} {
 	handle @unauthorized {
 		respond 401
 	}
+	# path の matcher は大文字小文字を区別しない (/Health も /health として通る)。headroom は区別するので、
+	# 表記揺れの経路がプロキシ本体の受け口に落ちうる。許可は path_regexp (区別する・全体一致) で書く (#53)
 	@dashboard {
 		method GET
-		path /dashboard /health /stats /stats-history /stats-lifetime /transformations/feed /favicon.ico
+		path_regexp ^/(dashboard|health|stats|stats-history|stats-lifetime|transformations/feed|favicon\.ico)$
 	}
 	handle @dashboard {
 		reverse_proxy {$SHARE_RELAY_UPSTREAM:localhost:8787} {

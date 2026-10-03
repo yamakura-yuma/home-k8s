@@ -126,6 +126,9 @@ reload の取りこぼしを心配することになるためである。代わ�
 - 人ごとの Grafana ユーザーは作らない (平文のパスワードを保存せずに済む。ユーザーの作成・削除の失敗で食い違うこともない)。
 - Grafana の閲覧者は全員 `viewer` として入る (今も同じ)。見られる範囲は他の対象と同じく viewer の権限で、admin は出ない。
 - 人が viewer のパスワードを変えて締め出さないよう、`/profile/password`・`/api/user/password` は 404 にする。
+  viewer は共有相手全員で 1 人なので、ログイン名 (`PUT /api/user`) を変えられても Basic の付与が壊れる (#51)。使い捨ての Grafana 13.2.3 に viewer の Basic で書き込みを当てて確かめたところ、
+  `PUT /api/user`・`PUT`/`PATCH /api/user/preferences`・`POST /api/user/using/<org>`・`POST`/`DELETE /api/user/stars/*`、新しい preferences API の `PUT /apis/preferences.grafana.app/*/preferences/<自分>` が通った。
+  このため `/api/user` 以下と `/apis/preferences.grafana.app/` 以下は、GET・HEAD 以外を 404 にする (読み取りは画面が使うので通す)。ほかの書き込み (`/api/org/preferences`・`/api/users/*`・`POST /api/dashboards/db`・`/api/snapshots`) は Grafana が viewer に 401・403 を返すので、caddy では足さない。
 - 確認済み (#40): Grafana は **ページの要求にも** Basic を受ける。稼働中の Grafana (`localhost:3000`) に viewer の Basic を付けて
   `/`・`/dashboards`・`/profile` が 200、付けない `/` は 302 (ログイン画面)、誤ったパスワードは 302 だった。さらに実際の Caddyfile の `:8081`
   を稼働中の Grafana に向け (読み取りの要求だけ)、人の資格情報で `/`・`/dashboards`・`/api/user` が 200、`/profile/password`・`PUT /api/user/password` が
@@ -140,9 +143,9 @@ reload の取りこぼしを心配することになるためである。代わ�
 
 | 対象 | 通す | 通さない (404) |
 |---|---|---|
-| grafana | すべて (viewer の権限の範囲)。`Location: http://localhost:3000/` は `/` に書き換える | `/profile/password` `/api/user/password` |
-| headroom | GET の `/dashboard /health /stats /stats-history /stats-lifetime /transformations/feed /favicon.ico` | それ以外 (`/v1/*`、`POST /settings`、`/stats/reset`、`/cache/clear`、許可リストの経路への HEAD ほか) |
-| backstage | GET・HEAD の `/api/proxy` 以外すべて。POST は `/api/auth/*` と `/api/catalog/entities/by-refs` だけ | `/api/proxy*` (Grafana の API を Backstage の資格情報で読ませない)、`POST /api/catalog/locations` ほか |
+| grafana | すべて (viewer の権限の範囲)。`Location: http://localhost:3000/` は `/` に書き換える | `/profile/password` `/api/user/password`、`/api/user` 以下と `/apis/preferences.grafana.app/` 以下の GET・HEAD 以外 (#51) |
+| headroom | GET の `/dashboard /health /stats /stats-history /stats-lifetime /transformations/feed /favicon.ico` (大文字小文字を区別する完全一致。`/Health` は 404、#53) | それ以外 (`/v1/*`、`POST /settings`、`/stats/reset`、`/cache/clear`、許可リストの経路への HEAD ほか) |
+| backstage | GET・HEAD の `/api/proxy` 以外すべて。POST は `/api/auth/*` と `/api/catalog/entities/by-refs` だけ (POST の許可は大文字小文字を区別する) | `/api/proxy*` (表記揺れも) (Grafana の API を Backstage の資格情報で読ませない)、`POST /api/catalog/locations` ほか |
 
 現在の `just/*.Caddyfile` の経路・書き換え (Backstage の `Set-Cookie` の `Domain=localhost` 外し) は、`clusters/kind/share/Caddyfile` に移した
 (#41 がこれを ConfigMap にする。旧 `just/*.Caddyfile` は旧 `just share` が使うので #44 まで残す)。3 サイト (`:8081 grafana` `:8082 headroom` `:8083 backstage`)
@@ -240,6 +243,6 @@ Cookie の属性は `Path=/; HttpOnly; Secure; SameSite=Lax` (期限は cookie �
 - Quick Tunnel は稼働の保証がない。クラスタの外向きの UDP 7844 (QUIC) が通らないときは `--protocol http2` にする。
 - 特権 viewer のパスワードは保存しないので、忘れたら `rotate` する。`get` で再表示したいなら、平文を Secret に持つ方式へ変える判断が要る。
 - Grafana への Basic の付与は #40 で確かめ、通った (§4)。人ごとの Grafana ユーザーへの切り替えは要らない。
-- 残る穴 (#40 のレビューで見つかり、別の Issue に切る): caddy の `path` matcher は大文字小文字を区別しないので、headroom の `GET /Health` が許可リストを通って
-  upstream に `/Health` のまま届く (中継 #38 も同じ。uvicorn は区別するので headroom では未知の経路)。viewer の権限で Grafana の `PUT /api/user` (ログイン名の変更) も通る。
+- 大文字小文字 (#53): caddy の `path` matcher は区別しないので、許可リストに使うと `GET /Health` が通って upstream に `/Health` のまま届く (headroom は区別するので、未知の経路としてプロキシ本体の受け口に落ちうる)。
+  許可は `path_regexp` (区別する・全体一致) で書く (headroom は中継と share の両方、backstage の POST)。拒否の `path` (grafana の password・`/api/user`、backstage の `/api/proxy`) は区別しないままにして、表記揺れの素通りを止める。
 - `stage C paths` の対象 (dotfiles の再利用 workflow) に `clusters/kind/share/`・`just/share*` を足すのは dotfiles 側の変更で、この repo の外。

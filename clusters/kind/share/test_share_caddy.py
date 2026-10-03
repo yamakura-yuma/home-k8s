@@ -40,15 +40,35 @@ PASSWORDS = {"alice": "alice-password", "root": "root-password"}
 GRAFANA, HEADROOM, BACKSTAGE = "grafana", "headroom", "backstage"
 
 # 対象ごとの (通る要求, 通らない要求)。通らない要求は認証があっても 404 で、upstream に届かない
-GRAFANA_ALLOWED = [("GET", "/"), ("GET", "/dashboards"), ("GET", "/d/abc/x?orgId=1"), ("POST", "/api/ds/query"), ("GET", "/goto/abc")]
+GRAFANA_ALLOWED = [
+    ("GET", "/"), ("GET", "/dashboards"), ("GET", "/d/abc/x?orgId=1"), ("POST", "/api/ds/query"), ("GET", "/goto/abc"),
+    # プロフィール・設定の読み取りは通す (画面が使う。書き込みだけを GRAFANA_DENIED で止める)
+    ("GET", "/api/user"), ("GET", "/api/user/preferences"), ("GET", "/api/user/orgs"),
+    ("GET", "/apis/preferences.grafana.app/v1alpha1/namespaces/default/preferences"),
+]
 GRAFANA_DENIED = [
     (method, path)
     for method in ["GET", "POST", "PUT", "PATCH"]
     for path in ["/profile/password", "/profile/password/", "/api/user/password", "/api/user/password/",
                  "/PROFILE/password", "//profile/password", "/profile/%70assword", "/api/user/password?x=1"]
+] + [
+    # #51: viewer は自分のプロフィールを書き換えられる。ログイン名を変えると caddy が付ける Basic が効かなくなり、共有が壊れる。
+    # /api/user 以下と preferences の新しい API は、書き込みを通さない (読み取りは GRAFANA_ALLOWED)
+    (method, path)
+    for method in ["PUT", "POST", "PATCH", "DELETE"]
+    for path in ["/api/user", "/api/user/", "/api/user?x=1", "/api/USER", "/API/user", "/api/%75ser", "/api/user%2f", "/api/user/preferences",
+                 "/api/user/preferences/", "/api/user/PREFERENCES", "/api/%75ser/preferences", "/api/user/using/1",
+                 "/api/user/stars/dashboard/uid/abc", "/api/user/auth-tokens/rotate", "/api/user/revoke-auth-token",
+                 "/apis/preferences.grafana.app/v1alpha1/namespaces/default/preferences/user-x",
+                 "/apis/preferences.grafana.app/v1/namespaces/default/preferences",
+                 "/APIS/preferences.grafana.app/v1alpha1/namespaces/default/preferences/user-x"]
 ]
 HEADROOM_ALLOWED = ["/dashboard", "/health", "/stats", "/stats-history", "/stats-lifetime", "/transformations/feed", "/favicon.ico"]
 HEADROOM_DENIED = [
+    # #53: caddy の path は大文字小文字を区別しないが、許可リストは区別する (headroom は区別する)
+    *[("GET", variant) for path in HEADROOM_ALLOWED for variant in (path.upper(), path[:2].upper() + path[2:], path[:-1] + path[-1].upper())],
+    ("GET", "/Health"), ("GET", "/DASHBOARD"), ("GET", "/Favicon.ico"), ("GET", "/favicon.ICO"), ("GET", "/Stats-History"),
+    ("GET", "/health%0a"), ("GET", "/%48ealth"),
     ("POST", "/v1/messages"), ("GET", "/v1/messages"), ("POST", "/stats/reset"), ("GET", "/stats/reset"),
     ("POST", "/settings"), ("GET", "/settings"), ("POST", "/dashboard/settings"), ("POST", "/cache/clear"),
     ("POST", "/dashboard"), ("PUT", "/stats"), ("DELETE", "/health"), ("GET", "/stats/"),
@@ -65,6 +85,9 @@ BACKSTAGE_DENIED = [
     ("POST", "/api/proxy/grafana/api/org"), ("GET", "/api/PROXY/grafana/api/org"),
     ("POST", "/api/catalog/locations"), ("POST", "/api/catalog/refresh"), ("POST", "/"), ("PUT", "/api/catalog/entities"),
     ("DELETE", "/api/catalog/entities/by-uid/x"), ("POST", "/api/auth"),
+    # #53: 拒否の /api/proxy は表記揺れも止める (Backstage の経路は大文字小文字を区別しない)。POST の許可は完全一致
+    ("GET", "/API/proxy/grafana/api/org"), ("GET", "/Api/Proxy"), ("POST", "/api/PROXY/grafana/api/org"), ("GET", "/api/proxy%2fgrafana"),
+    ("POST", "/api/catalog/Entities/by-refs"), ("POST", "/api/catalog/entities/by-refs/x"),
 ]
 
 

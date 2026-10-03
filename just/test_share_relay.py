@@ -33,6 +33,10 @@ DENIED = [
     ("POST", "/cache/clear"), ("GET", "/cache/clear"), ("POST", "/dashboard"), ("PUT", "/stats"), ("DELETE", "/health"),
     ("GET", "/"), ("GET", "/stats/"), ("GET", "/dashboard/"), ("GET", "//v1/messages"), ("GET", "/dashboard/../v1/messages"),
     ("GET", "/dashboard/%2e%2e/v1/messages"), ("OPTIONS", "/dashboard"),
+    # #53: caddy の path は大文字小文字を区別しないが、許可リストは区別する (headroom は区別する)
+    *[("GET", variant) for path in ALLOWED for variant in (path.upper(), path[:2].upper() + path[2:], path[:-1] + path[-1].upper())],
+    ("GET", "/Health"), ("GET", "/DASHBOARD"), ("GET", "/Favicon.ico"), ("GET", "/favicon.ICO"), ("GET", "/Stats-History"),
+    ("GET", "/health%0a"), ("GET", "/%48ealth"),
 ]
 
 

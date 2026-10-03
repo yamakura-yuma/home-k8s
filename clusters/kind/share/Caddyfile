@@ -54,6 +54,15 @@ http://:{$SHARE_GRAFANA_PORT:8081} {
 		# viewer のパスワードを人が変えて他の人を締め出せないようにする
 		@password path /profile/password /profile/password/ /api/user/password /api/user/password/
 		respond @password 404
+		# viewer は自分のプロフィールを書き換えられる。PUT /api/user でログイン名を変えると、caddy が付ける
+		# Basic (viewer:<パスワード>) が効かなくなり、共有が全員分壊れる (#51)。viewer は共有相手全員で 1 人なので、
+		# /api/user 以下 (プロフィール・preferences・org の切り替え・星) と、同じ preferences の新しい API
+		# (/apis/preferences.grafana.app) は読み取りだけ通し、書き込みは 404 (Grafana 13.2 で viewer の書き込みを確かめた)
+		@user_write {
+			path /api/user /api/user/* /apis/preferences.grafana.app/*
+			not method GET HEAD
+		}
+		respond @user_write 404
 		reverse_proxy {$SHARE_GRAFANA_UPSTREAM:grafana.observability.svc:80} {
 			# 人の資格情報 (Basic) は渡さず、viewer の鍵に差し替える。share_session の cookie も渡さない
 			header_up Authorization "Basic {$SHARE_GRAFANA_BASIC}"
@@ -70,9 +79,11 @@ http://:{$SHARE_HEADROOM_PORT:8082} {
 	bind 127.0.0.1
 	route {
 		import share_auth
+		# path の matcher は大文字小文字を区別しない (/Health も /health として通る)。headroom は区別するので、
+		# 表記揺れの経路がプロキシ本体の受け口に落ちうる。許可は path_regexp (区別する・全体一致) で書く (#53)
 		@dashboard {
 			method GET
-			path /dashboard /health /stats /stats-history /stats-lifetime /transformations/feed /favicon.ico
+			path_regexp ^/(dashboard|health|stats|stats-history|stats-lifetime|transformations/feed|favicon\.ico)$
 		}
 		handle @dashboard {
 			reverse_proxy {$SHARE_RELAY_ADDR} {
@@ -104,9 +115,11 @@ http://:{$SHARE_BACKSTAGE_PORT:8083} {
 		method GET HEAD
 		not path /api/proxy /api/proxy/*
 	}
+	# POST の許可は大文字小文字を区別して全体一致にする (path は区別しない。#53)。拒否側の /api/proxy は区別しない
+	# path のままにして、/api/PROXY のような表記揺れも止める
 	@write {
 		method POST
-		path /api/auth/* /api/catalog/entities/by-refs
+		path_regexp ^/api/auth/.*$|^/api/catalog/entities/by-refs$
 	}
 	@basic header Authorization "Basic *"
 	route {
