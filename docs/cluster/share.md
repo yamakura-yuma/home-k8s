@@ -233,7 +233,7 @@ Cookie の属性は `Path=/; HttpOnly; Secure; SameSite=Lax` (期限は cookie �
 - 起動順: `just up` は `_grafana-secrets` (viewer のパスワードのファイル) → `_share-relay-up` (`share-host`) → `_share-secrets` を、ArgoCD の同期 (`root.yaml` の apply) より前に打つ。
 - `share-grafana` は写しで、caddy は起動時に 1 度だけ環境変数に読む。viewer のパスワードを変える処理は `just up` だけになった
   (`grafana-secrets.sh`・`share-secrets.sh` が同じファイルから `grafana-viewer` と `share-grafana` を同時に入れる。共有のたびの作り直しは #44 で廃止) が、
-  `just up` は Pod を作り直さないので、**変えたあとは `deploy/grafana` と `deploy/share` の両方を `rollout restart` する**
+  `just up` は開いている Pod を作り直さないので (閉じて起動した Pod だけは作り直す。下の「Secret が揃うまで」)、**変えたあとは `deploy/grafana` と `deploy/share` の両方を `rollout restart` する**
   (Grafana の DB はサイドカーが起動時にそろえる。片方だけだと Grafana の経路が 302 になる)。`share` を作り直すと URL が変わる。自動で読み直す仕組みは [#58](https://github.com/yamakura-yuma/home-k8s/issues/58)。
 - **Secret が揃うまで** (#64): root の Application は main を自動で同期するので、`share` の Application は main にマージされた時点でクラスタに入る。
   Secret は `just up` まで作られないが、**Pod は止まらず起動し、全経路を拒否する**。以前は参照が `optional: false` で `CreateContainerConfigError` のまま止まっていた (study-kind では 3 時間止まった。#43)。
