@@ -8,6 +8,7 @@
 #   3. kustomize build / 素の manifest  同じ Application の path (dashboards、storage、headlamp/manifests)
 #   4. kubeconform     3 までの出力を、kind の Kubernetes の版のスキーマに照らす
 #   5. kube-linter     3 までの出力 (.kube-linter.yaml)
+#   6. share 中継の試験  just/share-relay.Caddyfile を caddy で起動し、認証なし・許可リスト外の拒否を確かめる (稼働中のクラスタ・ホストには触れない)
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -61,3 +62,7 @@ kubeconform -strict -summary -ignore-missing-schemas -kubernetes-version "$k8s_v
 
 echo "== kube-linter =="
 kube-linter lint --config .kube-linter.yaml "$out"
+
+echo "== share 中継 (caddy + 偽の upstream、スクリプトの引数) =="
+command -v caddy >/dev/null || { echo "caddy が無い (devShells.ci に入っているはず)" >&2; exit 1; }
+python3 -B -m unittest discover -s just -p 'test_share_relay.py' -v

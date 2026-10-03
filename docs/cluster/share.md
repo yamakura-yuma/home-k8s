@@ -1,6 +1,6 @@
 # 公開 (just share) を常駐させ、人ごとの資格情報で配る — 設計
 
-状態: 設計 (実装前)。実装は GitHub の Issue ごとに進め、そのたびにこの文書を実際の構成に書き換える。
+状態: 設計。実装は GitHub の Issue ごとに進め、そのたびにこの文書を実際の構成に書き換える。実装済み: #38 (headroom の中継)。
 図の HTML (変更前→変更後のアニメーション): [share-design.html](share-design.html)
 
 ## 何を変えるか
@@ -38,19 +38,34 @@ Ctrl-C まで公開する (対象ごとに 1 回、フォアグラウンド)。�
 | backstage | NodePort 30707 の Service `backstage` (ns `backstage`) | `backstage.backstage.svc:7007` で届く (同上) |
 | headroom | ホストの `127.0.0.1:8787` (systemd `headroom-default.service`)。`/v1/messages` などのプロキシ本体と同居 | **届かない** (loopback 限定)。合意書 v2 の A 案で中継を置く |
 
-headroom の中継 (ホスト側):
+headroom の中継 (ホスト側。#38 で実装済み):
 
-- 中身は caddy。`docker run --network host --restart unless-stopped` の専用コンテナで、`just up` が kind の bridge が
-  できた後に起動し、`just down` が消す。systemd の unit は増やさない (開発用コンテナも `--network host` で同じ作りにしてある)。
-- 待ち受けは kind の bridge のゲートウェイだけ (`docker network inspect kind` から引く。既定は `172.18.0.1:8788`)。
-  headroom 本体は loopback のまま変えない。
-- 通すのは今と同じ **GET・HEAD の許可リスト** (`/dashboard /health /stats /stats-history /stats-lifetime /transformations/feed /favicon.ico`)
-  だけで、残りは 404。bridge 上の他のコンテナが見られるのも、この読み取りだけ。
-- さらに共有トークンのヘッダ (`X-Share-Relay-Token`) を要求する。値は `just up` が作り、ホストのファイルと
-  Secret `share-host` に置く。クラスタ外の他のコンテナがダッシュボードを読むのを防ぐ。
-- クラスタ側 (Pod の caddy) も同じ許可リストをもう一度掛ける (二重)。
-- Pod への宛先 (`172.18.0.1:8788` とトークン) は、`just up` が作る Secret `share-host` から環境変数で渡す。
-  git には置かない (bridge のアドレスは環境で変わりうる)。
+- 中身は caddy (`caddy:2.11.6-alpine`、タグ固定)。`docker run -d --name home-k8s-share-relay --network host --restart unless-stopped`
+  の専用コンテナで、`just up` の `_share-relay-up` が kind の bridge ができた後に起動し、`just down` の `_share-relay-down` が消す。
+  systemd の unit は増やさない (開発用コンテナも `--network host` で同じ作りにしてある)。
+  実体は `just/share-relay.sh` (レシピは `just/share.just`)、設定は `just/share-relay.Caddyfile`。
+- 待ち受けは kind の bridge の IPv4 ゲートウェイだけ (`docker network inspect kind` から引く。既定は `172.18.0.1:8788`)。
+  headroom 本体 (`127.0.0.1:8787`、systemd) は loopback のまま変えない。
+- **共有トークンのヘッダ (`X-Share-Relay-Token`) が無い・違う要求は、経路に関わらず 401** (デフォルト拒否)。トークンが空のときは起動しない
+  (スクリプトと Caddyfile の両方で止める)。
+- トークンがあっても通すのは今と同じ **GET・HEAD の許可リスト** (`/dashboard /health /stats /stats-history /stats-lifetime /transformations/feed /favicon.ico`)
+  だけで、残りは 404 (`/v1/messages`・`/stats/reset`・`/settings`・`/cache/clear` ほか)。bridge 上の他のコンテナが見られるのも、
+  トークンを知っていればこの読み取りだけ。upstream へはトークンのヘッダを渡さず、`Host` は upstream のものに書き換える。
+- クラスタ側 (Pod の caddy) も同じ許可リストをもう一度掛ける (二重。#40)。
+- トークンは `just up` が `openssl rand -hex 16` で作り、`~/.local/share/home-k8s/share/relay-token` (権限 600) に置く。
+  あれば再利用するので、`just up` を打ち直しても値は変わらない。`just down` はコンテナだけを消し、トークンのファイルは残す。
+  Caddyfile は同じ場所に `relay.Caddyfile` としてコピーしてからマウントする (worktree を消しても `--restart` で読めるように)。
+  トークンは `docker run` の引数には出さず (`ps` に残る)、環境変数で渡す。
+- Pod への宛先とトークンは Secret `share/share-host` (namespace `share` は無ければ `just up` が作る) に入る。
+  キーは `SHARE_RELAY_ADDR` (`<ゲートウェイ>:<ポート>`、例 `172.18.0.1:8788`) と `SHARE_RELAY_TOKEN`。
+  #41 の Deployment が `envFrom` でそのまま環境変数にする。git には置かない (bridge のアドレスは環境で変わりうる)。
+- `HOME_K8S_KUBE_CONTEXT` で別の kind クラスタに向けても、中継はホストに 1 つ (`home-k8s-share-relay`、8788) で、`up` が作り直し `down` が消す。
+  中継は bridge のゲートウェイで待ち受けるので、同じ bridge の他のクラスタの Pod からも届く。受け入れる制約とする。
+- 試験 (`just ci` の段 6、`just/test_share_relay.py`): caddy を 127.0.0.1 の空きポートで起動し、偽の upstream に対して
+  トークン無し・違うトークンは全経路 401、トークンありは許可リストが GET・HEAD で 200 (upstream にトークンが渡らない)、
+  `POST /v1/messages`・`/stats/reset` ほか許可リスト外は 404 で upstream に届かないことを確かめる。
+  スクリプトは偽の `docker`・`kubectl`・`curl` で、IPv4 ゲートウェイの選択・トークンの再利用・Secret のキー・空トークンの拒否を確かめる。
+  稼働中のクラスタ・ホストには触れない。Pod から中継への到達は稼働中でしか確かめられないので CI に入れず、下の「残る問題」に書く。
 
 ### 2. 期限切れ・削除の強制 — 認証を前段に置き、要求ごとに判定する
 
@@ -178,7 +193,7 @@ Backstage の API 呼び出しは `Authorization: Bearer` を使うので、Basi
 
 | # | 内容 | 前提 |
 |---|---|---|
-| #38 | headroom 中継 (ホスト側の caddy コンテナ、`just up`・`just down` への組み込み、`share-host` Secret) | なし |
+| #38 ✅ | headroom 中継 (ホスト側の caddy コンテナ、`just up`・`just down` への組み込み、`share-host` Secret) | なし |
 | #39 | 認証サービスと資格情報のモデル (Python、単体試験、`just ci` に組み込み、`caddy` を `devShells.ci` に追加) | なし |
 | #40 | Caddyfile の経路 (許可リスト・Grafana の viewer 付与・Backstage の署名 cookie) と、経路の統合試験 | #39 |
 | #41 | クラスタ内 Deployment `share` と ArgoCD Application、`_share-secrets`、URL の取得 | #38・#40 |
@@ -190,6 +205,7 @@ Backstage の API 呼び出しは `Authorization: Bearer` を使うので、Basi
 
 - URL は `share` Pod の再起動でも変わる。配った URL が使えなくなるので、再起動の原因を作らない (ログのローテーションや probe の設定に注意)。
 - headroom の中継はホストの常駐物で、クラスタと寿命が別になる (合意済み)。トークンで bridge 上の他のコンテナからは守る。
+- Pod (kind のノードの外向き NAT) から `<ゲートウェイ>:8788` に届くかは、WSL2 の iptables 次第で、稼働中のクラスタでしか確かめられない。#38 の実装では確かめていない (`just up` 後に Pod から `wget http://172.18.0.1:8788/` が 401 を返すこと。届かなければ原因をここに書く)。
 - Quick Tunnel は稼働の保証がない。クラスタの外向きの UDP 7844 (QUIC) が通らないときは `--protocol http2` にする。
 - 特権 viewer のパスワードは保存しないので、忘れたら `rotate` する。`get` で再表示したいなら、平文を Secret に持つ方式へ変える判断が要る。
 - Grafana への Basic の付与が通らなかったときの切り替え先 (人ごとの Grafana ユーザー) は、実装の Issue #40 で判断する。

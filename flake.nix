@@ -42,6 +42,7 @@
             kubeconform
             kube-linter
             python3
+            caddy
           ];
         };
       });
