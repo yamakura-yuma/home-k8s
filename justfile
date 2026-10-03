@@ -19,6 +19,7 @@ import 'just/devcontainer.just'
 import 'just/kind.just'
 import 'just/observability.just'
 import 'just/orca-exporter.just'
+import 'just/share.just'
 
 # 公開レシピはこの 7 つだけ (just --list)。内部用は `_` 付きで隠してあり、just/ 以下に置く。
 # up・down・show・share・ci はここ、orca-exporter と devcontainer は just/ 以下。
@@ -34,13 +35,13 @@ ci:
 # 打ち直しても同じ状態に戻るだけ。
 
 # kind のクラスタを作り、ArgoCD・Secret・観測スタック・Headlamp・Backstage を立ち上げる
-up: _kind-up _backstage-image _argocd-install _grafana-secrets && _headlamp-token
+up: _kind-up _backstage-image _argocd-install _grafana-secrets _share-relay-up && _headlamp-token
     kubectl --context {{kube_context}} apply -f clusters/kind/argocd/root.yaml
     @echo "ArgoCD が子の Application を同期するのを待つ (初回は image の pull で数分かかる)"
     bash just/argocd-wait.sh {{kube_context}} {{argocd_ns}}
 
-# kind のクラスタを削除する
-down:
+# kind のクラスタと、headroom の中継 (ホスト側の caddy コンテナ) を削除する
+down: _share-relay-down
     kind delete cluster --name {{kind_cluster}}
 
 # grafana は viewer の接続先 (共有中なら公開 URL) で、共有相手に渡してよい。grafana-admin は自分用で渡さない。
