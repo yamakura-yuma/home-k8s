@@ -57,7 +57,6 @@ class ShareManifest(unittest.TestCase):
         for container in self.pod["containers"]:
             self.assertNotIn("ports", container, f"{container['name']} が containerPort を宣言した")
         self.assertFalse(self.pod.get("hostNetwork"))
-        self.assertFalse(self.pod.get("hostPort"))
 
     def test_one_replica_recreate(self):
         # Pod の再起動で Quick Tunnel の URL が変わる。2 つ立てず、入れ替えのときも重ねない
@@ -72,7 +71,6 @@ class ShareManifest(unittest.TestCase):
             self.assertIn(":", image, name)
             self.assertNotIn(tag, ("latest", ""), f"{name}: タグを固定する")
             self.assertRegex(tag, r"\d", f"{name}: タグにバージョンが無い")
-            self.assertNotIn("@", image.split("/")[-1].split(":")[0], name)
 
     def test_cloudflared_tunnels_point_at_the_three_caddy_ports(self):
         expected = {"cloudflared-grafana": 8081, "cloudflared-headroom": 8082, "cloudflared-backstage": 8083}

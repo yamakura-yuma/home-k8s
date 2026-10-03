@@ -1,6 +1,6 @@
 # 公開 (just share) を常駐させ、人ごとの資格情報で配る — 設計
 
-状態: 設計。実装は GitHub の Issue ごとに進め、そのたびにこの文書を実際の構成に書き換える。実装済み: #38 (headroom の中継)、認証サービス (#39、`clusters/kind/share/share_auth.py`)、Caddyfile の経路と統合試験 (#40、`clusters/kind/share/Caddyfile`・`test_share_caddy.py`)、クラスタ内の Deployment `share`・ArgoCD Application・Secret・URL を引く関数 (#41、`clusters/kind/share/{deployment,rbac,kustomization}.yaml`・`just/share-secrets.sh`・`just/share-urls.sh`)。
+状態: 設計。実装は GitHub の Issue ごとに進め、そのたびにこの文書を実際の構成に書き換える。実装済み: #38 (headroom の中継)、認証サービス (#39、`clusters/kind/share/share_auth.py`)、Caddyfile の経路と統合試験 (#40、`clusters/kind/share/Caddyfile`・`test_share_caddy.py`)、クラスタ内の Deployment `share`・ArgoCD Application・Secret・URL を引く関数 (#41、稼働中のクラスタでは未確認で、「受け入れる制約・残る問題」に書いた。`clusters/kind/share/{deployment,rbac,kustomization}.yaml`・`just/share-secrets.sh`・`just/share-urls.sh`)。
 図の HTML (変更前→変更後のアニメーション): [share-design.html](share-design.html)
 認証サービス (#39) の diff の図 (判定を動かせるアニメーション): [share-auth.html](share-auth.html)
 Caddyfile の経路 (#40) の diff の図 (要求を流して通る・通らないを見るアニメーション): [share-routes.html](share-routes.html)
@@ -246,7 +246,7 @@ Cookie の属性は `Path=/; HttpOnly; Secure; SameSite=Lax` (期限は cookie �
 | 静的 | `caddy validate` (経路の統合の試験に含む)。`share` namespace に NodePort・LoadBalancer の Service と Ingress が無いこと (`just/ci.sh` の `yq`。#41)。既存の kubeconform・kube-linter | 公開の入口を足していない |
 | manifest (`clusters/kind/share/test_share_manifest.py`、#41) | `kustomize build` した結果を読む | Service・Ingress・containerPort が無い。Caddyfile の必須の環境変数が Pod に渡る。cloudflared が 3 つのポートに 1 本ずつ向く。Role は 2 つの Secret の `get` だけ。タグ固定 |
 | 認証サービスに届かない (`test_share_caddy.py`、#52) | `SHARE_AUTH_ADDR` が空、または閉じたポートの caddy を別に立て、全対象の全経路に、認証なし・正しい Basic・cookie を当てる | 全部 401・502・503 で、upstream に届かない |
-| Secret を作る処理 (`just/test_share_secrets.py`、#41・#49) | 偽の `kubectl` で `share-secrets.sh`・`grafana-secrets.sh`・`grafana-viewer-rotate.sh` を実行 | `apply` に Secret を渡さない・注釈が無い・値が引数に出ない・あれば資格情報と鍵を置き換えない。URL を引く関数が `api.` を除く |
+| Secret を作る処理 (`just/test_share_secrets.py`、#41・#49) | 偽の `kubectl` で `share-secrets.sh`・`grafana-secrets.sh`・`grafana-viewer-rotate.sh` を実行 | `apply` に Secret を渡さない・注釈が無い・`share-secrets.sh` の値が引数に出ない (`grafana-secrets.sh` の Backstage の Basic は `--from-literal` の base64 で渡す。#49 の範囲外)・あれば資格情報と鍵を置き換えない。URL を引く関数が `api.` を除く |
 
 `flake.nix` の `devShells.ci` に `caddy` を足す (今は `tools` 側にしかない)。
 
@@ -261,7 +261,7 @@ Cookie の属性は `Path=/; HttpOnly; Secure; SameSite=Lax` (期限は cookie �
 | #38 ✅ | headroom 中継 (ホスト側の caddy コンテナ、`just up`・`just down` への組み込み、`share-host` Secret) | なし |
 | #39 ✅ | 認証サービスと資格情報のモデル (Python、単体試験、`just ci` に組み込み、`caddy` を `devShells.ci` に追加) | なし |
 | #40 ✅ | Caddyfile の経路 (許可リスト・Grafana の viewer 付与・Backstage の署名 cookie) と、経路の統合試験 (あわせて #48: headroom の HEAD を許可リストから外す) | #39 |
-| #41 ✅ | クラスタ内 Deployment `share` と ArgoCD Application、`_share-secrets`、URL の取得 (あわせて #49: Secret を注釈に値が残らない作り方に、#52: 認証サービスに届かないときの試験) | #38・#40 |
+| #41 (実装済み・稼働中は未確認) | クラスタ内 Deployment `share` と ArgoCD Application、`_share-secrets`、URL の取得 (あわせて #49: Secret を注釈に値が残らない作り方に、#52: 認証サービスに届かないときの試験) | #38・#40 |
 | #42 | `just share add\|delete\|list\|get\|rotate\|prune` | #39・#41 |
 | #43 | 稼働中のクラスタでの確認 `just share smoke` | #42 |
 | #44 | 旧 `just share` の廃止、docs・README の書き換え、CODEOWNERS | #42・#43 |
@@ -272,6 +272,7 @@ Cookie の属性は `Path=/; HttpOnly; Secure; SameSite=Lax` (期限は cookie �
 - headroom の中継はホストの常駐物で、クラスタと寿命が別になる (合意済み)。トークンで bridge 上の他のコンテナからは守る。
 - Pod (kind のノードの外向き NAT) から `<ゲートウェイ>:8788` に届くかは、WSL2 の iptables 次第で、稼働中のクラスタでしか確かめられない。#38 の実装では確かめていない (`just up` 後に Pod から `wget http://172.18.0.1:8788/` が 401 を返すこと。届かなければ原因をここに書く)。
 - Quick Tunnel は稼働の保証がない。クラスタの外向きの UDP 7844 (QUIC) が通らないときは `--protocol http2` にする。
+- #41 は稼働中のクラスタで確かめていない (依頼で `just up` を打たない)。検証用のクラスタ (`HOME_K8S_KUBE_CONTEXT`) で `just up` し、次を見る: share Pod が Ready になる (caddy の `nc -z` の readiness、cloudflared が uid 65532・読み取り専用 root で起動、起動コマンドの `base64`)、`just/share-urls.sh` で 3 つの URL が引ける、資格情報が空で全経路が 401、Pod から中継 (#38) に届く、既存の `share-host` の `last-applied-configuration` が `replace` で消える (#49)。
 - 特権 viewer のパスワードは保存しないので、忘れたら `rotate` する。`get` で再表示したいなら、平文を Secret に持つ方式へ変える判断が要る。
 - Grafana への Basic の付与は #40 で確かめ、通った (§4)。人ごとの Grafana ユーザーへの切り替えは要らない。
 - 大文字小文字 (#53): caddy の `path` matcher は区別しないので、許可リストに使うと `GET /Health` が通って upstream に `/Health` のまま届く (headroom は区別するので、未知の経路としてプロキシ本体の受け口に落ちうる)。
