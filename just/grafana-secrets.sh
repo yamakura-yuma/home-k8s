@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# just up の本体。Grafana の admin と viewer (共有相手に渡す閲覧用) と backstage (Backstage が読む閲覧用) の
+# just up の本体。Grafana の admin と viewer (閲覧用。share Pod が写しを持つ) と backstage (Backstage が読む閲覧用) の
 # パスワードを (無ければ生成して) Secret grafana-admin・grafana-viewer・grafana-backstage に入れる。
 # Backstage には同じ backstage の資格情報を Secret backstage-grafana (namespace backstage) で渡す。
 # Grafana と Backstage (ArgoCD が同期する) は名前で参照する。

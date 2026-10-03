@@ -54,13 +54,13 @@
 <div class="panel">
 <table>
 <tr><th></th><th>変更前</th><th>変更後</th></tr>
-<tr><td>レシピ</td><td class="del"><code>share what="grafana"</code> → <code>observe-share.sh</code> (ホストで caddy と cloudflared を起動、Ctrl-C まで)</td><td class="add"><code>share *args</code> → <code>just/share.sh</code> (<code>kubectl</code> で Secret <code>share-credentials</code> を読み書き)</td></tr>
+<tr><td>レシピ</td><td class="del"><code>share what="grafana"</code> → 旧スクリプト (ホストで caddy と cloudflared を起動、Ctrl-C まで)</td><td class="add"><code>share *args</code> → <code>just/share.sh</code> (<code>kubectl</code> で Secret <code>share-credentials</code> を読み書き)</td></tr>
 <tr><td>サブコマンド</td><td class="del">対象 (grafana / headroom / backstage)</td><td class="add"><code>add</code> <code>delete</code> <code>list</code> <code>get</code> <code>rotate</code> <code>prune</code></td></tr>
 <tr><td>パスワード</td><td class="del">起動のたびに使い捨て (Grafana は viewer を作り直す)</td><td class="add"><code>openssl rand -hex 16</code>。保存は PBKDF2 のハッシュだけ。表示は <code>add</code> と特権の <code>rotate</code> の 1 回だけ</td></tr>
 <tr><td>ハッシュ</td><td class="del">caddy の bcrypt (パスワードが引数に出る)</td><td class="add"><code>kubectl exec -i deploy/share -c auth</code> の標準入力 → <code>share_auth.hash_password</code></td></tr>
 <tr><td>書き込み</td><td class="del">(Secret に書かない)</td><td class="add">項目ごとの <code>kubectl patch --type merge --patch-file</code> (別の名前の項目を消さない)</td></tr>
 <tr><td>公開レシピの数</td><td colspan="2">7 つのまま (<code>just --list</code>)</td></tr>
-<tr><td>旧ファイル</td><td colspan="2"><code>observe-share.sh</code> と旧 Caddyfile は残る (呼ばれない。#44 で消す)</td></tr>
+<tr><td>旧ファイル</td><td colspan="2">旧スクリプトと旧 Caddyfile は #44 で消した</td></tr>
 </table>
 </div>
 

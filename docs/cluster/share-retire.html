@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>#44 旧 just share の廃止と docs の書き換え (変更前→変更後)</title>
+<style>
+  :root { --bg:#0f1419; --panel:#171e26; --line:#2c3846; --text:#e6edf3; --dim:#8b98a5; --add:#3fb950; --del:#f85149; --acc:#58a6ff; --warn:#d29922; }
+  @media (prefers-color-scheme: light) { :root { --bg:#f6f8fa; --panel:#ffffff; --line:#d0d7de; --text:#1f2328; --dim:#59636e; --add:#1a7f37; --del:#cf222e; --acc:#0969da; --warn:#9a6700; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.65 system-ui,"Hiragino Sans","Noto Sans JP",sans-serif; }
+  main { max-width:1040px; margin:0 auto; padding:24px 18px 64px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  h2 { font-size:17px; margin:34px 0 10px; border-left:4px solid var(--acc); padding-left:10px; }
+  p.lead { color:var(--dim); margin:0 0 18px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--dim); font-weight:600; }
+  td.del, .del { color:var(--del); } td.add, .add { color:var(--add); }
+  code { font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace; font-size:13px; }
+  .ctrl { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 10px; }
+  button { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 14px; font:inherit; cursor:pointer; }
+  button.on { border-color:var(--acc); color:var(--acc); }
+  button:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
+  svg { width:100%; height:auto; display:block; font-family:system-ui,"Noto Sans JP",sans-serif; }
+  svg text { fill:var(--text); font-size:13px; } svg .dim { fill:var(--dim); font-size:11.5px; }
+  .box { fill:var(--panel); stroke:var(--line); stroke-width:1.4; transition:stroke .4s, opacity .5s; }
+  .box.lit { stroke:var(--acc); stroke-width:2.6; }
+  .box.old { stroke:var(--del); }
+  .box.new { stroke:var(--add); stroke-width:2.2; }
+  .gone { opacity:.18; } .gone text { text-decoration:line-through; }
+  .arrow { stroke:var(--dim); stroke-width:1.6; fill:none; opacity:.25; transition:opacity .3s, stroke .3s; }
+  .arrow.lit { opacity:1; stroke:var(--acc); stroke-dasharray:6 5; animation:flow .8s linear infinite; }
+  .arrow.bad { opacity:1; stroke:var(--del); stroke-dasharray:6 5; animation:flow .8s linear infinite; }
+  @keyframes flow { to { stroke-dashoffset:-22; } }
+  .caption { min-height:3.4em; margin:10px 0 0; }
+  .caption b { color:var(--acc); }
+  .files { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:8px; }
+  .file { border:1px solid var(--line); border-radius:8px; padding:6px 10px; background:var(--panel); transition:opacity .6s, transform .6s; }
+  .file small { color:var(--dim); display:block; }
+  .file.removed { border-color:var(--del); }
+  .file.removed.go { opacity:.22; transform:translateX(18px); }
+  .file.removed.go code { text-decoration:line-through; }
+  @media (prefers-reduced-motion: reduce) { .arrow.lit, .arrow.bad { animation:none; } .file { transition:none; } }
+</style>
+</head>
+<body>
+<main>
+<h1>#44 旧 <code>just share</code> の廃止と docs の書き換え</h1>
+<p class="lead">変更前 → 変更後。旧 <code>just share &lt;対象&gt;</code> の実装 (ホストの 6 ファイル) を消し、README・docs を <code>just share add/delete/list/get/rotate/prune</code> と常駐の <code>share</code> Pod の説明に直す。稼働中の状態は変えない</p>
+
+<h2>1. 何が変わるか</h2>
+<div class="panel">
+<table>
+<tr><th></th><th>変更前</th><th>変更後</th></tr>
+<tr><td>旧スクリプト・Caddyfile</td><td class="del"><code>just/</code> に 6 ファイル (呼ばれないまま残っていた)</td><td class="add">なし</td></tr>
+<tr><td><code>just show grafana</code></td><td class="del">状態ファイルと cloudflared の pid を読んで、公開中なら公開 URL を出す</td><td class="add"><code>localhost:3000</code> と viewer のパスワードを出すだけ。公開 URL は <code>just share get</code></td></tr>
+<tr><td>viewer のパスワードを変える処理</td><td class="del">旧 <code>just share</code> が起動のたびに作り直す → Secret <code>share-grafana</code> の写しが古くなる</td><td class="add"><code>just up</code> だけ。<code>grafana-viewer</code> と <code>share-grafana</code> を同じファイルから同時に入れる</td></tr>
+<tr><td>README・docs</td><td class="del">「Ctrl-C で止める」「使い捨てのパスワード」「共有のたびに作り直す」</td><td class="add">常駐の <code>share</code> Pod、人ごとの資格情報、期限 (既定 8h・上限 24h)、特権 viewer は 1 つ、<code>get</code> はパスワードを出さない、Pod を作り直すと URL が変わる</td></tr>
+<tr><td>CODEOWNERS</td><td class="del">消したファイルのパス、<code>/just/*.Caddyfile</code></td><td class="add">残るファイルだけ。<code>/just/share-relay.Caddyfile</code> は明示して人の承認を保つ</td></tr>
+</table>
+</div>
+
+<h2>2. 消すファイル (「消す」を押す)</h2>
+<div class="ctrl"><button id="rm" class="on">消す</button><button id="rmreset">戻す</button></div>
+<div class="files" id="files">
+  <div class="file removed"><code>just/observe-share.sh</code><small>ホストで caddy と cloudflared を起動する本体</small></div>
+  <div class="file removed"><code>just/observe-share.Caddyfile</code><small>Grafana 用</small></div>
+  <div class="file removed"><code>just/share-headroom.Caddyfile</code><small>headroom 用 (<code>clusters/kind/share/Caddyfile</code> の <code>:8082</code> が引き継いだ)</small></div>
+  <div class="file removed"><code>just/share-backstage.Caddyfile</code><small>Backstage 用 (同 <code>:8083</code>)</small></div>
+  <div class="file removed"><code>just/grafana-viewer-rotate.sh</code><small>viewer のパスワードを共有のたびに作り直す</small></div>
+  <div class="file removed"><code>just/observe-show-connection.sh</code><small><code>just show grafana</code> が読む旧 share の状態</small></div>
+  <div class="file"><code>just/observability.just</code><small>ログ・状態ファイルの変数 2 つを消す</small></div>
+  <div class="file"><code>just/test_share_secrets.py</code><small>旧 rotate の試験を消す</small></div>
+</div>
+<p class="dim" style="color:var(--dim);margin:8px 0 0">消す前に <code>git grep</code> で、新しい構成 (<code>just/share.sh</code>・<code>share-relay.sh</code>・<code>share-secrets.sh</code>・<code>clusters/kind/share/</code>・<code>just up</code>・<code>test_*.py</code>) から参照されていないことを確かめた。</p>
+
+<h2>3. viewer の写しが古くなる経路 (「再生」を押す)</h2>
+<div class="ctrl"><button id="play" class="on">再生</button><button id="step">1 つ進める</button><button id="reset">最初から</button>
+<button id="vBefore" class="on">変更前</button><button id="vAfter">変更後</button></div>
+<div class="panel">
+<svg viewBox="0 0 960 250" role="img" aria-label="viewer のパスワードを変える経路の変更前と変更後">
+  <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="currentColor" style="color:var(--dim)"/></marker></defs>
+  <rect id="bA" class="box" x="20"  y="30" width="190" height="64" rx="8"/><text x="34" y="58" id="tA">旧 just share</text><text x="34" y="78" class="dim" id="tA2">viewer を作り直す</text>
+  <rect id="bB" class="box" x="270" y="10" width="210" height="52" rx="8"/><text x="284" y="40">Secret grafana-viewer</text>
+  <rect id="bC" class="box" x="270" y="76" width="210" height="52" rx="8"/><text x="284" y="106">Grafana の DB (API)</text>
+  <rect id="bD" class="box" x="270" y="158" width="210" height="64" rx="8"/><text x="284" y="186">Secret share-grafana</text><text x="284" y="206" class="dim">share Pod が読む写し</text>
+  <rect id="bE" class="box" x="560" y="158" width="190" height="64" rx="8"/><text x="574" y="186">share Pod の caddy</text><text x="574" y="206" class="dim">viewer の Basic を付ける</text>
+  <rect id="bF" class="box" x="810" y="158" width="130" height="64" rx="8"/><text x="824" y="186">Grafana</text><text x="824" y="206" class="dim">302 / 200</text>
+  <path id="a1" class="arrow" d="M210 54 L270 36" marker-end="url(#ah)"/>
+  <path id="a2" class="arrow" d="M210 66 L270 100" marker-end="url(#ah)"/>
+  <path id="a4" class="arrow" d="M480 190 L560 190" marker-end="url(#ah)"/>
+  <path id="a5" class="arrow" d="M750 190 L810 190" marker-end="url(#ah)"/>
+  <text id="mark" x="500" y="80" style="fill:var(--del);font-size:13px;font-weight:700"></text>
+</svg>
+<p class="caption" id="cap"></p>
+</div>
+
+<h2>4. 書き換えた docs</h2>
+<div class="panel">
+<table>
+<tr><th>ファイル</th><th>変更後に書いてあること</th></tr>
+<tr><td><code>README.md</code></td><td>クイックスタートと公開レシピの表を <code>just share add/delete/list/get/rotate/prune</code> に。<code>just show grafana</code> の説明</td></tr>
+<tr><td><code>docs/cluster/share.md</code></td><td>「設計」から「構成と使い方」へ。期限の既定 8h・上限 24h、特権 viewer は 1 つ、<code>get</code> はパスワードを出さない、Pod を作り直すと URL が変わる</td></tr>
+<tr><td><code>docs/observability/claude-code-traces.md</code></td><td>「別の PC から見る」を、常駐の <code>share</code> Pod と <code>just share add</code> の使い方・各対象で通す経路に。Grafana の <code>root_url</code> を変えない理由は残す</td></tr>
+<tr><td><code>docs/observability/playbook.md</code></td><td>人に見せる手順を、人ごとの資格情報 (期限・<code>delete</code>) に</td></tr>
+<tr><td><code>docs/cluster/backstage.md</code></td><td>「別の PC から見る」を、常駐の <code>share</code> の caddy <code>:8083</code> と署名つき cookie の説明に</td></tr>
+<tr><td><code>docs/cluster/persistence.md</code></td><td>viewer を変えるのは <code>just up</code> だけ。旧 share の rotate に触れた確認の行を削除</td></tr>
+<tr><td><code>docs/cluster/argocd.md</code></td><td>Application <code>share</code> と、<code>share-*</code> の Secret を足す</td></tr>
+</table>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  // 2. ファイルを消す
+  var removed = Array.prototype.slice.call(document.querySelectorAll('.file.removed'));
+  $('rm').onclick = function () { removed.forEach(function (f, i) { setTimeout(function () { f.classList.add('go'); }, i * 280); }); };
+  $('rmreset').onclick = function () { removed.forEach(function (f) { f.classList.remove('go'); }); };
+
+  // 3. viewer の写し
+  var mode = 'before', n = 0, timer = null;
+  var beforeSteps = [
+    { lit: [], cap: '<b>変更前</b> 旧 <code>just share</code> を打つ前。Grafana の viewer・Secret <code>grafana-viewer</code>・<code>share-grafana</code> は同じパスワード。' },
+    { lit: ['bA','bB','bC','a1','a2'], cap: '<b>1.</b> 旧 <code>just share</code> が、公開の前に viewer のパスワードを作り直す。ファイルと Secret <code>grafana-viewer</code>、動いている Grafana の viewer を新しい値にする。' },
+    { lit: ['bD','bE','bF','a4','a5'], bad: ['a4','a5'], mark: '写しは古いまま', cap: '<b>2.</b> Secret <code>share-grafana</code> は別の namespace の写しで、更新されない。caddy は古い値の Basic を付け、Grafana は 302 (ログイン画面) を返す。<b>共有のたびに壊れる。</b>' }
+  ];
+  var afterSteps = [
+    { lit: [], cap: '<b>変更後</b> 旧 <code>just share</code> は無い。viewer のパスワードを変える処理は <code>just up</code> だけ。' },
+    { lit: ['bB','bD'], cap: '<b>1.</b> ファイルを書き換えて <code>just up</code>。<code>grafana-secrets.sh</code> が <code>grafana-viewer</code> を、<code>share-secrets.sh</code> が <code>share-grafana</code> を、同じファイルから同時に入れる。' },
+    { lit: ['bC','bD','bE','bF','a4','a5'], mark: '', cap: '<b>2.</b> Grafana の DB へは、Pod の起動時にサイドカーが Secret の値にそろえる。<code>share-grafana</code> だけが古くなる経路は無い。' }
+  ];
+  function steps() { return mode === 'before' ? beforeSteps : afterSteps; }
+  var ids = ['bA','bB','bC','bD','bE','bF','a1','a2','a4','a5'];
+  function show() {
+    var st = steps()[n];
+    ids.forEach(function (id) { var e = $(id); e.classList.remove('lit'); e.classList.remove('bad'); });
+    st.lit.forEach(function (id) { $(id).classList.add('lit'); });
+    (st.bad || []).forEach(function (id) { $(id).classList.remove('lit'); $(id).classList.add('bad'); });
+    $('mark').textContent = st.mark || '';
+    $('cap').innerHTML = st.cap;
+    var gone = mode === 'after';
+    ['bA','a1','a2'].forEach(function (id) { $(id).style.opacity = gone ? 0.12 : ''; });
+    $('tA').textContent = gone ? '旧 just share (廃止)' : '旧 just share';
+    $('tA2').textContent = gone ? '#44 で消した' : 'viewer を作り直す';
+  }
+  function next() { n = (n + 1) % steps().length; show(); }
+  function stop() { if (timer) { clearInterval(timer); timer = null; } $('play').textContent = '再生'; }
+  $('play').onclick = function () { if (timer) { stop(); return; } $('play').textContent = '止める'; timer = setInterval(next, 2600); };
+  $('step').onclick = function () { stop(); next(); };
+  $('reset').onclick = function () { stop(); n = 0; show(); };
+  $('vBefore').onclick = function () { mode = 'before'; n = 0; $('vBefore').classList.add('on'); $('vAfter').classList.remove('on'); show(); };
+  $('vAfter').onclick = function () { mode = 'after'; n = 0; $('vAfter').classList.add('on'); $('vBefore').classList.remove('on'); show(); };
+  show();
+})();
+</script>
+</main>
+</body>
+</html>

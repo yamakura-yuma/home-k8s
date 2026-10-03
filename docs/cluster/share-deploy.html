@@ -211,7 +211,7 @@
     </div>
   </div>
   <div id="log3" class="panel" style="margin-top:12px">
-    対象: <code>share-relay.sh</code> (share-host)・<code>grafana-secrets.sh</code> (grafana-admin・grafana-viewer・grafana-backstage・backstage-grafana)・<code>grafana-viewer-rotate.sh</code>・新しい <code>share-secrets.sh</code>。
+    対象: <code>share-relay.sh</code> (share-host)・<code>grafana-secrets.sh</code> (grafana-admin・grafana-viewer・grafana-backstage・backstage-grafana)・新しい <code>share-secrets.sh</code>。
     入れ方は <code>just/secret-lib.sh</code> の <code>put_secret</code> (あれば <code>replace</code>、無ければ <code>create</code>)。<code>replace</code> は metadata を置き換えるので、以前の apply が残した注釈も消える。
     <code>replace --force</code> は動いている Pod の下で Secret を消すので使わない。<code>headlamp-token.sh</code> は data の無い Secret なので注釈に値が残らず、対象にしない。
   </div>
@@ -244,7 +244,7 @@
     <tr><td class="a">+</td><td><code>just/share-secrets.sh</code>・<code>just/secret-lib.sh</code>・<code>just/share-urls.sh</code></td><td>Secret を作る・注釈の付かない入れ方・Quick Tunnel の URL をログから引く関数 (#42 が使う)</td></tr>
     <tr><td class="a">+</td><td><code>clusters/kind/share/test_share_manifest.py</code>・<code>just/test_share_secrets.py</code>・<code>just/fake_kubectl.py</code></td><td>試験</td></tr>
     <tr><td>~</td><td><code>justfile</code>・<code>just/share.just</code></td><td><code>up</code> に <code>_share-secrets</code></td></tr>
-    <tr><td>~</td><td><code>just/share-relay.sh</code>・<code>just/grafana-secrets.sh</code>・<code>just/grafana-viewer-rotate.sh</code></td><td>apply → <code>put_secret</code></td></tr>
+    <tr><td>~</td><td><code>just/share-relay.sh</code>・<code>just/grafana-secrets.sh</code></td><td>apply → <code>put_secret</code></td></tr>
     <tr><td>~</td><td><code>just/ci.sh</code>・<code>just/test_recipes.py</code>・<code>just/test_share_relay.py</code>・<code>clusters/kind/share/test_share_caddy.py</code></td><td>入口の検査・順序・偽の kubectl・#52 の試験</td></tr>
     <tr><td>~</td><td><code>.github/CODEOWNERS</code>・<code>docs/cluster/share.md</code>・<code>docs/cluster/share-deploy.html</code></td><td>段階 C のパス・設計メモを実際の構成に・この図</td></tr>
   </table>

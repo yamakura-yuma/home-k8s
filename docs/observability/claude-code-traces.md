@@ -188,12 +188,12 @@ kind 標準の StorageClass `standard` (local-path) は使わない (PVC を消�
 ## Grafana の認証
 
 Grafana はログイン必須で、匿名アクセスは付けていない (閲覧のみの匿名も無い)。
-下の「別の PC から見る」で外に出すことがあるため。ユーザーは 3 つある。
+「別の PC から見る」で外に出すことがあるため。ユーザーは 3 つある。
 
 | ユーザー | ロール | 使う人 | パスワードのファイル | 表示するコマンド |
 | --- | --- | --- | --- | --- |
 | `admin` | Admin | 自分 (ダッシュボードの編集、Explore) | `grafana-admin-password` | `just show grafana-admin` |
-| `viewer` | Viewer | 共有相手 (ダッシュボードを見るだけ) | `grafana-viewer-password` | `just show grafana` |
+| `viewer` | Viewer | 公開の Pod (`share`) が人の代わりに Grafana へ入る (人には渡さない。localhost:3000 では自分も使える) | `grafana-viewer-password` | `just show grafana` |
 | `backstage` | Viewer | Backstage (ダッシュボードの一覧を読む。人は使わない) | `grafana-backstage-password` | なし |
 
 ファイルはどれも `~/.local/share/home-k8s/observability/` (WSL2 ホスト側、パーミッション 600) に
@@ -226,13 +226,13 @@ admin で `/api/users/lookup?loginOrEmail=viewer` を引き、居なければ `/
 Grafana のイメージは distroless で sh が無く、postStart で API を叩けないため別コンテナにした。
 
 backstage も同じサイドカーが同じ処理でそろえる。パスワードは `just up` が `grafana-backstage-password` から Secret
-`observability/grafana-backstage` に入れる。`just share` が作り直す viewer とは分けてあるので、共有しても
+`observability/grafana-backstage` に入れる。viewer とは分けてあるので、viewer を変えても
 Backstage は読み続けられる。Backstage 側の設定は [docs/cluster/backstage.md](../cluster/backstage.md)。
 
-viewer のパスワードは `just share` が起動のたびに作り直す (下の「別の PC から見る」)。
-`just share` はファイル・Secret・動いている Grafana の 3 つを同時に変える。サイドカーの環境変数は
-Pod の起動時の値のままなので、サイドカーがそろえるのは起動時の一度だけにしてある
-(繰り返すと `just share` の変更を古い値に戻してしまう)。
+viewer のパスワードを変えるのは、ファイルを書き換えて `just up` を打つときだけ。`just up` は
+Secret `observability/grafana-viewer` と、公開の Pod (`share`) が持つ写し (Secret `share/share-grafana`) を一緒に入れ直す。
+Grafana 側の DB には、Pod の起動時にサイドカーがそろえる。人ごとの資格情報 (`just share add`) は
+Grafana のユーザーではないので、viewer のパスワードは配るたびには変わらない。
 
 パスワードのファイルの所有者はホストのユーザーにしてあるので、WSL2 のシェルから `cat` しても読める。
 admin のパスワードを変えたいときはファイルを消して (または書き換えて) `just up` を打ち、Secret が変わったあとで
@@ -258,120 +258,47 @@ Pod の再起動やクラスタの作り直しのあとも残る。
 
 ## 別の PC から見る
 
-Cloudflare Quick Tunnel で Grafana だけを一時的に公開する。Cloudflare のアカウントは要らず、
-`https://<ランダム>.trycloudflare.com` の URL が発行される。次を打つ (ホストから打ってよい)。
+クラスタの `share` Pod (`clusters/kind/share/`) が、Grafana・headroom のダッシュボード・Backstage を
+Cloudflare Quick Tunnel (`https://<ランダム>.trycloudflare.com`、アカウント不要) で常に公開している。
+`just up` で一緒に立ち、`just down` で消える。人ごとの資格情報を持たない要求は、どの経路も 401 になる。
+見せたい人には、次で資格情報を発行して渡す (ホストから打ってよい)。
 
 ```
-$ just share
-Grafana を公開しました（Ctrl-C で停止）
-  URL:        https://xxxx.trycloudflare.com
-  ユーザー:   viewer
-  パスワード: <値>
-  ログ:       /home/<you>/.local/share/home-k8s/observability/observe-share.log
+$ just share add alice          # 既定 8h で失効。--ttl 2h で変えられる (上限 24h)
+$ just share get alice          # その人の情報と URL (パスワードは出ない)
+$ just share delete alice       # 即失効 (最大 2 秒)
 ```
 
-表示された URL・ユーザー・パスワードの 3 行を別の PC に渡し、ブラウザで開いてログインする。
-表示するのは閲覧用の `viewer` で、admin の資格情報は出さない (自分で編集するときは
-`just show grafana-admin` で admin のパスワードを見る)。
-Ctrl-C で止めると URL は無効になり、次に打つと別の URL になる。
+`add` は名前・パスワードと、Grafana・headroom・Backstage の 3 つの URL を表示する。パスワードが出るのは
+このときだけ (特権 viewer の `rotate` も同じ) で、Secret には PBKDF2 のハッシュしか残らない。1 つの資格情報で
+3 つの URL に入れる。ブラウザの Basic 認証は URL ごとなので、名前とパスワードを URL ごとに打つ。
+URL は `share` Pod を作り直す (再起動・クラスタの作り直し) と変わる。変わったら `just share get` で引き直す。
+構成と全サブコマンドは [docs/cluster/share.md](../cluster/share.md)。
 
-`just share` は公開の前に viewer のパスワードを作り直す (`just/grafana-viewer-rotate.sh`)。
-ファイルと Secret `grafana-viewer` を新しい値にし、動いている Grafana の viewer のパスワードを
-`/api/admin/users/<id>/password` で変え、`/api/admin/users/<id>/logout` でログイン中のセッションも
-切る。前の共有相手は、次の共有の URL を知っても前のパスワードでは入れない。
+- 渡せるのは閲覧用の `viewer` の権限だけで、admin の資格情報は出さない。自分で編集するときは
+  `just show grafana-admin`。
+- 期限のない資格情報 (`--permanent`、特権 viewer) は全体で 1 つ。期限がないこと以外は他の人と同じ。
+- URL と資格情報は見せたい相手にだけ渡す。使い終わったら `delete` する。
+- Quick Tunnel は試用向けで、稼働の保証は無い。長く使う場合は Cloudflare のアカウントで名前付きトンネルと Access を組む。
 
-あとから接続先を確かめるときは、別のターミナルで `just show grafana` を打つ。
-share が動いていれば同じ URL を、止まっていれば `http://localhost:3000` と「share は停止中」を、
-viewer のユーザー・パスワードと一緒に表示する。
+### 各対象で通る経路
 
-```
-$ just show grafana
-Grafana は公開中 (just share)
-  URL:        https://xxxx.trycloudflare.com
-  ユーザー:   viewer
-  パスワード: <値>
-```
+| 対象 | 通すもの | 通さないもの |
+|---|---|---|
+| Grafana | 画面と読み取りの API。Grafana へは caddy が viewer の Basic に差し替えて渡す | `/profile/password`・`/api/user/password`、`/api/user` と `preferences` への書き込み (人が viewer を壊さないため) |
+| headroom | ダッシュボード用の GET (`/dashboard`・`/health`・`/stats`・`/stats-history`・`/stats-lifetime`・`/transformations/feed`・`/favicon.ico`) だけ。ホストの中継 (caddy) を経由し、headroom 本体は 127.0.0.1:8787 のまま | `/v1/*` (Anthropic へ転送するプロキシ本体)・`/settings`・`/stats/reset`・`/cache/clear` ほか。HEAD も通さない |
+| Backstage | 画面・カタログ・TechDocs の読み取り | `/api/proxy/*` (Grafana の API を Backstage の資格情報で読める)・カタログへの書き込み |
 
-`just share` は URL が応答した時点で、URL と cloudflared の pid を
-`~/.local/share/home-k8s/observability/observe-share.state` に書き、止めるときに消す。
-kill -9 などで消されずに残っても、show-connection はその pid の cloudflared が生きているかを
-確かめるので、無効になった古い URL は出さない。
+### Grafana の root_url を変えない理由
 
-- 公開するのは Grafana (3000) だけで、OTLP の受け口 (4318 / 4317) は出さない。
-  cloudflared は外から localhost:3000 に向かう接続を 1 本張るだけで、ホストのポートを開ける
-  わけではない。開発用コンテナは `--network=host` なので、コンテナ内の cloudflared から
-  localhost:3000 に届く。
-- URL を知っていれば誰でもログイン画面まで来られる。URL と viewer のパスワードは見せたい相手にだけ渡す。
-  admin のパスワードは渡さない。
-- viewer は自分のプロフィールからパスワードを変えられる。共有相手が変えると、その共有のあいだ
-  自分も viewer では入れなくなる (admin では入れる)。次の `just share` で作り直される。
-- 使い終わったら必ず止める。開きっぱなしにしない。
-- Quick Tunnel は試用向けで、稼働の保証は無い (同時リクエスト数の上限もある)。
-  長く使う場合は Cloudflare のアカウントで名前付きトンネルと Access を組む。
-
-### headroom のダッシュボードを公開する
-
-`just share headroom` は、WSL ホストで動いている headroom (`localhost:8787`) のダッシュボードを同じ
-仕組みで公開する。Grafana と違い viewer のようなアカウントは無いので、共有のたびに使い捨てのパスワードを作り、
-caddy の basic_auth (ユーザーは `viewer`) で守る。URL・ユーザー・パスワードは起動時に表示するだけで、
-ファイルには残さない (`just show` には出ない)。caddy の待ち受けは Grafana が 127.0.0.1:3001、headroom が
-127.0.0.1:3002、ログも別ファイル (`observe-share-headroom.log`) なので、2 つを同時に共有できる。
-caddy は同じポートに重ねて bind できてしまい、重なると 2 つのトンネルの接続が混ざるため、待ち受けの
-ポートが使用中なら起動を断る (同じ対象の `just share` を 2 つ起動したときも同じ)。
-
-headroom は同じポートでプロキシ本体 (`/v1/messages` など。手元の認証で Anthropic へ転送する) も返すので、
-8787 をそのまま出してはいけない。caddy (`just/share-headroom.Caddyfile`) は、ダッシュボードが使う読み取りの
-GET (`/dashboard`、`/health`、`/stats`、`/stats-history`、`/stats-lifetime`、`/transformations/feed`) だけを
-通し、残り (`/v1/*`、`/settings`、`/dashboard/settings`、`/stats/reset`、`/cache/clear` など) は 404 にする。
-`/docs` も通さない。確かめた結果は、認証なしの `/dashboard` が 401、認証ありの上の 6 本が 200、
-認証ありの `POST /v1/messages` が 404 だった。
-
-### 仕組み (`just/observe-share.sh`)
-
-```
-別の PC のブラウザ ──https──▶ *.trycloudflare.com ──▶ cloudflared ──▶ caddy (127.0.0.1:3001) ──▶ Grafana (localhost:3000)
-                                                  └──────── 開発用コンテナ ────────┘
-```
-
-1. viewer のパスワードを作り直す (上に書いたとおり)。
-2. caddy と cloudflared を裏で起動し、2 つのログは `observe-share.log` (リポジトリの外、
-   起動のたびに上書き) に流す。画面には出さない。
-3. ログから URL を拾い、その URL の `/api/health` が外から応答するまで待つ。
-4. 応答したら URL と viewer のユーザー・パスワードを表示し、どちらかのプロセスが止まるか Ctrl-C を
-   受けるまで待つ。抜けるときは両方を止める (`--grace-period 1s` で、開いたままのブラウザの
-   接続を 30 秒待たない)。
-
-#### URL が応答するまで待つ理由
-
-cloudflared が URL を出した時点では、その名前はまだ DNS に無い (実測で URL の表示から 3〜5 秒
-後に引けるようになった)。出てすぐ開くと NXDOMAIN になり、それがブラウザや DNS にキャッシュ
-される (`trycloudflare.com` の SOA の否定キャッシュは 60 秒)。そのあいだは正しい URL でも
-開けない。待つときの名前解決は `curl --doh-url https://1.1.1.1/dns-query` で行い、手元の
-リゾルバには NXDOMAIN を覚えさせない。
-
-#### caddy を挟む理由 (root_url を変えない)
-
-Grafana の `server.root_url` は既定の `http://localhost:3000/` のままにしている。Grafana は
-ログイン画面への転送などは相対パスで返すが、共有の「Copy link」が作る短縮リンク
-(`/goto/<uid>`) の転送先は `root_url` から作る (`Location: http://localhost:3000/d/...`)。
-別の PC ではその localhost は自分自身なので、`ERR_CONNECTION_REFUSED` で開けない。
-
-caddy は `Location` の `http://localhost:3000/` を `/` に書き換えるだけで、Host ヘッダは
-そのまま Grafana に渡す (Grafana はログインの POST の Origin を Host と比べる)。
-Grafana Live の WebSocket もそのまま通る。設定は `just/observe-share.Caddyfile`。
-
-ほかの方法は次の理由で採らなかった。
-
-- `root_url` を公開 URL にする: URL は起動ごとに変わるので、share のたびに Grafana を
-  再起動し、終わったら戻すためにもう一度再起動することになる。同期で不要に再起動
-  しない性質を崩し、share を強制終了すると公開 URL の設定が残る。
-- `root_url = /` (相対) にする: 短縮リンクが `invalid app URL configuration` で開けなくなる
-  (Grafana 13.2.3 で確認)。
-
-公開中も localhost:3000 は従来どおり Grafana に直接つながり、caddy を通らない。
-`just share` でブラウザから確かめた項目 (ログイン、2 つのダッシュボード、ダッシュボード
-リンク、ログ→トレース、短縮リンク) は、`--network host` を付けないコンテナのヘッドレス
-Chrome (= localhost:3000 に届かない別の PC と同じ条件) で通した。
+Grafana の `server.root_url` は既定の `http://localhost:3000/` のままにしている。共有の「Copy link」が作る
+短縮リンク (`/goto/<uid>`) の転送先は `root_url` から作る (`Location: http://localhost:3000/d/...`) ので、
+別の PC ではその localhost が自分自身になり開けない。share の caddy は `Location` の
+`http://localhost:3000/` を `/` に書き換え、Host ヘッダはそのまま Grafana に渡す
+(Grafana はログインの POST の Origin を Host と比べる)。Grafana Live の WebSocket もそのまま通る。
+`root_url` を公開 URL にすると Pod を作り直すたびに URL が変わって Grafana の設定も変わり、
+`root_url = /` (相対) にすると短縮リンクが `invalid app URL configuration` で開けなくなる (Grafana 13.2.3 で確認)。
+公開と無関係に localhost:3000 は Grafana に直接つながる。
 
 ## ダッシュボード
 

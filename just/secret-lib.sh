@@ -1,4 +1,4 @@
-# Secret を作る・更新するスクリプトが source する関数 (grafana-secrets.sh・grafana-viewer-rotate.sh・share-relay.sh・share-secrets.sh)。
+# Secret を作る・更新するスクリプトが source する関数 (grafana-secrets.sh・share-relay.sh・share-secrets.sh)。
 # `kubectl apply` で Secret を入れると、中身 (data) が注釈 kubectl.kubernetes.io/last-applied-configuration に残り、
 # `kubectl get secret -o yaml` に 2 回出る (#49)。注釈の付かない作り方にそろえる。
 
