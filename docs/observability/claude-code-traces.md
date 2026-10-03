@@ -56,6 +56,8 @@ Collector は 3 種類とも OTLP のまま送り先に渡す。変換はしな�
   OTLP 受信なら Prometheus 側でリソース属性をラベルに昇格させられる
   (`otlp.promote_resource_attributes`)。`orca.worktree.name` と `orca.worktree.id` を
   昇格させ、`orca_worktree_name` / `orca_worktree_id` ラベルとして全系列に付けている。
+  `service.instance.id` も昇格させるが、これは Collector 自身のメトリクス (grafana.com 15983) のため。
+  Claude Code はこの属性を送らないので、Claude Code の系列には付かない。
 - ログ: Loki 3 の OTLP 受信 (`/otlp`) に `otlphttp` exporter で送る。contrib の `loki`
   exporter は廃止済み。リソース属性のうち `service.name` はインデックスラベル
   (`service_name`) に、残りとログの属性 (`event.name`、`trace_id` など) は structured
