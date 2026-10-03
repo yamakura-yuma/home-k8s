@@ -62,6 +62,11 @@ techdocs:
   builder: local
   generator:
     runIn: local
+    # mkdocs-material は既定で Google Fonts (fonts.googleapis.com) を読む。build の前に mkdocs.yml へ
+    # theme.font: false を足し、文書の画面が外の fonts を読まないようにする (各リポの mkdocs.yml は変えない)。
+    # mkdocs.yml が theme.font を自分で書いていれば、そちらが残る
+    mkdocs:
+      disableExternalFonts: true
   publisher:
     type: local
 
