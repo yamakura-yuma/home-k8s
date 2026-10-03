@@ -43,6 +43,8 @@
             kube-linter
             python3
             caddy # Caddyfile の validate と、経路の統合試験 (just/ci.sh)
+            nodejs_24 # backstage の jest と tsc (just/ci.sh)。Dockerfile の node:24 と揃える。engines は 22 || 24
+            yarn-berry # backstage/.yarnrc.yml の yarnPath (.yarn/releases) の 4.13.0 に委ねる起動役
           ];
         };
       });
