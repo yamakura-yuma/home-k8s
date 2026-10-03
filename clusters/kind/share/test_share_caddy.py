@@ -312,6 +312,13 @@ class ShareCaddy(unittest.TestCase):
         self.assertNotIn("Authorization", headers)
         self.assertNotIn("Cookie", headers)
 
+    def test_headroom_dot_segments_reach_the_relay_only_as_the_allowed_path(self):
+        # path_regexp は caddy が整えた path に当たるが、reverse_proxy は生の path を送る。許可した経路そのものに書き換えて渡す
+        for raw, sent in [("/x/../health", "/health"), ("/./health", "/health"), ("/%2e/health", "/health"), ("/stats/../stats-history?days=7", "/stats-history?days=7")]:
+            self.upstreams[HEADROOM].seen.clear()
+            self.assertEqual(self.call(HEADROOM, "GET", raw, basic("alice", PASSWORDS["alice"]))[0], 200, raw)
+            self.assertEqual([path for _, path, _ in self.seen(HEADROOM)], [sent], raw)
+
     def test_headroom_head_is_not_allowed(self):
         # #48: 実機の headroom は HEAD に 404 を返す。許可リストの HEAD は中継にも headroom にも渡さない
         for path in HEADROOM_ALLOWED:

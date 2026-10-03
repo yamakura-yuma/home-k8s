@@ -170,7 +170,7 @@ th { background:var(--panel); }
     <div class="legend">許可リストの規則は clusters/kind/share/Caddyfile と同じ (試験の表と同じ入力)。この図は規則の写しで、caddy を動かしているわけではない。実際の挙動は test_share_caddy.py・test_share_relay.py が caddy で確かめる。</div>
   </div>
   <h2>diff の要点</h2>
-  <div class="panel"><pre class="diff"><span class="c">just/share-relay.Caddyfile・clusters/kind/share/Caddyfile (headroom)</span><span class="d">-   path /dashboard /health /stats /stats-history /stats-lifetime /transformations/feed /favicon.ico</span><span class="a">+   path_regexp ^/(dashboard|health|stats|stats-history|stats-lifetime|transformations/feed|favicon\.ico)$</span><span class="c">clusters/kind/share/Caddyfile (grafana)</span><span class="a">+   @user_write { path /api/user /api/user/* /apis/preferences.grafana.app/* ; not method GET HEAD }</span><span class="a">+   respond @user_write 404</span><span class="c">clusters/kind/share/Caddyfile (backstage の POST の許可)</span><span class="d">-   path /api/auth/* /api/catalog/entities/by-refs</span><span class="a">+   path_regexp ^/api/auth/.*$|^/api/catalog/entities/by-refs$</span></pre></div>
+  <div class="panel"><pre class="diff"><span class="c">just/share-relay.Caddyfile・clusters/kind/share/Caddyfile (headroom)</span><span class="d">-   path /dashboard /health /stats /stats-history /stats-lifetime /transformations/feed /favicon.ico</span><span class="a">+   path_regexp dash ^/(dashboard|health|stats|stats-history|stats-lifetime|transformations/feed|favicon\.ico)$</span><span class="a">+   rewrite * /{re.dash.1}   (許可した経路そのものに書き換えて渡す)</span><span class="c">clusters/kind/share/Caddyfile (grafana)</span><span class="a">+   @user_write { path /api/user /api/user/* /apis/preferences.grafana.app/* ; not method GET HEAD }</span><span class="a">+   respond @user_write 404</span><span class="c">clusters/kind/share/Caddyfile (backstage の POST の許可)</span><span class="d">-   path /api/auth/* /api/catalog/entities/by-refs</span><span class="a">+   path_regexp ^/api/auth/.*$|^/api/catalog/entities/by-refs$</span></pre></div>
   <h2>閉じた経路</h2>
   <div class="panel"><table>
     <tr><th>対象</th><th>経路</th><th>以前</th><th>以後</th></tr>
@@ -178,6 +178,7 @@ th { background:var(--panel); }
     <tr><td>grafana</td><td><code>PUT /api/user</code> (ログイン名・メールの変更)</td><td>200 (viewer が通る。Basic の付与が壊れる)</td><td>404</td></tr>
     <tr><td>grafana</td><td><code>PUT・PATCH /api/user/preferences</code>・<code>POST /api/user/using/&lt;org&gt;</code>・星 (<code>POST・DELETE /api/user/stars/*</code>)</td><td>200 (viewer の共有設定が書き換わる)</td><td>404</td></tr>
     <tr><td>grafana</td><td><code>PUT /apis/preferences.grafana.app/…/preferences/&lt;自分&gt;</code> (新しい API)</td><td>200</td><td>404</td></tr>
+    <tr><td>headroom</td><td><code>GET /x/../health</code>・<code>/./health</code>・<code>/%2e/health</code> (ドットセグメント。レビューの指摘)</td><td>200。headroom に <code>/x/../health</code> のまま届く</td><td>200 だが、許可した経路 <code>/health</code> に書き換えて渡す (<code>rewrite * /{re.dash.1}</code>)。クエリは残る</td></tr>
     <tr><td>backstage</td><td><code>POST /api/catalog/Entities/by-refs</code> など POST の許可の表記揺れ</td><td>200</td><td>404</td></tr>
     <tr><td>backstage</td><td><code>/api/PROXY/…</code> (拒否側)</td><td>404 (拒否の <code>path</code> が区別しないので止まっていた)</td><td>404 (そのまま。試験で固定)</td></tr>
   </table></div>

@@ -169,6 +169,13 @@ class Relay(unittest.TestCase):
         self.assertEqual(request(self.port, "GET", "/stats-history?days=7", self.auth()), 200)
         self.assertEqual(self.upstream.seen[0][1], "/stats-history?days=7")
 
+    def test_dot_segments_reach_headroom_only_as_the_allowed_path(self):
+        # path_regexp は caddy が整えた path に当たるが、reverse_proxy は生の path を送る。許可した経路そのものに書き換えて渡す
+        for raw, sent in [("/x/../health", "/health"), ("/./health", "/health"), ("/%2e/health", "/health"), ("/stats/../stats-history?days=7", "/stats-history?days=7")]:
+            self.upstream.seen.clear()
+            self.assertEqual(request(self.port, "GET", raw, self.auth()), 200, raw)
+            self.assertEqual([path for _, path, _ in self.upstream.seen], [sent], raw)
+
     def test_token_does_not_open_anything_outside_the_allowlist(self):
         for method, path in DENIED:
             self.assertEqual(request(self.port, method, path, self.auth()), 404, (method, path))
