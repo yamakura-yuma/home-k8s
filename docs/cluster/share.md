@@ -303,4 +303,4 @@ CI の runner にはそれらが無いためである (`just ci` はクラスタ
 - 大文字小文字 (#53): caddy の `path` matcher は区別しないので、許可リストに使うと `GET /Health` が通って upstream に `/Health` のまま届く (headroom は区別するので、未知の経路としてプロキシ本体の受け口に落ちうる)。
   許可は `path_regexp` (区別する・全体一致) で書く (headroom は中継と share の両方、backstage の POST)。拒否の `path` (grafana の password・`/api/user`、backstage の `/api/proxy`) は区別しないままにして、表記揺れの素通りを止める。
   `path_regexp` は caddy が整えた path に当たるが、`reverse_proxy` は生の path を送るので、`/x/../health` のようなドットセグメントが許可リストを通って headroom にそのまま届く。headroom の許可では `rewrite * /{re.dash.1}` で許可した経路そのものに書き換えて渡す (クエリは残る)。
-- `stage C paths` の対象 (dotfiles の再利用 workflow) に `clusters/kind/share/`・`just/share*` を足すのは dotfiles 側の変更で、この repo の外。
+- `stage C paths` の対象はこの repo の `.github/CODEOWNERS` が決める (dotfiles の `bin/gate-stage-c.sh` は PR の base にある呼ぶ側の CODEOWNERS だけを読み、dotfiles 側にパスの一覧は無い)。`clusters/kind/share/` と `just/share*` の各ファイルは既に載っているので、dotfiles 側の変更は要らない。
