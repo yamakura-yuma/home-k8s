@@ -6,6 +6,7 @@
   - share-relay.sh は PATH の先頭に置いた偽の docker・kubectl・curl で、引数と作るファイルだけを見る
 `caddy` が無い環境では Caddyfile の試験を飛ばす (`just ci` は devShells.ci に caddy を入れて必ず走らせる)。
 """
+import errno
 import http.client
 import json
 import os
@@ -42,10 +43,18 @@ DENIED = [
 ]
 
 
+_reserved = []  # free_port が予約したポートのソケット。プロセスが終わるまで持つ
+
+
 def free_port():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+    """空きポートを予約して番号を返す。開いて閉じるだけだと、閉じてから caddy が bind するまでの間に、
+    並行する試験 (別の just ci も) が同じ番号を引く (#60)。予約のソケットは bind だけして listen せず、持ち続ける:
+    ほかの bind は EADDRINUSE、bind(0) は選ばない。SO_REUSEADDR の待ち受け (caddy・http.server) は上に bind できる。"""
+    s = socket.socket()
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.bind(("127.0.0.1", 0))
+    _reserved.append(s)
+    return s.getsockname()[1]
 
 
 def request(port, method, path, headers=None):
@@ -100,6 +109,29 @@ def start_caddy(tmp, upstream_port, token):
             time.sleep(0.1)
     proc.kill()
     raise RuntimeError("caddy が待ち受けない")
+
+
+class FreePort(unittest.TestCase):
+    """#60: free_port は番号を返したあとも予約を持つ。ほかの試験・別の just ci の bind に取られず、caddy は bind できる。"""
+
+    def test_ports_do_not_repeat(self):
+        ports = [free_port() for _ in range(50)]
+        self.assertEqual(len(set(ports)), len(ports))
+
+    def test_a_plain_bind_to_a_reserved_port_fails(self):
+        with socket.socket() as s:
+            with self.assertRaises(OSError) as cm:
+                s.bind(("127.0.0.1", free_port()))
+        self.assertEqual(cm.exception.errno, errno.EADDRINUSE)
+
+    def test_a_server_can_listen_on_a_reserved_port(self):
+        # caddy (Go) も http.server も SO_REUSEADDR で待ち受ける
+        port = free_port()
+        with socket.socket() as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind(("127.0.0.1", port))
+            s.listen()
+            socket.create_connection(("127.0.0.1", port), timeout=2).close()
 
 
 @unittest.skipUnless(shutil.which("caddy"), "caddy が無い")
