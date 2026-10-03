@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>just share の設計 — 変更前→変更後</title>
+<style>
+  :root {
+    --bg:#0f1419; --panel:#171e26; --line:#2c3846; --text:#e6edf3; --dim:#8b98a5;
+    --add:#3fb950; --del:#f85149; --acc:#58a6ff; --warn:#d29922; --ok:#3fb950;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f6f8fa; --panel:#ffffff; --line:#d0d7de; --text:#1f2328; --dim:#59636e; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.65 system-ui,"Hiragino Sans","Noto Sans JP",sans-serif; }
+  main { max-width:1040px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  h2 { font-size:17px; margin:36px 0 8px; border-left:4px solid var(--acc); padding-left:10px; }
+  p.lead { color:var(--dim); margin:0 0 16px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .tabs { display:flex; gap:8px; flex-wrap:wrap; margin:12px 0; }
+  button { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 14px; font:inherit; cursor:pointer; }
+  button.on { border-color:var(--acc); color:var(--acc); }
+  svg { width:100%; height:auto; display:block; }
+  svg text { font:12px system-ui,"Noto Sans JP",sans-serif; fill:var(--text); }
+  svg .dim { fill:var(--dim); }
+  .box { fill:var(--panel); stroke:var(--line); stroke-width:1.4; }
+  .box.add { stroke:var(--add); stroke-width:2; }
+  .box.del { stroke:var(--del); stroke-width:2; stroke-dasharray:6 4; }
+  .box.host { fill:none; stroke-dasharray:3 4; }
+  .pipe { stroke:var(--dim); stroke-width:1.6; fill:none; }
+  .pipe.add { stroke:var(--add); }
+  .pipe.del { stroke:var(--del); stroke-dasharray:5 4; }
+  .tag { font-weight:700; }
+  .t-add { fill:var(--add) !important; } .t-del { fill:var(--del) !important; } .t-acc { fill:var(--acc) !important; } .t-warn { fill:var(--warn) !important; }
+  .req { r:5; }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; color:var(--dim); font-size:13px; margin-top:8px; }
+  .legend i { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:6px; vertical-align:-1px; }
+  table { border-collapse:collapse; width:100%; font-size:14px; }
+  th,td { border:1px solid var(--line); padding:6px 10px; text-align:left; vertical-align:top; }
+  th { background:var(--panel); }
+  td.add { color:var(--add); } td.del { color:var(--del); }
+  code { background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:0 4px; font-size:13px; }
+  .timeline { display:grid; grid-template-columns:auto 1fr; gap:6px 12px; align-items:center; font-size:14px; }
+  .bar { height:14px; border-radius:7px; background:var(--line); position:relative; overflow:hidden; }
+  .bar span { position:absolute; inset:0 auto 0 0; border-radius:7px; }
+  .status { font-weight:700; min-width:5em; }
+  .ok { color:var(--ok); } .ng { color:var(--del); }
+  .ctrl { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+  .ctrl .clock { font-variant-numeric:tabular-nums; color:var(--dim); }
+  input[type=range] { width:220px; }
+
+  /* 流れる点: 要求 */
+  @keyframes flow { from { offset-distance:0%; } to { offset-distance:100%; } }
+  .dot { offset-rotate:0deg; animation:flow 3.2s linear infinite; }
+  .dot.ok { fill:var(--ok); } .dot.old { fill:var(--acc); }
+  .dot.deny { fill:var(--del); }
+  @keyframes pulse { 0%,100% { opacity:.35; } 50% { opacity:1; } }
+  .pulse { animation:pulse 1.8s ease-in-out infinite; }
+  .view { display:none; } .view.on { display:block; }
+  @media (prefers-reduced-motion: reduce) { .dot,.pulse { animation:none; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>just share の設計: ホストで打つ公開 → クラスタ内で常駐する公開</h1>
+  <p class="lead">設計メモ: <code>docs/cluster/share.md</code>。合意書 v2 (人ごとの資格情報・Quick Tunnel のまま・headroom 中継は A 案)。</p>
+
+  <h2>1. 構成の変更前 → 変更後</h2>
+  <div class="tabs" role="tablist">
+    <button class="on" data-view="before" role="tab">変更前</button>
+    <button data-view="after" role="tab">変更後</button>
+    <button data-view="diff" role="tab">差分 (赤=消える / 緑=増える)</button>
+  </div>
+
+  <div class="panel">
+  <!-- 変更前 -->
+  <div class="view on" id="before">
+    <svg viewBox="0 0 960 360" role="img" aria-label="変更前の構成">
+      <rect class="box host" x="10" y="10" width="940" height="340" rx="10"/>
+      <text class="dim" x="24" y="32">WSL2 ホスト (just share &lt;対象&gt; を打った間だけ。対象ごとに 1 回、計 3 回)</text>
+      <g>
+        <rect class="box" x="30" y="60" width="150" height="46" rx="6"/><text x="46" y="88">cloudflared (1)</text>
+        <rect class="box" x="30" y="150" width="150" height="46" rx="6"/><text x="46" y="178">cloudflared (2)</text>
+        <rect class="box" x="30" y="240" width="150" height="46" rx="6"/><text x="46" y="268">cloudflared (3)</text>
+        <rect class="box" x="300" y="60" width="190" height="46" rx="6"/><text x="312" y="80">caddy :3001</text><text class="dim" x="312" y="98">basic_auth (使い捨て)</text>
+        <rect class="box" x="300" y="150" width="190" height="46" rx="6"/><text x="312" y="170">caddy :3002</text><text class="dim" x="312" y="188">basic_auth (使い捨て)</text>
+        <rect class="box" x="300" y="240" width="190" height="46" rx="6"/><text x="312" y="260">caddy :3003</text><text class="dim" x="312" y="278">basic_auth + cookie</text>
+        <rect class="box" x="640" y="60" width="270" height="46" rx="6"/><text x="654" y="80">localhost:3000 Grafana</text><text class="dim" x="654" y="98">viewer のパスワードを毎回作り直す</text>
+        <rect class="box" x="640" y="150" width="270" height="46" rx="6"/><text x="654" y="170">localhost:8787 headroom</text><text class="dim" x="654" y="188">GET の許可リストだけ</text>
+        <rect class="box" x="640" y="240" width="270" height="46" rx="6"/><text x="654" y="260">localhost:7007 Backstage</text><text class="dim" x="654" y="278">画面と TechDocs の経路だけ</text>
+      </g>
+      <path class="pipe" d="M180 83 H300"/><path class="pipe" d="M490 83 H640"/>
+      <path class="pipe" d="M180 173 H300"/><path class="pipe" d="M490 173 H640"/>
+      <path class="pipe" d="M180 263 H300"/><path class="pipe" d="M490 263 H640"/>
+      <text class="dim" x="30" y="326">Ctrl-C で全部止まる。パスワードは起動ごとに 1 つ。誰に渡したかは区別できない。</text>
+      <circle class="dot old" r="5" style="offset-path:path('M30 83 H910')"/>
+      <circle class="dot old" r="5" style="offset-path:path('M30 173 H910');animation-delay:.8s"/>
+      <circle class="dot old" r="5" style="offset-path:path('M30 263 H910');animation-delay:1.6s"/>
+    </svg>
+  </div>
+
+  <!-- 変更後 -->
+  <div class="view" id="after">
+    <svg viewBox="0 0 960 460" role="img" aria-label="変更後の構成">
+      <rect class="box host" x="10" y="10" width="620" height="440" rx="10"/>
+      <text class="dim" x="24" y="32">kind クラスタ / namespace share (Deployment share、Service なし)</text>
+      <rect class="box host" x="650" y="10" width="300" height="130" rx="10"/>
+      <text class="dim" x="664" y="32">WSL2 ホスト (docker bridge 側)</text>
+      <rect class="box add" x="30" y="56" width="150" height="40" rx="6"/><text x="44" y="80">cloudflared (grafana)</text>
+      <rect class="box add" x="30" y="108" width="150" height="40" rx="6"/><text x="44" y="132">cloudflared (headroom)</text>
+      <rect class="box add" x="30" y="160" width="150" height="40" rx="6"/><text x="44" y="184">cloudflared (backstage)</text>
+      <rect class="box add" x="250" y="90" width="150" height="86" rx="6"/><text class="tag t-add" x="264" y="112">caddy</text><text class="dim" x="264" y="130">:8081 :8082 :8083</text><text class="dim" x="264" y="148">許可リスト (404)</text><text class="dim" x="264" y="164">viewer を付与 (grafana)</text>
+      <rect class="box add" x="250" y="250" width="200" height="86" rx="6"/><text class="tag t-add" x="264" y="272">auth (forward_auth)</text><text class="dim" x="264" y="290">要求ごとに判定</text><text class="dim" x="264" y="308">期限・削除・cookie 署名</text><text class="dim" x="264" y="326">既定は 401</text>
+      <rect class="box add" x="30" y="370" width="230" height="56" rx="6"/><text class="tag t-add" x="44" y="392">Secret share-credentials</text><text class="dim" x="44" y="410">名前 → ハッシュ・期限・特権</text>
+      <rect class="box" x="480" y="56" width="130" height="40" rx="6"/><text x="494" y="80">grafana.svc</text>
+      <rect class="box" x="480" y="108" width="130" height="40" rx="6"/><text x="494" y="132">headroom へ</text>
+      <rect class="box" x="480" y="160" width="130" height="40" rx="6"/><text x="494" y="184">backstage.svc</text>
+      <rect class="box add" x="670" y="56" width="260" height="70" rx="6"/><text class="tag t-add" x="684" y="78">headroom 中継 (caddy)</text><text class="dim" x="684" y="96">172.18.0.1:8788 + トークン</text><text class="dim" x="684" y="114">GET 許可リスト ─▶ 127.0.0.1:8787</text>
+      <path class="pipe add" d="M180 76 H215 V120 H250"/><path class="pipe add" d="M180 128 H250"/><path class="pipe add" d="M180 180 H215 V140 H250"/>
+      <path class="pipe add" d="M325 176 V250"/><text class="dim" x="334" y="216">(1) 判定</text>
+      <path class="pipe add" d="M250 293 H215 V398 H260"/>
+      <path class="pipe" d="M400 110 H440 V76 H480"/><path class="pipe" d="M400 132 H480"/><path class="pipe" d="M400 156 H440 V180 H480"/>
+      <path class="pipe add" d="M610 128 H650 V91 H670"/>
+      <text class="dim" x="30" y="446">cloudflared → caddy → (1) auth が 200 のときだけ (2) 許可リストを通して upstream へ</text>
+      <circle class="dot ok" r="5" style="offset-path:path('M30 76 H215 V120 H400 H440 V76 H480')"/>
+      <circle class="dot ok" r="5" style="offset-path:path('M30 128 H400 H480 H650 V91 H670');animation-delay:1s"/>
+      <circle class="dot deny" r="5" style="offset-path:path('M30 180 H215 V140 H250 V200 H325 V250');animation-delay:2s"/>
+    </svg>
+  </div>
+
+  <!-- 差分 -->
+  <div class="view" id="diff">
+    <svg viewBox="0 0 960 360" role="img" aria-label="差分">
+      <text class="tag" x="20" y="30">ホスト</text>
+      <rect class="box del" x="20" y="44" width="420" height="34" rx="6"/><text class="t-del" x="34" y="66">− cloudflared ×3 / caddy ×3 (just share が起動)</text>
+      <rect class="box del" x="20" y="86" width="420" height="34" rx="6"/><text class="t-del" x="34" y="108">− just/*.Caddyfile ×3、observe-share.sh、grafana-viewer-rotate.sh</text>
+      <rect class="box add" x="500" y="44" width="440" height="34" rx="6"/><text class="t-add" x="514" y="66">+ headroom 中継 (caddy コンテナ。just up が起動、just down が消す)</text>
+      <text class="tag" x="20" y="152">クラスタ</text>
+      <rect class="box add" x="20" y="166" width="420" height="34" rx="6"/><text class="t-add" x="34" y="188">+ Deployment share (cloudflared ×3、caddy、auth) / namespace share</text>
+      <rect class="box add" x="20" y="208" width="420" height="34" rx="6"/><text class="t-add" x="34" y="230">+ Secret share-credentials・share-session-key・share-host</text>
+      <rect class="box add" x="500" y="166" width="440" height="34" rx="6"/><text class="t-add" x="514" y="188">+ ArgoCD Application share (clusters/kind/argocd/apps/share.yaml)</text>
+      <text class="tag" x="20" y="274">操作</text>
+      <rect class="box del" x="20" y="288" width="420" height="34" rx="6"/><text class="t-del" x="34" y="310">− just share [grafana|headroom|backstage] (フォアグラウンド)</text>
+      <rect class="box add" x="500" y="288" width="440" height="34" rx="6"/><text class="t-add" x="514" y="310">+ just share add|delete|list|get|rotate|prune</text>
+      <line class="pipe pulse" x1="450" y1="61" x2="490" y2="61" style="stroke:var(--warn)"/>
+      <line class="pipe pulse" x1="450" y1="305" x2="490" y2="305" style="stroke:var(--warn)"/>
+    </svg>
+  </div>
+  </div>
+  <div class="legend"><span><i style="background:var(--add)"></i>増える</span><span><i style="background:var(--del)"></i>消える</span><span><i style="background:var(--ok)"></i>通る要求</span><span><i style="background:var(--del)"></i>拒否される要求 (変更後の図の赤い点)</span></div>
+
+  <h2>2. 失効のしかた: 期限切れと delete は要求ごとに判定する</h2>
+  <p class="lead">スライダーで時刻を進める。資格情報 <code>alice</code> は 8h、<code>bob</code> は delete される。キャッシュ TTL は 2 秒。</p>
+  <div class="panel">
+    <div class="ctrl">
+      <button id="play">▶ 再生</button>
+      <input id="t" type="range" min="0" max="540" value="0" step="1" aria-label="経過時間 (分)">
+      <span class="clock" id="clock">0:00</span>
+    </div>
+    <div class="timeline">
+      <span>alice (期限 8:00)</span><div class="bar"><span id="b-alice" style="background:var(--ok);width:0"></span></div>
+      <span>bob (480 分の途中で delete)</span><div class="bar"><span id="b-bob" style="background:var(--ok);width:0"></span></div>
+      <span>owner (特権・期限なし)</span><div class="bar"><span id="b-owner" style="background:var(--acc);width:0"></span></div>
+    </div>
+    <table style="margin-top:12px">
+      <tr><th>資格情報</th><th>いまの要求</th><th>理由</th></tr>
+      <tr><td>alice</td><td class="status" id="s-alice">—</td><td id="r-alice" class="dim"></td></tr>
+      <tr><td>bob</td><td class="status" id="s-bob">—</td><td id="r-bob" class="dim"></td></tr>
+      <tr><td>owner</td><td class="status" id="s-owner">—</td><td id="r-owner" class="dim"></td></tr>
+    </table>
+    <p class="dim" style="font-size:13px;margin:8px 0 0">時刻の表示は「時:分」。bob は 4:00 に delete (Secret から項目を消す)。次の要求から最大 2 秒で 401 になる。</p>
+  </div>
+
+  <h2>3. 試験で「拒否」を確かめる点 (just ci)</h2>
+  <table>
+    <tr><th>段</th><th>入力</th><th>期待</th></tr>
+    <tr><td>認証の単体</td><td>名前なし / 誤パスワード / 期限の 1 秒前 / 1 秒後 / 項目を消した後 / Secret が空・壊れている</td><td>1 秒前だけ通り、残りはすべて拒否 (既定は拒否)</td></tr>
+    <tr><td>経路の統合</td><td>認証なしの全経路 / headroom の <code>POST /v1/messages</code> / backstage の <code>/api/proxy</code> / <code>POST /api/catalog/locations</code> / grafana の <code>/profile/password</code></td><td>401 / 404 / 404 / 404 / 404</td></tr>
+    <tr><td>経路の統合 (失効)</td><td>通っていた資格情報の項目を消す・期限を過去にする (キャッシュ TTL 0 で)</td><td>次の要求から 401 (Backstage の cookie 経路も)</td></tr>
+    <tr><td>静的</td><td><code>caddy validate</code>、share の namespace の Service の型</td><td>NodePort・LoadBalancer・Ingress が無い</td></tr>
+  </table>
+
+  <h2>4. 実装の Issue と依存順</h2>
+  <div class="panel"><svg viewBox="0 0 960 250" role="img" aria-label="Issue の依存">
+    <g>
+      <rect class="box" x="20" y="20" width="200" height="44" rx="6"/><text x="34" y="46">#38 headroom 中継</text>
+      <rect class="box" x="20" y="150" width="200" height="44" rx="6"/><text x="34" y="176">#39 認証サービス + 単体試験</text>
+      <rect class="box" x="270" y="150" width="210" height="44" rx="6"/><text x="284" y="176">#40 Caddyfile + 経路の試験</text>
+      <rect class="box" x="530" y="85" width="190" height="44" rx="6"/><text x="544" y="111">#41 Deployment + ArgoCD</text>
+      <rect class="box" x="760" y="85" width="180" height="44" rx="6"/><text x="774" y="111">#42 just share CLI</text>
+      <rect class="box" x="760" y="170" width="180" height="44" rx="6"/><text x="774" y="196">#43 稼働中の確認 smoke</text>
+      <rect class="box" x="530" y="196" width="190" height="44" rx="6"/><text x="544" y="222">#44 旧 share 廃止 + docs</text>
+    </g>
+    <path class="pipe" d="M220 42 H500 V107 H530"/><path class="pipe" d="M220 172 H270"/><path class="pipe" d="M480 172 H500 V107"/>
+    <path class="pipe" d="M720 107 H760"/><path class="pipe" d="M850 129 V170"/><path class="pipe" d="M760 192 H740 V218 H720"/>
+    <circle class="dot ok" r="5" style="offset-path:path('M220 172 H270 H480 H500 V107 H530 H720 H760');animation-duration:5s"/>
+  </svg></div>
+</main>
+<script>
+// タブ
+document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === b.dataset.view));
+}));
+// 時刻スライダー (分)。alice は 480 分で期限切れ、bob は 240 分で delete
+const $ = id => document.getElementById(id);
+function render(m) {
+  const h = Math.floor(m / 60), mm = String(m % 60).padStart(2, '0');
+  $('clock').textContent = `${h}:${mm}`;
+  const set = (k, ok, why, frac) => {
+    $('s-' + k).textContent = ok ? '通る (200)' : '拒否 (401)';
+    $('s-' + k).className = 'status ' + (ok ? 'ok' : 'ng');
+    $('r-' + k).textContent = why;
+    $('b-' + k).style.width = (frac * 100) + '%';
+    $('b-' + k).style.background = ok ? (k === 'owner' ? 'var(--acc)' : 'var(--ok)') : 'var(--del)';
+  };
+  set('alice', m < 480, m < 480 ? `期限まで ${480 - m} 分` : '期限切れ: 要求のたびに現在時刻と比べるので遅れなし', Math.min(m / 480, 1));
+  set('bob', m < 240, m < 240 ? 'Secret に項目がある' : 'delete 済み: 項目が無い (キャッシュ TTL 2 秒以内に反映)', Math.min(m / 240, 1));
+  set('owner', true, '期限なし (特権)。見られる範囲は他と同じ', 1);
+}
+const t = $('t');
+t.addEventListener('input', () => render(+t.value));
+let timer = null;
+$('play').addEventListener('click', () => {
+  if (timer) { clearInterval(timer); timer = null; $('play').textContent = '▶ 再生'; return; }
+  if (+t.value >= +t.max) t.value = 0;
+  $('play').textContent = '⏸ 停止';
+  timer = setInterval(() => {
+    t.value = Math.min(+t.value + 3, +t.max); render(+t.value);
+    if (+t.value >= +t.max) { clearInterval(timer); timer = null; $('play').textContent = '▶ 再生'; }
+  }, 60);
+});
+render(0);
+</script>
+</body>
+</html>
