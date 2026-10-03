@@ -2,6 +2,7 @@
 
 状態: 設計。実装は GitHub の Issue ごとに進め、そのたびにこの文書を実際の構成に書き換える。実装済み: 認証サービス (#39、`clusters/kind/share/share_auth.py`)。
 図の HTML (変更前→変更後のアニメーション): [share-design.html](share-design.html)
+認証サービス (#39) の diff の図 (判定を動かせるアニメーション): [share-auth.html](share-auth.html)
 
 ## 何を変えるか
 

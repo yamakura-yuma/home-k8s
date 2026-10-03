@@ -4,6 +4,8 @@
 時刻は decide() の引数なので、期限の前後を実時間を待たずに確かめられる。
 """
 import base64
+import contextlib
+import io
 import json
 import sys
 import tempfile
@@ -65,7 +67,8 @@ class Decide(unittest.TestCase):
         self.assertEqual(self.status(with_basic("", "")), 401)
 
     def test_bad_name_rejected(self):
-        creds = {"Alice": entry("pw"), "../x": entry("pw")}
+        creds = {"Alice": entry("pw"), "../x": entry("pw"), "alice\n": entry("pw")}
+        self.assertEqual(self.status(with_basic("alice\n", "pw"), creds=creds), 401)
         self.assertEqual(self.status(with_basic("Alice", "pw"), creds=creds), 401)
         self.assertEqual(self.status(with_basic("../x", "pw"), creds=creds), 401)
 
@@ -216,6 +219,12 @@ class Decide(unittest.TestCase):
 
 
 class Sources(unittest.TestCase):
+    def setUp(self):
+        # 読めないときの警告は期待どおりなので、CI のログに混ぜない
+        stderr = contextlib.redirect_stderr(io.StringIO())
+        stderr.__enter__()
+        self.addCleanup(stderr.__exit__, None, None, None)
+
     def write(self, data):
         f = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
         self.addCleanup(Path(f.name).unlink)
@@ -295,6 +304,9 @@ class FakeKubernetesAPI(BaseHTTPRequestHandler):
 
 class KubernetesSource(unittest.TestCase):
     def setUp(self):
+        stderr = contextlib.redirect_stderr(io.StringIO())
+        stderr.__enter__()
+        self.addCleanup(stderr.__exit__, None, None, None)
         self.api = ThreadingHTTPServer(("127.0.0.1", 0), FakeKubernetesAPI)
         threading.Thread(target=self.api.serve_forever, daemon=True).start()
         self.addCleanup(self.api.server_close)
@@ -338,6 +350,9 @@ class Server(unittest.TestCase):
     """forward_auth が見る応答 (状態コードと Set-Cookie・WWW-Authenticate) を、実際の HTTP で確かめる。"""
 
     def setUp(self):
+        stderr = contextlib.redirect_stderr(io.StringIO())
+        stderr.__enter__()
+        self.addCleanup(stderr.__exit__, None, None, None)
         self.state = {"credentials": {"alice": entry("pw", expires_at=4_000_000_000)}, "session_key": "k"}
         f = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
         self.addCleanup(Path(f.name).unlink)

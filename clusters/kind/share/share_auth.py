@@ -47,7 +47,7 @@ def parse_entry(raw):
     try:
         entry = json.loads(raw) if isinstance(raw, (str, bytes)) else raw
         expires_at = entry["expires_at"]
-        if not isinstance(entry["hash"], str) or not HASH_RE.match(entry["hash"]):
+        if not isinstance(entry["hash"], str) or not HASH_RE.fullmatch(entry["hash"]):
             return None
         if not isinstance(entry["privileged"], bool) or isinstance(entry["created_at"], bool):
             return None
@@ -63,7 +63,7 @@ def parse_entry(raw):
 
 def active_entry(credentials, name, now):
     """名前が Secret にあり、壊れておらず、期限内の項目。それ以外は None (期限ちょうども拒否)。"""
-    if not isinstance(name, str) or not NAME_RE.match(name):
+    if not isinstance(name, str) or not NAME_RE.fullmatch(name):
         return None
     entry = parse_entry(credentials.get(name))
     if entry is None:
