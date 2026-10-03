@@ -80,7 +80,7 @@ th { background:var(--panel); }
   </svg>
   </div>
   <h2>diff の要点</h2>
-  <div class="panel"><pre class="diff"><span class="c">clusters/kind/share/Caddyfile (新規)</span><span class="a">+ (share_auth)  reverse_proxy 認証サービス { handle_response @authenticated { header +Set-Cookie … } }</span><span class="a">+ :8081 grafana    route { share_auth; 404 /profile/password /api/user/password; Authorization を viewer に差し替え; Location 書き換え }</span><span class="a">+ :8082 headroom   route { share_auth; GET の許可リスト → 中継 (X-Share-Relay-Token) }</span><span class="a">+ :8083 backstage  route { share_auth; GET HEAD (/api/proxy 以外) / POST 2 つ; Basic を落とす; Domain=localhost を外す }</span><span class="c">clusters/kind/share/test_share_caddy.py (新規)  caddy + 認証サービス + 偽の upstream の統合試験 16 本</span><span class="c">just/share-relay.Caddyfile・test_share_relay.py</span><span class="d">- method GET HEAD</span><span class="a">+ method GET            (#48)</span><span class="c">just/ci.sh   caddy の有無の確認を、新しい試験の前に移す</span><span class="c">docs/cluster/share.md   #40・#48 の実装に合わせて書き換え</span></pre></div>
+  <div class="panel"><pre class="diff"><span class="c">clusters/kind/share/Caddyfile (新規)</span><span class="a">+ (share_auth)  reverse_proxy 認証サービス { handle_response @authenticated { header +Set-Cookie … } }</span><span class="a">+ :8081 grafana    route { share_auth; 404 /profile/password /api/user/password・/api/user /apis/preferences.grafana.app 以下の GET・HEAD 以外 (#51); Authorization を viewer に差し替え; Location 書き換え }</span><span class="a">+ :8082 headroom   route { share_auth; GET の許可リスト → 中継 (X-Share-Relay-Token) }</span><span class="a">+ :8083 backstage  route { share_auth; GET HEAD (/api/proxy 以外) / POST は /api/auth/* と by-refs だけ (大文字小文字を区別する完全一致、#53); Basic を落とす; Domain=localhost を外す }</span><span class="c">clusters/kind/share/test_share_caddy.py (新規)  caddy + 認証サービス + 偽の upstream の統合試験 17 本</span><span class="c">just/share-relay.Caddyfile・test_share_relay.py (headroom)</span><span class="d">- method GET HEAD</span><span class="a">+ method GET            (#48)</span><span class="c">just/ci.sh   caddy の有無の確認を、新しい試験の前に移す</span><span class="c">docs/cluster/share.md   #40・#48 の実装に合わせて書き換え</span></pre></div>
 </section>
 
 <section class="view" id="flow">
@@ -138,7 +138,7 @@ th { background:var(--panel); }
     <text x="490" y="153" class="dim">headroom には届かない。GET の許可リストだけが通る</text>
   </svg>
   </div>
-  <p class="legend">HEAD を使う用途は無い (Pod の probe は tcpSocket)。HEAD→GET への書き換えは、HEAD の応答に本文を返しうるので採らなかった。just/share-relay.Caddyfile と clusters/kind/share/Caddyfile の両方で GET だけにし、どちらの試験でも「許可リストの経路への HEAD は 404 で upstream に届かない」を確かめる。</p>
+  <p class="legend">HEAD を使う用途は無い (Pod の probe は tcpSocket)。just/share-relay.Caddyfile と clusters/kind/share/Caddyfile の両方で GET だけにし、どちらの試験でも「許可リストの経路への HEAD は 404 で upstream に届かない」を確かめる。</p>
   <h2>同じ要求を、main の中継と今の中継に流す (#53)</h2>
   <p class="lead">要求を選んで「流す」。上が main、下が今。認証は通った (alice) として、② 許可リストでどうなるかだけを見る。</p>
   <div class="panel">
@@ -147,7 +147,7 @@ th { background:var(--panel); }
       <button id="frun">流す</button>
       <button id="fall">全部流す</button>
     </div>
-    <svg viewBox="0 0 960 250" role="img" aria-label="同じ要求をmainと今の許可リストに流す。表記揺れの headroom と、grafana のプロフィール書き込みは、mainは upstream まで届き、今は許可リストで 404 になる">
+    <svg viewBox="0 0 960 250" role="img" aria-label="同じ要求をmainと今の許可リストに流す。表記揺れの headroom と HEAD は、main は upstream まで届き、今は許可リストで 404 になる">
       <text x="10" y="20" style="font-weight:700">main</text>
       <line class="pipe" x1="150" y1="65" x2="260" y2="65"/><line class="pipe" x1="420" y1="65" x2="530" y2="65"/><line class="pipe" x1="690" y1="65" x2="800" y2="65"/>
       <g class="node" id="fo0"><rect x="20" y="40" width="130" height="50" rx="10"/><text x="52" y="70">ブラウザ</text></g>
@@ -167,11 +167,11 @@ th { background:var(--panel); }
     <div class="legend">許可リストの規則は just/share-relay.Caddyfile と同じ (試験の表と同じ入力)。この図は規則の写しで、caddy を動かしているわけではない。実際の挙動は test_share_caddy.py・test_share_relay.py が caddy で確かめる。</div>
   </div>
   <h2>diff の要点</h2>
-  <div class="panel"><pre class="diff"><span class="c">just/share-relay.Caddyfile (clusters/kind/share/Caddyfile の headroom も同じ)</span><span class="d">-   method GET HEAD</span><span class="a">+   method GET</span><span class="d">-   path /dashboard /health /stats /stats-history /stats-lifetime /transformations/feed /favicon.ico</span><span class="a">+   path_regexp dash ^/(dashboard|health|stats|stats-history|stats-lifetime|transformations/feed|favicon\.ico)$</span><span class="a">+   rewrite * /{re.dash.1}   (許可した経路そのものに書き換えて渡す)</span></pre></div>
+  <div class="panel"><pre class="diff"><span class="c">just/share-relay.Caddyfile (新 Caddyfile の :8082 も + 側と同じ)</span><span class="d">-   method GET HEAD</span><span class="a">+   method GET</span><span class="d">-   path /dashboard /health /stats /stats-history /stats-lifetime /transformations/feed /favicon.ico</span><span class="a">+   path_regexp dash ^/(dashboard|health|stats|stats-history|stats-lifetime|transformations/feed|favicon\.ico)$</span><span class="a">+   rewrite * /{re.dash.1}   (許可した経路そのものに書き換えて渡す)</span></pre></div>
   <h2>閉じた経路・変わる経路 (中継)</h2>
   <div class="panel"><table>
     <tr><th>経路</th><th>main</th><th>今</th></tr>
-    <tr><td><code>HEAD /health</code> など許可経路の HEAD (#48)</td><td>200 で通り、headroom が 404 を返す (Anthropic へ素通しとみられる)</td><td>404。headroom に届かない</td></tr>
+    <tr><td><code>HEAD /health</code> など許可経路の HEAD (#48)</td><td>中継が通し、headroom まで届いて 404 (Anthropic へ素通しとみられる)</td><td>404。headroom に届かない</td></tr>
     <tr><td><code>GET /Health</code>・<code>/DASHBOARD</code>・<code>/favicon.ICO</code>・<code>/%48ealth</code> など許可経路の表記揺れ (#53)</td><td>通る (<code>path</code> が大文字小文字を区別しない)</td><td>404</td></tr>
     <tr><td><code>GET /x/../health</code>・<code>/./health</code>・<code>/%2e/health</code> (ドットセグメント)</td><td>通り、<code>/x/../health</code> のまま headroom に届く</td><td>通るが、許可した経路 <code>/health</code> に書き換えて渡す。クエリは残る</td></tr>
   </table></div>
