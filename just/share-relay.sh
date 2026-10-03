@@ -65,11 +65,11 @@ caddyfile="$(dirname "$token_file")/relay.Caddyfile"
 cp "$script_dir/share-relay.Caddyfile" "$caddyfile"
 chmod 644 "$caddyfile"
 
-# Pod が環境変数 (envFrom) でそのまま読めるキー名にする
+# Pod が環境変数 (envFrom) でそのまま読めるキー名にする。トークンは --from-file で渡す (引数に出さない。ps に残る)
 kubectl --context "$ctx" create namespace share --dry-run=client -o yaml \
     | kubectl --context "$ctx" apply -f - >/dev/null
 kubectl --context "$ctx" -n share create secret generic share-host \
-    --from-literal=SHARE_RELAY_ADDR="$gateway:$port" --from-literal=SHARE_RELAY_TOKEN="$token" \
+    --from-literal=SHARE_RELAY_ADDR="$gateway:$port" --from-file=SHARE_RELAY_TOKEN="$token_file" \
     --dry-run=client -o yaml | kubectl --context "$ctx" apply -f -
 
 docker rm -f "$container" >/dev/null 2>&1 || true

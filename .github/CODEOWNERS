@@ -31,3 +31,4 @@
 # 外部公開 (just share)
 /just/observe-share.sh     @yamakura-yuma
 /just/*.Caddyfile          @yamakura-yuma
+/just/test_share_relay.py  @yamakura-yuma

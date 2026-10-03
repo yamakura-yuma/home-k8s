@@ -226,7 +226,8 @@ case "$*" in *apply*) cat >/dev/null ;; *create*) echo "kind: Stub" ;; esac
         self.assertIn("-n share", secret[0])
         self.assertIn("--context kind-test", secret[0])
         self.assertIn("SHARE_RELAY_ADDR=172.18.0.1:8788", secret[0])
-        self.assertIn(f"SHARE_RELAY_TOKEN={token}", secret[0])
+        self.assertIn(f"SHARE_RELAY_TOKEN={self.token_file}", secret[0])
+        self.assertNotIn(token, secret[0], "トークンが kubectl の引数に出た")
 
     def test_up_again_keeps_the_token(self):
         self.up()

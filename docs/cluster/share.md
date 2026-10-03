@@ -55,7 +55,7 @@ headroom の中継 (ホスト側。#38 で実装済み):
 - トークンは `just up` が `openssl rand -hex 16` で作り、`~/.local/share/home-k8s/share/relay-token` (権限 600) に置く。
   あれば再利用するので、`just up` を打ち直しても値は変わらない。`just down` はコンテナだけを消し、トークンのファイルは残す。
   Caddyfile は同じ場所に `relay.Caddyfile` としてコピーしてからマウントする (worktree を消しても `--restart` で読めるように)。
-  トークンは `docker run` の引数には出さず (`ps` に残る)、環境変数で渡す。
+  トークンは `docker run` の引数にも `kubectl create secret` の引数にも出さず (`ps` に残る)、環境変数と `--from-file` で渡す。
 - Pod への宛先とトークンは Secret `share/share-host` (namespace `share` は無ければ `just up` が作る) に入る。
   キーは `SHARE_RELAY_ADDR` (`<ゲートウェイ>:<ポート>`、例 `172.18.0.1:8788`) と `SHARE_RELAY_TOKEN`。
   #41 の Deployment が `envFrom` でそのまま環境変数にする。git には置かない (bridge のアドレスは環境で変わりうる)。
@@ -65,7 +65,8 @@ headroom の中継 (ホスト側。#38 で実装済み):
   トークン無し・違うトークンは全経路 401、トークンありは許可リストが GET・HEAD で 200 (upstream にトークンが渡らない)、
   `POST /v1/messages`・`/stats/reset` ほか許可リスト外は 404 で upstream に届かないことを確かめる。
   スクリプトは偽の `docker`・`kubectl`・`curl` で、IPv4 ゲートウェイの選択・トークンの再利用・Secret のキー・空トークンの拒否を確かめる。
-  稼働中のクラスタ・ホストには触れない。Pod から中継への到達は稼働中でしか確かめられないので CI に入れず、下の「残る問題」に書く。
+  稼働中のクラスタ・ホストには触れない。試験の caddy は `devShells.ci` の版 (nixpkgs)、コンテナは `caddy:2.11.6-alpine` で、パッチの版が違いうる。
+  Pod から中継への到達は稼働中でしか確かめられないので CI に入れず、下の「残る問題」に書く。
 
 ### 2. 期限切れ・削除の強制 — 認証を前段に置き、要求ごとに判定する
 
