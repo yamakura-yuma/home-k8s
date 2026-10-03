@@ -7,8 +7,8 @@
 | フォルダ | ID | rev | 名前 | 読むメトリクス |
 |---|---|---|---|---|
 | grafana.com / Kubernetes | [15757](https://grafana.com/grafana/dashboards/15757) | 43 | Kubernetes / Views / Global | `kube_*`・`node_*`・`container_*`・`machine_*` |
-| | [15758](https://grafana.com/grafana/dashboards/15758) | 46 | Kubernetes / Views / Namespaces | `kube_*`・`container_*` |
-| | [15759](https://grafana.com/grafana/dashboards/15759) | 40 | Kubernetes / Views / Nodes | `kube_node_info`・`node_*`・`container_*` |
+| | [15758](https://grafana.com/grafana/dashboards/15758) | 46 | Kubernetes / Views / Namespaces | `kube_*`・`container_*`・`kubelet_volume_stats_*` |
+| | [15759](https://grafana.com/grafana/dashboards/15759) | 40 | Kubernetes / Views / Nodes | `kube_node_info`・`node_*`・`container_*`・`kubelet_volume_stats_*` |
 | | [15760](https://grafana.com/grafana/dashboards/15760) | 41 | Kubernetes / Views / Pods | `kube_pod_*`・`container_*` |
 | | [15761](https://grafana.com/grafana/dashboards/15761) | 21 | Kubernetes / System / API Server | `apiserver_*` |
 | | [15762](https://grafana.com/grafana/dashboards/15762) | 22 | Kubernetes / System / CoreDNS | `coredns_*` |
@@ -31,13 +31,17 @@ Kubernetes の 6 枚は dotdc/grafana-dashboards-kubernetes。どのダッシュ
 | `node_*` | prometheus-node-exporter (同上、DaemonSet) | 同上 |
 | `coredns_*` | kind の CoreDNS (Service `kube-dns` に `prometheus.io/scrape` 注釈が最初からある) | 同上 |
 | `container_*`・`machine_*` | kubelet の cAdvisor | スクレイプ `kubernetes-nodes-cadvisor` |
+| `kubelet_volume_stats_*` | kubelet 自身 | スクレイプ `kubernetes-nodes` (ほかのメトリクスは捨てる) |
 | `apiserver_*` | API サーバー | スクレイプ `kubernetes-api-servers` |
 | `otelcol_*` | OTel Collector 自身 | Collector が OTLP で Prometheus の OTLP 受信に送る (10 秒ごと) |
 
-ダッシュボードに合わせて足した設定が 3 つある。
+ダッシュボードに合わせて足した設定が 4 つある。
 
 - cAdvisor の系列に `node` ラベルを足す (`post_relabel_configs`)。dotdc は `container_*` と
   `machine_*` をノード名で絞るが、kubelet も chart の既定の relabel もこのラベルを付けない。
+  `kubernetes-nodes` の `kubelet_volume_stats_*` にも同じく足す (15759 の Persistent Volumes が絞る)。
+- `kubernetes-nodes` は `kubelet_volume_stats_*` だけを残す (`metric_relabel_configs`)。kubelet は
+  1 ノード 2000 余りの系列を出すが、ダッシュボードが使うのはこれだけ。
 - kube-state-metrics の `metricLabelsAllowlist` に Deployment・StatefulSet・DaemonSet・
   NetworkPolicy を挙げる。`kube_<リソース>_labels` は挙げたリソースにしか出ず、15758 はこれで数を数える。
 - Collector の送信間隔を 10 秒にする。15983 のパネルは最小間隔 10 秒で `$__rate_interval` が
@@ -104,7 +108,6 @@ file provisioning はそのままでは読めない部分がある。
 |---|---|---|
 | 15757・15758・15760 | OOM Events・Container Restarts・Pods Status Reason・Pods unexpected status・Pods with Container Issues・Unscheduled Pods | 事象待ち |
 | 15757・15759 | CPU Core Throttled | 事象待ち (`node_cpu_core_throttles_total` が 0 のまま) |
-| 15758・15759 | Persistent Volumes の 3 枚 | `kubelet_volume_stats_*` は kubelet 自身のメトリクスで、スクレイプ `kubernetes-nodes` が要る。スクレイプ `kubernetes-nodes` は切っているので入れていない (PVC は [persistence.md](../cluster/persistence.md) で使うようになった) |
 | 15760 | Information 行 (Created by・Running on など) | 変数 `pod` が All のときは空。Pod を 1 つ選ぶと出る (上流の作り) |
 | 15762 | DNS Errors | 事象待ち (SERVFAIL・REFUSED の転送が無い) |
 | 15983 | Service Instance Details、Processors 1 段目 (incoming/outgoing items の Spans・Metric Points・Log Records) | 変数 `divider` が `service_instance_id` ラベルを前提にしている。OTLP で入れると `instance` になり、このラベルが無い |
