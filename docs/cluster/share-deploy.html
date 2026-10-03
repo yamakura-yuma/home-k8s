@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>#41 クラスタ内の Deployment share — diff の図 (変更前→変更後)</title>
+<style>
+  :root {
+    --bg:#0f1419; --panel:#171e26; --line:#2c3846; --text:#e6edf3; --dim:#8b98a5;
+    --add:#3fb950; --del:#f85149; --acc:#58a6ff; --warn:#d29922;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f6f8fa; --panel:#ffffff; --line:#d0d7de; --text:#1f2328; --dim:#59636e; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.65 system-ui,"Hiragino Sans","Noto Sans JP",sans-serif; }
+  main { max-width:1040px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  h2 { font-size:17px; margin:36px 0 8px; border-left:4px solid var(--acc); padding-left:10px; }
+  p.lead { color:var(--dim); margin:0 0 12px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .ctrl { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:10px 0; }
+  button { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 14px; font:inherit; cursor:pointer; }
+  button.on { border-color:var(--acc); color:var(--acc); }
+  svg { width:100%; height:auto; display:block; }
+  svg text { font:12px system-ui,"Noto Sans JP",sans-serif; fill:var(--text); }
+  svg .dim { fill:var(--dim); }
+  .box { fill:var(--panel); stroke:var(--line); stroke-width:1.4; }
+  .box.add { stroke:var(--add); stroke-width:2; }
+  .box.same { stroke:var(--dim); }
+  .box.del { stroke:var(--del); stroke-width:2; stroke-dasharray:6 4; }
+  .box.hot { stroke:var(--acc); stroke-width:3; }
+  .zone { fill:none; stroke:var(--line); stroke-dasharray:3 4; }
+  .pipe { stroke:var(--dim); stroke-width:1.6; fill:none; }
+  .pipe.add { stroke:var(--add); stroke-width:2; }
+  .t-add { fill:var(--add) !important; font-weight:700; } .t-del { fill:var(--del) !important; font-weight:700; }
+  .t-acc { fill:var(--acc) !important; } .t-warn { fill:var(--warn) !important; font-weight:700; }
+  #dot { fill:var(--acc); stroke:#fff; stroke-width:1.5; transition:cx .55s ease, cy .55s ease, fill .2s; }
+  #dot.ng { fill:var(--del); } #dot.ok { fill:var(--add); }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; color:var(--dim); font-size:13px; margin-top:8px; }
+  .legend i { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:6px; vertical-align:-1px; }
+  table { border-collapse:collapse; width:100%; font-size:14px; }
+  th,td { border:1px solid var(--line); padding:6px 10px; text-align:left; vertical-align:top; }
+  th { background:var(--panel); }
+  .a { color:var(--add); } .d { color:var(--del); }
+  code { background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:0 4px; font-size:13px; }
+  pre { background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin:0; font:12.5px/1.55 ui-monospace,Menlo,Consolas,monospace; overflow:auto; white-space:pre-wrap; word-break:break-all; }
+  pre .hl { background:rgba(248,81,73,.22); color:var(--del); font-weight:700; }
+  pre .gone { color:var(--dim); text-decoration:line-through; }
+  .steps { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .step { border:1px solid var(--line); border-radius:8px; padding:4px 10px; background:var(--panel); font-size:13px; transition:background .3s,border-color .3s; }
+  .step.new { border-color:var(--add); color:var(--add); font-weight:700; }
+  .step.hot { background:var(--acc); color:#fff; border-color:var(--acc); }
+  .arrow { color:var(--dim); }
+  #log, #log2, #log3 { min-height:3.4em; margin-top:8px; font-size:14px; }
+  .ok { color:var(--add); font-weight:700; } .ng { color:var(--del); font-weight:700; }
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media (max-width:760px) { .cols { grid-template-columns:1fr; } }
+  .cols h3 { font-size:14px; margin:0 0 6px; }
+  @media (prefers-reduced-motion: reduce) { .step, #dot { transition:none; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>#41 クラスタ内に Deployment <code>share</code> を置く — diff の図</h1>
+  <p class="lead">Closes #41・#49・#52。設計メモ <code>docs/cluster/share.md</code>。緑は追加、赤の点線は無くなるもの、灰色は変更なし。
+    ボタンで変更前→変更後を切り替え、要求を流して通る・通らないを見る。</p>
+
+  <h2>1. 公開の本体が、ホストのプロセスからクラスタ内の Pod になる</h2>
+  <p class="lead">変更前は <code>just share &lt;対象&gt;</code> を打つ間だけ、ホストで cloudflared と caddy が動く。変更後は <code>just up</code> で Pod <code>share</code> が立ち、クラスタが立っている間は公開が開いている。
+    この Issue では資格情報が空なので、どの経路も 401 になる。</p>
+  <div class="ctrl" role="group" aria-label="表示">
+    <button id="b-before">変更前</button>
+    <button id="b-after" class="on">変更後</button>
+    <span style="width:12px"></span>
+    <button id="s-empty" class="on">① 資格情報が空 (この Issue の状態)</button>
+    <button id="s-noauth">② SHARE_AUTH_ADDR が空 (#52)</button>
+    <button id="s-ok">③ add 済みの資格情報 + GET /</button>
+    <button id="run">▶ 要求を流す</button>
+  </div>
+  <div class="panel">
+    <svg viewBox="0 0 960 430" role="img" aria-label="ブラウザから cloudflared・caddy・認証を通って upstream に届く経路の図">
+      <rect class="zone" x="14" y="14" width="110" height="402" rx="12"/>
+      <text class="dim" x="28" y="36">外</text>
+      <text x="26" y="204">ブラウザ</text>
+      <rect class="box same" x="22" y="170" width="94" height="50" rx="8" fill="none"/>
+
+      <!-- 変更後 -->
+      <g id="g-after">
+        <rect class="zone" x="150" y="14" width="796" height="402" rx="12"/>
+        <text class="dim" x="164" y="36">kind クラスタ</text>
+        <rect class="box add" x="170" y="52" width="520" height="352" rx="10" fill="none"/>
+        <text class="t-add" x="184" y="74">+ Deployment share (1 Pod・5 コンテナ・Service なし)</text>
+
+        <rect class="box add" id="n-cf" x="188" y="92" width="150" height="104" rx="8"/>
+        <text class="t-add" x="200" y="114">+ cloudflared ×3</text>
+        <text x="200" y="134">grafana → :8081</text>
+        <text x="200" y="152">headroom → :8082</text>
+        <text x="200" y="170">backstage → :8083</text>
+        <text class="dim" x="200" y="188">Quick Tunnel</text>
+
+        <rect class="box add" id="n-caddy" x="372" y="92" width="150" height="104" rx="8"/>
+        <text class="t-add" x="384" y="114">+ caddy</text>
+        <text class="dim" x="384" y="134">127.0.0.1:8081-8083</text>
+        <text x="384" y="152">許可リスト</text>
+        <text class="dim" x="384" y="170">readiness: exec</text>
+
+        <rect class="box add" id="n-auth" x="372" y="228" width="150" height="86" rx="8"/>
+        <text class="t-add" x="384" y="250">+ auth</text>
+        <text class="dim" x="384" y="270">127.0.0.1:9000</text>
+        <text x="384" y="288">Secret を API で</text>
+        <text x="384" y="304">get するだけ (RBAC)</text>
+
+        <rect class="box add" id="n-sec" x="188" y="228" width="150" height="160" rx="8"/>
+        <text class="t-add" x="200" y="250">+ Secret ×4</text>
+        <text class="dim" x="200" y="272">share-credentials</text>
+        <text class="dim" x="200" y="290">share-session-key</text>
+        <text class="dim" x="200" y="308">share-grafana</text>
+        <text class="dim" x="200" y="326">share-host</text>
+        <text class="dim" x="200" y="352">just up が作る</text>
+
+        <rect class="box add" x="552" y="228" width="124" height="86" rx="8"/>
+        <text class="t-add" x="564" y="250">+ ConfigMap ×2</text>
+        <text class="dim" x="564" y="270">Caddyfile</text>
+        <text class="dim" x="564" y="288">share_auth.py</text>
+        <text class="dim" x="564" y="304">名前にハッシュ</text>
+
+        <rect class="box same" id="n-graf" x="720" y="80" width="206" height="62" rx="8"/>
+        <text x="732" y="104">grafana.observability.svc:80</text>
+        <text class="dim" x="732" y="124">viewer の Basic を付与</text>
+        <rect class="box same" x="720" y="160" width="206" height="62" rx="8"/>
+        <text x="732" y="184">ホストの中継 (#38)</text>
+        <text class="dim" x="732" y="204">→ headroom (GET のみ)</text>
+        <rect class="box same" x="720" y="240" width="206" height="62" rx="8"/>
+        <text x="732" y="264">backstage.backstage.svc:7007</text>
+        <text class="dim" x="732" y="284">画面と TechDocs だけ</text>
+        <text class="dim" x="720" y="336">変更なし (Caddyfile は #40 で実装済み)</text>
+
+        <path class="pipe add" d="M116 195 H188"/>
+        <path class="pipe add" d="M338 144 H372"/>
+        <path class="pipe add" d="M447 196 V228"/>
+        <path class="pipe" d="M522 112 H720"/>
+        <path class="pipe" d="M522 144 H620 V191 H720"/>
+        <path class="pipe" d="M522 176 H640 V271 H720"/>
+        <path class="pipe add" d="M338 308 H372"/>
+      </g>
+
+      <!-- 変更前 -->
+      <g id="g-before" style="display:none">
+        <rect class="zone" x="150" y="14" width="796" height="402" rx="12"/>
+        <text class="dim" x="164" y="36">WSL2 ホスト (just share &lt;対象&gt; を打つ間だけ。3 回打つ)</text>
+        <rect class="box del" x="188" y="92" width="250" height="104" rx="8"/>
+        <text class="t-del" x="200" y="114">− cloudflared + caddy (ホスト)</text>
+        <text x="200" y="136">Basic 認証 (使い捨てのパスワード)</text>
+        <text class="dim" x="200" y="156">Ctrl-C まで・フォアグラウンド</text>
+        <text class="dim" x="200" y="176">対象ごとに別のポート (8081 など)</text>
+        <rect class="box same" x="560" y="80" width="206" height="62" rx="8"/>
+        <text x="572" y="104">localhost:3000 (Grafana)</text>
+        <rect class="box same" x="560" y="160" width="206" height="62" rx="8"/>
+        <text x="572" y="184">localhost:8787 (headroom)</text>
+        <rect class="box same" x="560" y="240" width="206" height="62" rx="8"/>
+        <text x="572" y="264">localhost:7007 (Backstage)</text>
+        <path class="pipe" d="M116 195 H188"/>
+        <path class="pipe" d="M438 144 H560"/>
+        <path class="pipe" d="M438 160 H500 V191 H560"/>
+        <path class="pipe" d="M438 176 H520 V271 H560"/>
+        <text class="dim" x="188" y="260">クラスタには何も無い。just up の後も公開は閉じたまま。</text>
+      </g>
+      <circle id="dot" cx="70" cy="195" r="8"/>
+    </svg>
+    <div class="legend"><span><i style="background:var(--add)"></i>追加</span><span><i style="background:var(--del)"></i>無くなる</span><span><i style="background:var(--dim)"></i>変更なし</span></div>
+    <div id="log" aria-live="polite">シナリオを選んで「要求を流す」を押す。</div>
+  </div>
+
+  <h2>2. <code>just up</code> の順序: Secret を、ArgoCD が Pod を作る前に置く</h2>
+  <p class="lead">Pod は Secret が無いと起動できない (<code>optional: false</code>)。<code>_share-secrets</code> を <code>root.yaml</code> の apply (ArgoCD の同期) より前に打つ。</p>
+  <div class="panel">
+    <div class="steps" id="steps">
+      <span class="step">_kind-up</span><span class="arrow">→</span>
+      <span class="step">_backstage-image</span><span class="arrow">→</span>
+      <span class="step">_argocd-install</span><span class="arrow">→</span>
+      <span class="step">_grafana-secrets</span><span class="arrow">→</span>
+      <span class="step">_share-relay-up</span><span class="arrow">→</span>
+      <span class="step new">+ _share-secrets</span><span class="arrow">→</span>
+      <span class="step">_headlamp-token</span><span class="arrow">→</span>
+      <span class="step">apply root.yaml</span><span class="arrow">→</span>
+      <span class="step new">+ ArgoCD が share を同期</span>
+    </div>
+    <div class="ctrl">
+      <button id="up-run">▶ 順に進める</button>
+      <button id="up-skip">_share-secrets を抜いたら</button>
+    </div>
+    <div id="log2" aria-live="polite">_grafana-secrets が viewer のパスワードのファイルを作り、_share-secrets がそれを namespace share の Secret share-grafana に写す
+      (Secret は別 namespace の Pod から読めない)。share-credentials・share-session-key は、あれば何もしない (打ち直しで人の資格情報と cookie の鍵を消さない)。</div>
+  </div>
+
+  <h2>3. Secret を作る処理すべてで、注釈に値が残らない (#49)</h2>
+  <p class="lead"><code>kubectl apply</code> は Secret の中身を注釈 <code>last-applied-configuration</code> にも書く。replace・create に替える。</p>
+  <div class="ctrl" role="group" aria-label="Secret の作り方">
+    <button id="k-before">変更前: kubectl apply</button>
+    <button id="k-after" class="on">変更後: replace / create</button>
+  </div>
+  <div class="cols">
+    <div class="panel">
+      <h3 id="k-cmd-title">入れ方</h3>
+<pre id="k-cmd"></pre>
+    </div>
+    <div class="panel">
+      <h3>kubectl get secret share-host -o yaml</h3>
+<pre id="k-yaml"></pre>
+    </div>
+  </div>
+  <div id="log3" class="panel" style="margin-top:12px">
+    対象: <code>share-relay.sh</code> (share-host)・<code>grafana-secrets.sh</code> (grafana-admin・grafana-viewer・grafana-backstage・backstage-grafana)・<code>grafana-viewer-rotate.sh</code>・新しい <code>share-secrets.sh</code>。
+    入れ方は <code>just/secret-lib.sh</code> の <code>put_secret</code> (あれば <code>replace</code>、無ければ <code>create</code>)。<code>replace</code> は metadata を置き換えるので、以前の apply が残した注釈も消える。
+    <code>replace --force</code> は動いている Pod の下で Secret を消すので使わない。<code>headlamp-token.sh</code> は data の無い Secret なので注釈に値が残らず、対象にしない。
+  </div>
+
+  <h2>4. <code>just ci</code> の変更</h2>
+  <table>
+    <tr><th>段</th><th>変更前</th><th>変更後</th></tr>
+    <tr><td>描画・kubeconform・kube-linter</td><td>share の Application が無く、<code>clusters/kind/share</code> は対象外</td><td class="a">Application <code>share</code> が <code>clusters/kind/share</code> (kustomize) を指し、描画して 2 つのチェックに掛かる (除外は足さない)</td></tr>
+    <tr><td>公開の入口 (yq)</td><td>無し</td><td class="a">namespace share の manifest に NodePort・LoadBalancer の Service と Ingress が無いこと。描画された manifest が 0 件でも落ちる</td></tr>
+    <tr><td>manifest の試験</td><td>無し</td><td class="a"><code>test_share_manifest.py</code>: Service なし・5 コンテナ・タグ固定・cloudflared が 3 ポートに 1 本ずつ・Role は 2 つの Secret の get だけ・Caddyfile の必須の環境変数が Pod に渡る</td></tr>
+    <tr><td>認証サービスに届かない (#52)</td><td>閉じたポート 1 つ・grafana の 1 要求だけ</td><td class="a"><code>SHARE_AUTH_ADDR</code> が空と、閉じたポートの 2 通りで、全対象の全経路に認証なし・Basic・cookie を当て、401・502・503 で upstream に届かない</td></tr>
+    <tr><td>Secret を作る処理 (#49)</td><td>無し</td><td class="a"><code>test_share_secrets.py</code> (偽の kubectl): apply に Secret を渡さない・注釈が無い・値が引数に出ない・あれば資格情報と鍵を置き換えない・URL を引く関数が <code>api.</code> を除く</td></tr>
+  </table>
+
+  <h2>5. 変更したファイル</h2>
+  <table>
+    <tr><th></th><th>ファイル</th><th>中身</th></tr>
+    <tr><td class="a">+</td><td><code>clusters/kind/share/{kustomization,deployment,rbac}.yaml</code></td><td>Pod (5 コンテナ)・ConfigMap 2 つ (repo のファイルから、名前にハッシュ)・ServiceAccount・Role・RoleBinding</td></tr>
+    <tr><td class="a">+</td><td><code>clusters/kind/argocd/apps/share.yaml</code></td><td>ArgoCD Application (namespace share)</td></tr>
+    <tr><td class="a">+</td><td><code>just/share-secrets.sh</code>・<code>just/secret-lib.sh</code>・<code>just/share-urls.sh</code></td><td>Secret を作る・注釈の付かない入れ方・Quick Tunnel の URL をログから引く関数 (#42 が使う)</td></tr>
+    <tr><td class="a">+</td><td><code>clusters/kind/share/test_share_manifest.py</code>・<code>just/test_share_secrets.py</code>・<code>just/fake_kubectl.py</code></td><td>試験</td></tr>
+    <tr><td>~</td><td><code>justfile</code>・<code>just/share.just</code></td><td><code>up</code> に <code>_share-secrets</code></td></tr>
+    <tr><td>~</td><td><code>just/share-relay.sh</code>・<code>just/grafana-secrets.sh</code>・<code>just/grafana-viewer-rotate.sh</code></td><td>apply → <code>put_secret</code></td></tr>
+    <tr><td>~</td><td><code>just/ci.sh</code>・<code>just/test_recipes.py</code>・<code>just/test_share_relay.py</code>・<code>clusters/kind/share/test_share_caddy.py</code></td><td>入口の検査・順序・偽の kubectl・#52 の試験</td></tr>
+    <tr><td>~</td><td><code>.github/CODEOWNERS</code>・<code>docs/cluster/share.md</code>・<code>docs/cluster/share-deploy.html</code></td><td>段階 C のパス・設計メモを実際の構成に・この図</td></tr>
+  </table>
+</main>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var wait = function (ms) { return new Promise(function (r) { setTimeout(r, reduce ? 0 : ms); }); };
+
+  // --- 1. 要求を流す ---
+  var mode = 'after', scenario = 'empty', running = 0;
+  var dot = $('dot'), log = $('log');
+  var P = { browser: [70, 195], cf: [263, 144], caddy: [447, 144], auth: [447, 271], graf: [823, 111], after: [263, 144] };
+  function show(m) {
+    mode = m;
+    $('g-after').style.display = m === 'after' ? '' : 'none';
+    $('g-before').style.display = m === 'before' ? '' : 'none';
+    $('b-before').classList.toggle('on', m === 'before');
+    $('b-after').classList.toggle('on', m === 'after');
+    ['s-empty', 's-noauth', 's-ok', 'run'].forEach(function (id) { $(id).disabled = m === 'before'; });
+    reset();
+    log.textContent = m === 'before'
+      ? '変更前: クラスタには公開の本体が無い。just share を打つ間だけ、ホストで cloudflared と caddy が動く (Ctrl-C で止まる)。'
+      : 'シナリオを選んで「要求を流す」を押す。';
+  }
+  function move(p, cls) { dot.setAttribute('cx', p[0]); dot.setAttribute('cy', p[1]); dot.setAttribute('class', cls || ''); }
+  function reset() { running++; move(P.browser); document.querySelectorAll('.box.hot').forEach(function (e) { e.classList.remove('hot'); }); }
+  function hot(id) { document.querySelectorAll('.box.hot').forEach(function (e) { e.classList.remove('hot'); }); if (id) $(id).classList.add('hot'); }
+  function pick(s) {
+    scenario = s;
+    ['empty', 'noauth', 'ok'].forEach(function (k) { $('s-' + k).classList.toggle('on', k === s); });
+    reset();
+  }
+  var STORY = {
+    empty: [
+      [P.cf, 'n-cf', 'ブラウザが Quick Tunnel の URL を開く (cloudflared-grafana が受ける)'],
+      [P.caddy, 'n-caddy', 'cloudflared が caddy の :8081 に渡す。caddy は最初に認証を通す (許可リストより前)'],
+      [P.auth, 'n-auth', 'caddy が auth に同じ要求の Authorization・Cookie を聞く。auth は Secret share-credentials を K8s API で読む'],
+      [P.caddy, 'n-caddy', 'share-credentials は空なので、名前を引けず 401。caddy は upstream に進まない', 'ng'],
+      [P.browser, null, '<span class="ng">401</span> — 資格情報が空の間は、どの経路も通らない (デフォルト拒否)', 'ng']
+    ],
+    noauth: [
+      [P.cf, 'n-cf', 'ブラウザが URL を開く'],
+      [P.caddy, 'n-caddy', 'caddy の :8081。認証サービスの宛先 SHARE_AUTH_ADDR が空で、聞く相手が無い'],
+      [P.browser, null, '<span class="ng">503</span> — caddy は起動するが、全経路が通らない (安全側。#52 の試験が固定する)', 'ng']
+    ],
+    ok: [
+      [P.cf, 'n-cf', 'ブラウザが URL を開く (名前とパスワードの Basic)'],
+      [P.caddy, 'n-caddy', 'caddy が認証を通す'],
+      [P.auth, 'n-auth', 'auth が PBKDF2 で照合し、期限内なので 200 (署名つき cookie も返す)'],
+      [P.caddy, 'n-caddy', '許可リストの内 (GET /)。人の Authorization は捨て、viewer の Basic に差し替える'],
+      [P.graf, 'n-graf', 'grafana.observability.svc:80 へ。viewer の権限の範囲だけ見える'],
+      [P.browser, null, '<span class="ok">200</span> — add した資格情報が通る (CLI は #42)', 'ok']
+    ]
+  };
+  async function run() {
+    var my = ++running;
+    move(P.browser); hot(null);
+    var story = STORY[scenario];
+    for (var i = 0; i < story.length; i++) {
+      if (my !== running) return;
+      var st = story[i];
+      move(st[0], st[3]); hot(st[1]); log.innerHTML = st[2];
+      await wait(1100);
+    }
+    hot(null);
+  }
+  $('b-before').onclick = function () { show('before'); };
+  $('b-after').onclick = function () { show('after'); };
+  ['empty', 'noauth', 'ok'].forEach(function (s) { $('s-' + s).onclick = function () { pick(s); run(); }; });
+  $('run').onclick = run;
+
+  // --- 2. just up の順序 ---
+  var chips = Array.prototype.slice.call(document.querySelectorAll('#steps .step'));
+  var upRun = 0;
+  var upMsg = {
+    5: '_share-secrets: share-credentials (空)・share-session-key・share-grafana を作る。Pod が起動に要る Secret がここでそろう',
+    7: 'apply root.yaml: ArgoCD が子の Application を同期し始める',
+    8: 'Application share が Deployment を作る。Secret が先にあるので Pod は起動できる (cloudflared の URL がログに出る)'
+  };
+  async function up(skip) {
+    var my = ++upRun;
+    chips.forEach(function (c) { c.classList.remove('hot'); c.style.opacity = ''; });
+    for (var i = 0; i < chips.length; i++) {
+      if (my !== upRun) return;
+      if (skip && i === 5) { chips[i].style.opacity = '.35'; continue; }
+      chips[i].classList.add('hot');
+      if (upMsg[i]) $('log2').innerHTML = upMsg[i];
+      if (skip && i === 8) $('log2').innerHTML = '<span class="ng">Pod は CreateContainerConfigError で止まる</span> (Secret share-host 以外が無い。optional: false)。ArgoCD の同期は Healthy にならず、just up は待ち続ける。';
+      await wait(700);
+      chips[i].classList.remove('hot');
+    }
+    chips[chips.length - 1].classList.add('hot');
+  }
+  $('up-run').onclick = function () { up(false); };
+  $('up-skip').onclick = function () { up(true); };
+
+  // --- 3. Secret の作り方 ---
+  var CMD = {
+    before: 'kubectl -n share create secret generic share-host \\\n  --from-literal=SHARE_RELAY_ADDR=… --from-file=SHARE_RELAY_TOKEN=… \\\n  --dry-run=client -o yaml \\\n  | <span class="hl">kubectl apply -f -</span>',
+    after: 'kubectl -n share create secret generic share-host \\\n  --from-literal=SHARE_RELAY_ADDR=… --from-file=SHARE_RELAY_TOKEN=… \\\n  --dry-run=client -o yaml \\\n  | <span class="t">put_secret</span> "$ctx" share share-host\n\n# put_secret: あれば kubectl replace -f -、無ければ kubectl create -f -'
+  };
+  var YAML = {
+    before: 'apiVersion: v1\nkind: Secret\nmetadata:\n  <span class="hl">annotations:\n    kubectl.kubernetes.io/last-applied-configuration: |\n      {"data":{"SHARE_RELAY_TOKEN":"<トークンの base64>", …}}</span>\n  name: share-host\n  namespace: share\ndata:\n  SHARE_RELAY_ADDR: MTcyLjE4LjAuMTo4Nzg4\n  <span class="hl">SHARE_RELAY_TOKEN: <トークンの base64></span>',
+    after: 'apiVersion: v1\nkind: Secret\nmetadata:\n  name: share-host\n  namespace: share\ndata:\n  SHARE_RELAY_ADDR: MTcyLjE4LjAuMTo4Nzg4\n  SHARE_RELAY_TOKEN: <トークンの base64>\n\n# トークンの出る場所は 1 つ (data)。注釈は無い'
+  };
+  function secret(m) {
+    $('k-before').classList.toggle('on', m === 'before');
+    $('k-after').classList.toggle('on', m === 'after');
+    $('k-cmd').innerHTML = CMD[m].replace('<span class="t">', '<span class="t-add">');
+    $('k-yaml').innerHTML = YAML[m];
+  }
+  $('k-before').onclick = function () { secret('before'); };
+  $('k-after').onclick = function () { secret('after'); };
+
+  show('after'); secret('after');
+})();
+</script>
+</body>
+</html>

@@ -1,9 +1,10 @@
 # 公開 (just share) を常駐させ、人ごとの資格情報で配る — 設計
 
-状態: 設計。実装は GitHub の Issue ごとに進め、そのたびにこの文書を実際の構成に書き換える。実装済み: #38 (headroom の中継)、認証サービス (#39、`clusters/kind/share/share_auth.py`)、Caddyfile の経路と統合試験 (#40、`clusters/kind/share/Caddyfile`・`test_share_caddy.py`)。
+状態: 設計。実装は GitHub の Issue ごとに進め、そのたびにこの文書を実際の構成に書き換える。実装済み: #38 (headroom の中継)、認証サービス (#39、`clusters/kind/share/share_auth.py`)、Caddyfile の経路と統合試験 (#40、`clusters/kind/share/Caddyfile`・`test_share_caddy.py`)、クラスタ内の Deployment `share`・ArgoCD Application・Secret・URL を引く関数 (#41、`clusters/kind/share/{deployment,rbac,kustomization}.yaml`・`just/share-secrets.sh`・`just/share-urls.sh`)。
 図の HTML (変更前→変更後のアニメーション): [share-design.html](share-design.html)
 認証サービス (#39) の diff の図 (判定を動かせるアニメーション): [share-auth.html](share-auth.html)
 Caddyfile の経路 (#40) の diff の図 (要求を流して通る・通らないを見るアニメーション): [share-routes.html](share-routes.html)
+クラスタ内の Deployment (#41) の diff の図 (Pod の中身と `just up` の順序を動かすアニメーション): [share-deploy.html](share-deploy.html)
 
 ## 何を変えるか
 
@@ -55,16 +56,17 @@ headroom の中継 (ホスト側。#38 で実装済み):
   トークンを知っていればこの読み取りだけ。upstream へはトークンのヘッダを渡さず、`Host` は upstream のものに書き換える。
   **HEAD は通さない (#48)**: 実機の headroom は許可リストの経路の HEAD に 404 を返し (`server: uvicorn`)、中継越しの HEAD 応答には
   `Cf-Ray` が付いていた。headroom が経路に無い HEAD を Anthropic 側へ素通ししているとみられ、「GET の読み取りだけを通す」趣旨からずれる。
-  HEAD を使う用途は無い (Pod の probe は `tcpSocket`) ので、許可リストから外して GET に絞る。HEAD→GET への書き換えは、HEAD の応答に本文を
+  HEAD を使う用途は無い (Pod の probe は `exec`) ので、許可リストから外して GET に絞る。HEAD→GET への書き換えは、HEAD の応答に本文を
   返しうるので採らない。
 - クラスタ側 (Pod の caddy、`clusters/kind/share/Caddyfile` の `:8082`) も同じ許可リストをもう一度掛ける (二重。#40)。
 - トークンは `just up` が `openssl rand -hex 16` で作り、`~/.local/share/home-k8s/share/relay-token` (権限 600) に置く。
   あれば再利用するので、`just up` を打ち直しても値は変わらない。`just down` はコンテナだけを消し、トークンのファイルは残す。
   Caddyfile は同じ場所に `relay.Caddyfile` としてコピーしてからマウントする (worktree を消しても `--restart` で読めるように)。
   トークンは `docker run` の引数にも `kubectl create secret` の引数にも出さず (`ps` に残る)、環境変数と `--from-file` で渡す。
+  Secret は `kubectl apply` ではなく replace・create で入れる (apply は値を `kubectl.kubernetes.io/last-applied-configuration` の注釈に残す。#49。下の「Secret の作り方」)。
 - Pod への宛先とトークンは Secret `share/share-host` (namespace `share` は無ければ `just up` が作る) に入る。
   キーは `SHARE_RELAY_ADDR` (`<ゲートウェイ>:<ポート>`、例 `172.18.0.1:8788`) と `SHARE_RELAY_TOKEN`。
-  #41 の Deployment が `envFrom` でそのまま環境変数にする。git には置かない (bridge のアドレスは環境で変わりうる)。
+  Deployment `share` (#41) の caddy が `envFrom` でそのまま環境変数にする。git には置かない (bridge のアドレスは環境で変わりうる)。
 - `HOME_K8S_KUBE_CONTEXT` で別の kind クラスタに向けても、中継はホストに 1 つ (`home-k8s-share-relay`、8788) で、`up` が作り直し `down` が消す。
   中継は bridge のゲートウェイで待ち受けるので、同じ bridge の他のクラスタの Pod からも届く。受け入れる制約とする。
 - 試験 (`just ci` の段 6、`just/test_share_relay.py`): caddy を 127.0.0.1 の空きポートで起動し、偽の upstream に対して
@@ -89,7 +91,7 @@ reload の取りこぼしを心配することになるためである。代わ�
 
 | 項目 | 内容 |
 |---|---|
-| 認証サービス | 標準ライブラリだけの Python (`clusters/kind/share/share_auth.py`)。ConfigMap に置き `python:3.13-alpine` で動かす (ConfigMap は #41)。判定は純関数 `decide(credentials, request, now, session_key, verifier)` で、`(status, headers)` を返す。`request` は `Authorization` と `Cookie` のヘッダ値だけ |
+| 認証サービス | 標準ライブラリだけの Python (`clusters/kind/share/share_auth.py`)。ConfigMap `share-auth` に置き `python:3.13.16-alpine` で動かす (#41。`python -B /app/share_auth.py`)。判定は純関数 `decide(credentials, request, now, session_key, verifier)` で、`(status, headers)` を返す。`request` は `Authorization` と `Cookie` のヘッダ値だけ |
 | 資格情報の置き場 | Secret `share-credentials`。キーが名前、値が JSON `{"hash": "pbkdf2_sha256$<反復回数>$<salt の hex 32 桁>$<鍵の hex 64 桁>", "expires_at": <epoch秒\|null>, "privileged": <bool>, "created_at": <epoch秒>}`。型を 1 つでも外した項目 (`expires_at: true` を含む) はその項目だけ拒否し、ほかの項目には響かない。cookie の署名鍵は Secret `share-session-key` のキー `key`。反復回数が 100,000 未満の項目は拒否する |
 | パスワード | `openssl rand -hex 16` (128 bit) を `add` が 1 回だけ表示。保存はハッシュだけで、**PBKDF2-HMAC-SHA256 (項目ごとのランダムな 16 byte のソルト、反復 600,000 回)**。反復回数は [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html) の PBKDF2-HMAC-SHA256 の推奨値。反復回数は項目に書くので、将来上げても古い項目は読める。1 回の計算は開発機で約 70ms (Python の `hashlib.pbkdf2_hmac`)。sha256 1 回の保存は CodeQL (`py/weak-sensitive-data-hashing`) に指摘されたので、遅い KDF にした |
 | 判定 | Basic の名前 (`^[a-z0-9][a-z0-9-]{0,31}$`) で Secret を引く → `expires_at` が null か今より後 (**期限ちょうども拒否**) → パスワードを PBKDF2 で照合 (`compare_digest`)。1 つでも欠ければ 401。名前が無いときもダミーの hash で同じ反復の PBKDF2 を計算する。`Authorization` が Basic ならそれだけで決め、Basic でなければ (Backstage の Bearer など) cookie で決める |
@@ -108,10 +110,14 @@ reload の取りこぼしを心配することになるためである。代わ�
   今の使い方が壊れるため。Quick Tunnel は 1 プロセスに 1 ホスト名なので、3 本が現実解になる。
 - 3 本とも同じ caddy の別ポート (`:8081 grafana` `:8082 headroom` `:8083 backstage`) に向け、**同じ認証サービス**を通る。
   人は名前・パスワードを 3 つの URL でそれぞれ打つ (ブラウザの Basic 認証はオリジンごと)。
-- URL は cloudflared のログ (`https://*.trycloudflare.com`) から `kubectl logs` で引く。
+- URL は cloudflared のログ (`https://*.trycloudflare.com`) から `kubectl logs -c cloudflared-<対象>` で引く。`just/share-urls.sh` の `share_url`・`share_urls` が引く関数で、
+  CLI (#42) が source して使う。`api.trycloudflare.com` (cloudflared が登録に使う API の宛先で、失敗のログに出る) は URL に数えない。
   `/quicktunnel` (cloudflared のメトリクス) が使えるなら置き換えてよいが、distroless で exec できないので既定はログ。
 - `share` Pod の再起動でも URL は変わる (クラスタの作り直しだけではない)。`get` / `list` は毎回その場で引き、
-  Deployment は `replicas: 1`・`Recreate` にして、不要な再起動を作らない。
+  Deployment は `replicas: 1`・`Recreate` にして、不要な再起動を作らない。cloudflared には probe を付けず、caddy と auth には liveness を付けない (probe の失敗で再起動しない)。
+- **設定を変えて ArgoCD が Pod を作り直したときも URL は変わる**。Caddyfile と認証サービスの ConfigMap は名前にハッシュが付き (kustomize の `configMapGenerator`)、
+  中身が変わると Deployment の参照が変わって Pod が入れ替わる。固定名にすると、caddy も python も起動時にしか読まないので、Caddyfile の変更 (許可リストの修正) が Pod の再起動まで効かない。
+  配った URL より、許可リストの修正が確実に効くことを優先した。
 - `add` / `delete` は **Pod を再起動しない** (資格情報は Secret にあり、認証サービスが読み直すだけ)。このため URL は変わらない。
 
 ### 4. Grafana の viewer との関係 — viewer は内部の鍵にして、人には渡さない
@@ -120,8 +126,9 @@ reload の取りこぼしを心配することになるためである。代わ�
 このままだと 1 つの資格情報で 3 対象を見せられないので、**門を caddy の認証に一本化し**、Grafana へは caddy が
 `Authorization: Basic viewer:<viewer のパスワード>` を付けて渡す。
 
-- viewer のパスワードは Secret `grafana-viewer` (今ある。`just up` が作り、サイドカーが Grafana に反映する) をそのまま使う。
-  caddy の Pod が環境変数で読み、人の目には出ない。**共有のたびの作り直し (`grafana-viewer-rotate.sh`) は廃止**する。
+- viewer のパスワードは Secret `grafana-viewer` (今ある。`just up` が作り、サイドカーが Grafana に反映する) と同じ値を使う。
+  `grafana-viewer` は namespace `observability` にあり、Pod は別 namespace の Secret を参照できないので、`just up` の `_share-secrets` が同じパスワードのファイルから
+  Secret `share/share-grafana` (キー `viewer-password`) に写す。caddy の Pod が環境変数で読み、人の目には出ない。**共有のたびの作り直し (`grafana-viewer-rotate.sh`) は廃止**する。
   失効は caddy の側で起きるので、viewer のパスワードは変える必要がない。
 - 人ごとの Grafana ユーザーは作らない (平文のパスワードを保存せずに済む。ユーザーの作成・削除の失敗で食い違うこともない)。
 - Grafana の閲覧者は全員 `viewer` として入る (今も同じ)。見られる範囲は他の対象と同じく viewer の権限で、admin は出ない。
@@ -134,8 +141,8 @@ reload の取りこぼしを心配することになるためである。代わ�
   を稼働中の Grafana に向け (読み取りの要求だけ)、人の資格情報で `/`・`/dashboards`・`/api/user` が 200、`/profile/password`・`PUT /api/user/password` が
   404、認証なし・誤ったパスワードが 401 になることを見た。したがって「人ごとの Grafana ユーザーを作る」への切り替えは要らず、設計は変わらない。
   viewer の権限で `/explore` は 302 になる (Grafana 側の権限の挙動で、Basic の受理とは別)。
-- caddy は Basic の値を作れない (Caddyfile に base64 の関数が無い) ので、Deployment (#41) が起動時に `SHARE_GRAFANA_BASIC` =
-  `base64("viewer:<Secret grafana-viewer のパスワード>")` を組み立てて渡す。人の `Authorization` は Grafana に渡さず、これに差し替える。
+- caddy は Basic の値を作れない (Caddyfile に base64 の関数が無い) ので、Deployment の caddy コンテナの起動コマンドが `SHARE_GRAFANA_BASIC` =
+  `base64("viewer:<Secret share-grafana のパスワード>")` を組み立ててから `caddy run` する (`printf | base64 | tr -d '\n'`)。人の `Authorization` は Grafana に渡さず、これに差し替える。
 
 ### 5. 既存の経路の絞り込みを保つ
 
@@ -148,7 +155,7 @@ reload の取りこぼしを心配することになるためである。代わ�
 | backstage | GET・HEAD の `/api/proxy` 以外すべて。POST は `/api/auth/*` と `/api/catalog/entities/by-refs` だけ (POST の許可は大文字小文字を区別する) | `/api/proxy*` (表記揺れも) (Grafana の API を Backstage の資格情報で読ませない)、`POST /api/catalog/locations` ほか |
 
 現在の `just/*.Caddyfile` の経路・書き換え (Backstage の `Set-Cookie` の `Domain=localhost` 外し) は、`clusters/kind/share/Caddyfile` に移した
-(#41 がこれを ConfigMap にする。旧 `just/*.Caddyfile` は旧 `just share` が使うので #44 まで残す)。3 サイト (`:8081 grafana` `:8082 headroom` `:8083 backstage`)
+(#41 がこれを ConfigMap `share-caddy` にした。旧 `just/*.Caddyfile` は旧 `just share` が使うので #44 まで残す)。3 サイト (`:8081 grafana` `:8082 headroom` `:8083 backstage`)
 が共通の `share_auth` を最初に通す。
 
 - **認証**: `forward_auth` の短縮形は、認証サービスの応答のヘッダを upstream への要求に写すだけで、クライアントへの応答には載せられない。
@@ -197,25 +204,49 @@ Cookie の属性は `Path=/; HttpOnly; Secure; SameSite=Lax` (期限は cookie �
 
 ## manifest・ArgoCD
 
-- `clusters/kind/share/` に Deployment・ConfigMap (Caddyfile と認証サービス)・ServiceAccount・Role・RoleBinding を置き、
-  `clusters/kind/argocd/apps/share.yaml` (namespace `share`) で ArgoCD に同期させる。`just ci` はこの Application が指す
+- `clusters/kind/share/` に `kustomization.yaml`・`deployment.yaml`・`rbac.yaml` (ServiceAccount `share`・Role `share-auth`・RoleBinding) を置き、
+  `clusters/kind/argocd/apps/share.yaml` (namespace `share`、`CreateNamespace=true`) で ArgoCD に同期させる。`just ci` はこの Application が指す
   path も描画して kubeconform・kube-linter に掛けるので、登録しないと静的チェックの対象外になる。
+  Caddyfile と `share_auth.py` は、`kustomization.yaml` の `configMapGenerator` が repo のファイルから ConfigMap `share-caddy`・`share-auth` にする (写しを持たない)。
 - Deployment `share` は 1 Pod・5 コンテナ (caddy、auth、cloudflared ×3)。**Service は作らない** (入口は Cloudflare からの外向き接続だけ。
-  クラスタ内に待ち受けを開けない)。イメージはタグを固定する。`replicas: 1`・`strategy: Recreate`。
-- Secret (`share-credentials`、`share-session-key`、`share-host`) は **git に置かない** (ArgoCD の selfHeal が中身を戻さないため)。
-  `just up` の `_share-secrets` が無ければ作る (`just/grafana-secrets.sh` と同じ流儀。`share-credentials` は空で作る)。
-- 起動順: `share` Pod は Secret が無いと起動できない (`optional: false`) ので、`just up` は ArgoCD の同期より前に作る。
+  クラスタ内に待ち受けを開けない)。イメージはタグを固定する (`caddy:2.11.6-alpine`・`python:3.13.16-alpine`・`cloudflare/cloudflared:2026.9.3`)。`replicas: 1`・`strategy: Recreate`。
+  - cloudflared は `tunnel --no-autoupdate --metrics 127.0.0.1:2024<n> --url http://127.0.0.1:808<n>` (コンテナ名 `cloudflared-grafana`・`-headroom`・`-backstage` が :8081・:8082・:8083)。
+    metrics は同じ Pod の中でぶつからないよう別ポートにする。`--protocol` は既定 (自動) のまま。UDP 7844 が外に通らないときは args に `--protocol http2` を足す。
+  - 全コンテナで `allowPrivilegeEscalation: false`・`readOnlyRootFilesystem: true`・`capabilities.drop: [ALL]`・`runAsNonRoot` (uid 65532)。
+    caddy だけ `NET_BIND_SERVICE` を残す (公式イメージの caddy には file capability が付いていて、bounding set から落とすと exec が EPERM になる。1024 未満のポートは使わない)。
+    caddy が書く場所 (`XDG_CONFIG_HOME`・`XDG_DATA_HOME`) は emptyDir の `/tmp`。
+  - **probe は `exec` の readiness だけ**: kubelet の probe は Pod の IP から来るので、`127.0.0.1` だけで待ち受ける caddy・auth に `tcpSocket`・`httpGet` は届かない。
+    caddy は `nc -z 127.0.0.1 8081/8082/8083`、auth は `python -c 'socket.create_connection(...)'`。liveness は付けない (probe の失敗で再起動すると URL が変わる)。cloudflared は distroless で exec できず、何も付けない。
+- Secret は **git に置かない** (ArgoCD の selfHeal が中身を戻さないため)。Pod は次の 4 つが無いと起動できない (`optional: false`):
+
+  | Secret (namespace `share`) | 作る処理 | 中身 | 読むもの |
+  |---|---|---|---|
+  | `share-host` | `_share-relay-up` (`just/share-relay.sh`、#38) | `SHARE_RELAY_ADDR`・`SHARE_RELAY_TOKEN` | caddy (`envFrom`) |
+  | `share-grafana` | `_share-secrets` (`just/share-secrets.sh`) | `viewer-password` (Grafana の viewer のパスワードの写し) | caddy (起動コマンドが `SHARE_GRAFANA_BASIC` を組み立てる) |
+  | `share-credentials` | 同上 | 空で作る。あれば何もしない (`just share add` の項目を、`just up` の打ち直しで消さない) | auth (K8s API の `get`) |
+  | `share-session-key` | 同上 | `key` (`openssl rand -hex 32`)。あれば何もしない (cookie を無効にしない) | auth (K8s API の `get`) |
+
+- 起動順: `just up` は `_grafana-secrets` (viewer のパスワードのファイル) → `_share-relay-up` (`share-host`) → `_share-secrets` を、ArgoCD の同期 (`root.yaml` の apply) より前に打つ。
+- `share-grafana` は写しなので、viewer のパスワードを変えたら (旧 `just share` の `grafana-viewer-rotate.sh` が変える。#44 で廃止) `just up` を打ち直して写し直す。それまで Grafana の経路は 401 ではなく
+  Grafana 側の拒否 (302 のログイン画面) になる。
+- **Secret の作り方 (#49)**: `kubectl apply` は Secret の中身を注釈 `kubectl.kubernetes.io/last-applied-configuration` に残す。Secret を作る処理は `just/secret-lib.sh` の
+  `put_secret` (あれば `replace`、無ければ `create`) か `create_secret_if_missing` (`create` だけ) を使う。どちらも注釈を付けず、`replace` は metadata を置き換えるので以前の `apply` が残した注釈も消える。
+  `replace --force` (消して作り直す) は動いている Pod の下で消えるので使わない。対象は `grafana-secrets.sh`・`grafana-viewer-rotate.sh`・`share-relay.sh`・`share-secrets.sh`。
+  `headlamp-token.sh` は `data` の無い Secret (トークンは controller が入れる) を `apply` するので、注釈に値は残らず、対象にしない。
 
 ## 試験 (just ci に入れるもの・入れないもの)
 
 `just/ci.sh` はクラスタを立てず、ネットワークにも出ない (ツールは `nix develop .#ci`)。その範囲で次を入れる。
-実装は #39・#40・#41 で、どれも `just ci` の 1 段として走る。
+実装は #39・#40・#41 で、どれも `just ci` の段として走る。
 
 | 段 | 内容 | 拒否を確かめる点 |
 |---|---|---|
 | 認証の単体 (Python `unittest`、`clusters/kind/share/test_share_auth.py`。#39 で実装済みで `just ci` の最後の段) | `decide()` に資格情報と時刻を渡す。時刻は引数なので時間を進められる。K8s API は偽の HTTP サーバーで、`forward_auth` が見る応答は実際の HTTP で確かめる | 名前なし・誤パスワード・**期限の 1 秒前は通り 1 秒後は拒否**・**項目を消すと拒否**・`rotate` 後の古いパスワード・改ざんした cookie・Secret が空・資格情報が壊れている・改ざんした cookie の付け替え・`rotate` / 期限切れ / `delete` 後の cookie。上限 (24h) 超の `--ttl` は CLI の試験 (#42) |
 | 経路の統合 (caddy + auth + 偽の upstream。`clusters/kind/share/test_share_caddy.py`。#40 で実装済みで `just ci` の段 6) | `caddy` を空きポートで起動し、認証サービスは K8s API の代わりに JSON ファイルを読むモード (`AUTH_SOURCE=file:...`)。upstream は標準ライブラリの HTTP サーバー | 認証なしは全経路 401。認証ありでも headroom の `POST /v1/messages`・`/stats/reset`、backstage の `/api/proxy`・`POST /api/catalog/locations`、grafana の `/profile/password` は 404。**ファイルから項目を消す・期限を過去にする → キャッシュ TTL (テストでは 0) の後 401**。旧形式 (sha256)・反復が少ない hash は 401。照合結果の覚えがあっても、delete・期限切れ・ローテーションは次の要求から 401 |
-| 静的 | `caddy validate` (経路の統合の試験に含む)。`share` namespace に NodePort・LoadBalancer・Ingress が無いこと (`yq`)。既存の kubeconform・kube-linter | 公開の入口を足していない |
+| 静的 | `caddy validate` (経路の統合の試験に含む)。`share` namespace に NodePort・LoadBalancer の Service と Ingress が無いこと (`just/ci.sh` の `yq`。#41)。既存の kubeconform・kube-linter | 公開の入口を足していない |
+| manifest (`clusters/kind/share/test_share_manifest.py`、#41) | `kustomize build` した結果を読む | Service・Ingress・containerPort が無い。Caddyfile の必須の環境変数が Pod に渡る。cloudflared が 3 つのポートに 1 本ずつ向く。Role は 2 つの Secret の `get` だけ。タグ固定 |
+| 認証サービスに届かない (`test_share_caddy.py`、#52) | `SHARE_AUTH_ADDR` が空、または閉じたポートの caddy を別に立て、全対象の全経路に、認証なし・正しい Basic・cookie を当てる | 全部 401・502・503 で、upstream に届かない |
+| Secret を作る処理 (`just/test_share_secrets.py`、#41・#49) | 偽の `kubectl` で `share-secrets.sh`・`grafana-secrets.sh`・`grafana-viewer-rotate.sh` を実行 | `apply` に Secret を渡さない・注釈が無い・値が引数に出ない・あれば資格情報と鍵を置き換えない。URL を引く関数が `api.` を除く |
 
 `flake.nix` の `devShells.ci` に `caddy` を足す (今は `tools` 側にしかない)。
 
@@ -230,7 +261,7 @@ Cookie の属性は `Path=/; HttpOnly; Secure; SameSite=Lax` (期限は cookie �
 | #38 ✅ | headroom 中継 (ホスト側の caddy コンテナ、`just up`・`just down` への組み込み、`share-host` Secret) | なし |
 | #39 ✅ | 認証サービスと資格情報のモデル (Python、単体試験、`just ci` に組み込み、`caddy` を `devShells.ci` に追加) | なし |
 | #40 ✅ | Caddyfile の経路 (許可リスト・Grafana の viewer 付与・Backstage の署名 cookie) と、経路の統合試験 (あわせて #48: headroom の HEAD を許可リストから外す) | #39 |
-| #41 | クラスタ内 Deployment `share` と ArgoCD Application、`_share-secrets`、URL の取得 | #38・#40 |
+| #41 ✅ | クラスタ内 Deployment `share` と ArgoCD Application、`_share-secrets`、URL の取得 (あわせて #49: Secret を注釈に値が残らない作り方に、#52: 認証サービスに届かないときの試験) | #38・#40 |
 | #42 | `just share add\|delete\|list\|get\|rotate\|prune` | #39・#41 |
 | #43 | 稼働中のクラスタでの確認 `just share smoke` | #42 |
 | #44 | 旧 `just share` の廃止、docs・README の書き換え、CODEOWNERS | #42・#43 |

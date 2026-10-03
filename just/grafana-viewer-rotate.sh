@@ -4,6 +4,7 @@
 # 1. 新しいパスワードをファイルと Secret grafana-viewer に書く (Pod を作り直したときにサイドカーが使う)
 # 2. 動いている Grafana の viewer のパスワードを API で変え、ログイン中のセッションも切る
 set -euo pipefail
+. "$(dirname "$0")/secret-lib.sh"
 admin_file="$1"
 viewer_file="$2"
 ns="$3"
@@ -28,7 +29,7 @@ chown --reference="$viewer_file" "$viewer_file.new"
 mv "$viewer_file.new" "$viewer_file"
 kubectl --context kind-study-kind -n "$ns" create secret generic grafana-viewer \
     --from-file=password="$viewer_file" \
-    --dry-run=client -o yaml | kubectl --context kind-study-kind apply -f - >/dev/null
+    --dry-run=client -o yaml | put_secret kind-study-kind "$ns" grafana-viewer >/dev/null
 printf '{"password":"%s"}' "$new" \
     | curl -sf -o /dev/null -u "$auth" -X PUT -H 'Content-Type: application/json' \
         --data-binary @- "$api/admin/users/$id/password"

@@ -7,6 +7,7 @@
 `caddy` が無い環境では Caddyfile の試験を飛ばす (`just ci` は devShells.ci に caddy を入れて必ず走らせる)。
 """
 import http.client
+import json
 import os
 import shutil
 import socket
@@ -24,6 +25,7 @@ sys.dont_write_bytecode = True  # __pycache__ をリポジトリに作らない
 JUST = Path(__file__).resolve().parent
 CADDYFILE = JUST / "share-relay.Caddyfile"
 SCRIPT = JUST / "share-relay.sh"
+FAKE_KUBECTL = JUST / "fake_kubectl.py"
 TOKEN = "0123456789abcdef0123456789abcdef"
 ALLOWED = ["/dashboard", "/health", "/stats", "/stats-history", "/stats-lifetime", "/transformations/feed", "/favicon.ico"]
 # 許可リストの外。headroom のプロキシ本体・設定の変更・リセット (トークンがあっても通さない)
@@ -198,9 +200,9 @@ echo "docker $*" >> "{self.log}"
 if [ "$1 $2" = "network inspect" ]; then printf '%b' "${{FAKE_GATEWAYS-fc00:f853:ccd:e793::1\\n172.18.0.1\\n}}"; exit 0; fi
 if [ "$1" = run ]; then echo "env SHARE_RELAY_BIND=$SHARE_RELAY_BIND SHARE_RELAY_PORT=$SHARE_RELAY_PORT" >> "{self.log}"; fi
 """)
+        self.stdin_log = self.tmp / "stdin.log"
         self.write_stub("kubectl", f"""
-echo "kubectl $*" >> "{self.log}"
-case "$*" in *apply*) cat >/dev/null ;; *create*) echo "kind: Stub" ;; esac
+FAKE_KUBECTL_LOG="{self.log}" FAKE_KUBECTL_STDIN="{self.stdin_log}" exec python3 "{FAKE_KUBECTL}" "$@"
 """)
         self.write_stub("curl", "echo 401")
 
@@ -218,6 +220,11 @@ case "$*" in *apply*) cat >/dev/null ;; *create*) echo "kind: Stub" ;; esac
 
     def calls(self):
         return self.log.read_text().splitlines() if self.log.exists() else []
+
+    def manifests(self):
+        """kubectl の標準入力に渡った Secret の manifest (動詞, manifest)。"""
+        entries = [json.loads(line) for line in self.stdin_log.read_text().splitlines()] if self.stdin_log.exists() else []
+        return [(e["verb"], e["manifest"]) for e in entries if e["manifest"].get("kind") == "Secret"]
 
     def test_up_starts_container_on_the_ipv4_gateway(self):
         r = self.up()
@@ -244,6 +251,26 @@ case "$*" in *apply*) cat >/dev/null ;; *create*) echo "kind: Stub" ;; esac
         self.assertIn("SHARE_RELAY_ADDR=172.18.0.1:8788", secret[0])
         self.assertIn(f"SHARE_RELAY_TOKEN={self.token_file}", secret[0])
         self.assertNotIn(token, secret[0], "トークンが kubectl の引数に出た")
+
+    def test_secret_is_put_without_last_applied_annotation(self):
+        # #49: apply は data (トークン) を kubectl.kubernetes.io/last-applied-configuration の注釈に残す。replace・create で入れる
+        self.assertEqual(self.up().returncode, 0)
+        token = self.token_file.read_text()
+        self.assertFalse([c for c in self.calls() if " apply " in c and "secret" in c], "Secret を apply した")
+        ((verb, manifest),) = self.manifests()
+        self.assertEqual(verb, "create", "無いときは create")
+        self.assertNotIn("annotations", manifest["metadata"])
+        self.assertEqual(manifest["metadata"]["name"], "share-host")
+        self.assertEqual(sorted(manifest["data"]), ["SHARE_RELAY_ADDR", "SHARE_RELAY_TOKEN"])
+        self.assertNotIn(token, "\n".join(self.calls()), "トークンが kubectl の引数に出た")
+
+    def test_existing_secret_is_replaced_not_applied(self):
+        # 以前の apply が注釈を残していても、replace は metadata を置き換えるので消える。replace --force (消して作り直す) は使わない
+        self.assertEqual(self.up(FAKE_EXISTING="share-host").returncode, 0)
+        ((verb, manifest),) = self.manifests()
+        self.assertEqual(verb, "replace")
+        self.assertNotIn("annotations", manifest["metadata"])
+        self.assertFalse([c for c in self.calls() if "--force" in c])
 
     def test_up_again_keeps_the_token(self):
         self.up()

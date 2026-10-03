@@ -30,6 +30,7 @@ owner_ref="$3"
 ctx="$4"
 port="$5"
 script_dir="$(cd "$(dirname "$0")" && pwd)"
+. "$script_dir/secret-lib.sh"
 
 # 開発用コンテナでは ~/.local/share/home-k8s をホストと共有していないと、トークンがコンテナの中にだけ残る (grafana-secrets.sh と同じ)
 if [ -f /.dockerenv ] && ! mountpoint -q "$HOME/.local/share/home-k8s"; then
@@ -68,9 +69,10 @@ chmod 644 "$caddyfile"
 # Pod が環境変数 (envFrom) でそのまま読めるキー名にする。トークンは --from-file で渡す (引数に出さない。ps に残る)
 kubectl --context "$ctx" create namespace share --dry-run=client -o yaml \
     | kubectl --context "$ctx" apply -f - >/dev/null
+# put_secret は apply ではなく replace・create で入れる (apply は last-applied-configuration の注釈にトークンを残す。#49)
 kubectl --context "$ctx" -n share create secret generic share-host \
     --from-literal=SHARE_RELAY_ADDR="$gateway:$port" --from-file=SHARE_RELAY_TOKEN="$token_file" \
-    --dry-run=client -o yaml | kubectl --context "$ctx" apply -f -
+    --dry-run=client -o yaml | put_secret "$ctx" share share-host
 
 docker rm -f "$container" >/dev/null 2>&1 || true
 # トークンはコマンドラインに出さない (ps に残る)。-e NAME だけ渡せば、この shell の環境から取る

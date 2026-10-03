@@ -1,4 +1,4 @@
-# just share を常駐させる構成 (docs/cluster/share.md) のうち、ホスト側の headroom 中継。公開レシピの `just up`・`just down` (justfile) が呼ぶ内部用。
+# just share を常駐させる構成 (docs/cluster/share.md) のうち、ホスト側の headroom 中継と、share Pod の Secret。公開レシピの `just up`・`just down` (justfile) が呼ぶ内部用。
 # 中継は headroom (localhost:8787) の GET の許可リストだけを、kind の bridge のゲートウェイで待ち受けて転送する caddy コンテナ。
 # 状態の確認は docker を素手で叩くこと (`docker ps --filter name=home-k8s-share-relay`)。
 
@@ -14,3 +14,9 @@ _share-relay-up:
 # 中継のコンテナを消す。トークンのファイルは残す
 _share-relay-down:
     bash just/share-relay.sh down
+
+# share Pod (clusters/kind/share) が起動に要る Secret share-credentials (空)・share-session-key・share-grafana を、無ければ作る (中身は git に置かない)。
+# share-grafana は Grafana の viewer のパスワードのファイルから写す (Secret grafana-viewer は別 namespace)。Secret share-host は _share-relay-up が作る。
+# Pod は Secret が無いと起動できないので、`just up` が ArgoCD の同期 (root.yaml の apply) より前に呼ぶ。_grafana-secrets の後 (viewer のパスワードのファイルが要る)
+_share-secrets:
+    bash just/share-secrets.sh "{{grafana_viewer_password_file}}" {{kube_context}}

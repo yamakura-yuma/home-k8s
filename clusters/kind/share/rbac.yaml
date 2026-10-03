@@ -1,0 +1,29 @@
+# 認証サービス (share_auth.py) が K8s API で読む Secret を、2 つの get だけに絞る (resourceNames)。
+# list・watch・他の Secret は読めない。Secret の中身は git に置かない (just up の _share-secrets が作る)。
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: share
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: share-auth
+rules:
+  - apiGroups: [""]
+    resources: [secrets]
+    resourceNames: [share-credentials, share-session-key]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: share-auth
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: share-auth
+subjects:
+  - kind: ServiceAccount
+    name: share
+    namespace: share

@@ -6,6 +6,8 @@
 # 引数: <admin のパスワードファイル> <viewer のパスワードファイル> <backstage のパスワードファイル> <namespace>
 #       <リポジトリの所有者を調べるディレクトリ> <kube context>
 set -euo pipefail
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+. "$script_dir/secret-lib.sh"
 admin_file="$1"
 viewer_file="$2"
 backstage_file="$3"
@@ -26,20 +28,21 @@ for file in "$admin_file" "$viewer_file" "$backstage_file"; do
         chown "$(stat -c %u:%g "$owner_ref")" "$file"
     fi
 done
+# Secret は apply ではなく put_secret (replace・create) で入れる。apply は値を last-applied-configuration の注釈に残す (#49)
 for n in "$ns" backstage; do
     kubectl --context "$ctx" create namespace "$n" --dry-run=client -o yaml \
         | kubectl --context "$ctx" apply -f - >/dev/null
 done
 kubectl --context "$ctx" -n "$ns" create secret generic grafana-admin \
     --from-literal=admin-user=admin --from-file=admin-password="$admin_file" \
-    --dry-run=client -o yaml | kubectl --context "$ctx" apply -f -
+    --dry-run=client -o yaml | put_secret "$ctx" "$ns" grafana-admin
 kubectl --context "$ctx" -n "$ns" create secret generic grafana-viewer \
     --from-file=password="$viewer_file" \
-    --dry-run=client -o yaml | kubectl --context "$ctx" apply -f -
+    --dry-run=client -o yaml | put_secret "$ctx" "$ns" grafana-viewer
 kubectl --context "$ctx" -n "$ns" create secret generic grafana-backstage \
     --from-file=password="$backstage_file" \
-    --dry-run=client -o yaml | kubectl --context "$ctx" apply -f -
+    --dry-run=client -o yaml | put_secret "$ctx" "$ns" grafana-backstage
 # Backstage のプロキシが Authorization: Basic に入れる値 (app-config.yaml の GRAFANA_BASIC_AUTH)
 kubectl --context "$ctx" -n backstage create secret generic backstage-grafana \
     --from-literal=GRAFANA_BASIC_AUTH="$(printf 'backstage:%s' "$(cat "$backstage_file")" | base64 -w0)" \
-    --dry-run=client -o yaml | kubectl --context "$ctx" apply -f -
+    --dry-run=client -o yaml | put_secret "$ctx" backstage backstage-grafana

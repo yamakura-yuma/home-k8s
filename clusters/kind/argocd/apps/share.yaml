@@ -1,0 +1,23 @@
+# 公開 (just share を常駐させる構成、docs/cluster/share.md)。clusters/kind/share の Deployment share (caddy・認証・cloudflared ×3) を同期する。
+# Secret (share-credentials・share-session-key・share-grafana・share-host) は git に置かず、`just up` が同期より前に作る。
+# Service は作らない (入口は Cloudflare への外向き接続だけ)。
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: share
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/yamakura-yuma/home-k8s
+    targetRevision: main
+    path: clusters/kind/share
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: share
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

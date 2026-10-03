@@ -142,7 +142,7 @@ def wait_listening(proc, port, what):
     deadline = time.time() + 20
     while time.time() < deadline:
         if proc.poll() is not None:
-            raise RuntimeError(f"{what} が終了した: " + proc.stderr.read().decode())
+            raise RuntimeError(f"{what} が終了した: " + (proc.stderr.read().decode() if proc.stderr else Path(proc.log_path).read_text()))
         try:
             socket.create_connection(("127.0.0.1", port), timeout=0.2).close()
             return
@@ -395,23 +395,45 @@ class ShareCaddy(unittest.TestCase):
         self.write_credentials(alice=credential(PASSWORDS["alice"], expires_at=None))  # 同じ名前を作り直す
         self.assertEqual(self.call(BACKSTAGE, "GET", "/", {"Cookie": cookie})[0], 401, "同じ名前の作り直しで古い cookie が通った")
 
+    def closed_caddy(self, name, auth_addr):
+        """認証サービスに届かない設定の caddy を、別に立てる。(3 対象のポート) を返す。終わったら止める。"""
+        ports = {GRAFANA: free_port(), HEADROOM: free_port(), BACKSTAGE: free_port()}
+        env = caddy_env(self.tmp / name, SHARE_AUTH_ADDR=auth_addr, SHARE_GRAFANA_BASIC=GRAFANA_BASIC, SHARE_RELAY_TOKEN=RELAY_TOKEN,
+                        SHARE_RELAY_ADDR=f"127.0.0.1:{self.headroom_relay.server_port}",
+                        SHARE_GRAFANA_UPSTREAM=f"127.0.0.1:{self.grafana.server_port}",
+                        SHARE_BACKSTAGE_UPSTREAM=f"127.0.0.1:{self.backstage.server_port}",
+                        SHARE_GRAFANA_PORT=str(ports[GRAFANA]), SHARE_HEADROOM_PORT=str(ports[HEADROOM]), SHARE_BACKSTAGE_PORT=str(ports[BACKSTAGE]))
+        # 認証サービスに聞けない要求は 1 つごとにエラーを stderr に書く。読まない PIPE だと詰まって caddy が止まるので、ファイルに流す
+        log_path = self.tmp / f"{name}.log"
+        with open(log_path, "w") as log:
+            proc = subprocess.Popen(["caddy", "run", "--config", str(CADDYFILE), "--adapter", "caddyfile"], env=env, stdout=subprocess.DEVNULL, stderr=log)
+        proc.log_path = log_path
+        self.addCleanup(proc.wait, 10)
+        self.addCleanup(proc.terminate)
+        for port in ports.values():
+            wait_listening(proc, port, "caddy")
+        return ports
+
+    def assert_everything_closed(self, ports):
+        """全対象の全経路が、資格情報があっても (認証サービスに聞けないので) 通らず、upstream に届かない。"""
+        # 正しい Basic・正しい名前の cookie・何も無し。認証サービスが答えられないとき、どれも通ってはいけない
+        headers = [{}, basic("alice", PASSWORDS["alice"]), basic("root", PASSWORDS["root"]),
+                   {"Cookie": "share_session=alice.deadbeef"}, {"Authorization": "Bearer abc"}]
+        for target, method, path in self.all_requests():
+            for h in headers:
+                status, _ = request(ports[target], method, path, h)
+                self.assertIn(status, (401, 502, 503), (target, method, path, h))
+        for target in self.upstreams:
+            self.assertEqual(self.seen(target), [], f"認証サービスに届かないのに {target} の upstream に届いた")
+
     def test_auth_service_down_is_closed(self):
         # 認証サービスに届かなければ 401 でも 200 でもなく、通さない (502)。別の caddy を、閉じたポートの認証サービスで立てる
-        port = free_port()
-        dead = free_port()
-        env = caddy_env(self.tmp / "down", SHARE_AUTH_ADDR=f"127.0.0.1:{dead}", SHARE_GRAFANA_BASIC=GRAFANA_BASIC, SHARE_RELAY_TOKEN=RELAY_TOKEN,
-                        SHARE_RELAY_ADDR="127.0.0.1:1", SHARE_GRAFANA_UPSTREAM=f"127.0.0.1:{self.grafana.server_port}",
-                        SHARE_GRAFANA_PORT=str(port), SHARE_HEADROOM_PORT=str(free_port()), SHARE_BACKSTAGE_PORT=str(free_port()))
-        proc = subprocess.Popen(["caddy", "run", "--config", str(CADDYFILE), "--adapter", "caddyfile"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-        try:
-            wait_listening(proc, port, "caddy")
-            status, _ = request(port, "GET", "/", basic("alice", PASSWORDS["alice"]))
-            self.assertIn(status, (401, 502, 503))
-            self.assertEqual(self.seen(GRAFANA), [])
-        finally:
-            proc.terminate()
-            proc.wait(timeout=10)
-            proc.stderr.close()
+        self.assert_everything_closed(self.closed_caddy("down", f"127.0.0.1:{free_port()}"))
+
+    def test_empty_auth_addr_is_closed(self):
+        # #52: SHARE_AUTH_ADDR が空でも caddy は起動するが、全経路が通らない (安全側。caddy は宛先なしで 503 を返す)。
+        # Deployment が env を渡し損ねたときに当たる。許可リストの内も外も、Basic があっても通らない
+        self.assert_everything_closed(self.closed_caddy("empty", ""))
 
 
 if __name__ == "__main__":
