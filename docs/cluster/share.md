@@ -1,7 +1,7 @@
 # 公開 (just share) — 構成と使い方
 
-状態: 実装済み (#38〜#42、旧 `just share <対象>` の廃止は #44)。稼働中のクラスタ (study-kind) での確認と `just share smoke` は #43。
-各 Issue の diff の図 (変更前→変更後のアニメーション): [全体](share-design.html)・[認証サービス #39](share-auth.html)・[経路 #40](share-routes.html)・[Deployment #41](share-deploy.html)・[CLI #42](share-cli.html)・[旧 share の廃止 #44](share-retire.html)・[smoke #43](share-smoke.html)
+状態: 実装済み (#38〜#42、旧 `just share <対象>` の廃止は #44)。稼働中のクラスタ (study-kind) での確認と `just share test-smoke` は #43。
+各 Issue の diff の図 (変更前→変更後のアニメーション): [全体](share-design.html)・[認証サービス #39](share-auth.html)・[経路 #40](share-routes.html)・[Deployment #41](share-deploy.html)・[CLI #42](share-cli.html)・[旧 share の廃止 #44](share-retire.html)・[test-smoke #43](share-smoke.html)
 
 ## 構成
 
@@ -13,7 +13,7 @@ home-k8s の公開 (Grafana・headroom のダッシュボード・Backstage) は
 | 公開の本体 | クラスタ内の Deployment `share` (namespace `share`)。`just up` で立ち、`just down` で止まる |
 | 入口 | Cloudflare Quick Tunnel (`*.trycloudflare.com`、アカウント不要)。対象ごとに 1 本、計 3 本 |
 | 資格情報 | 人ごとに 1 つ。1 つで 3 つの対象すべてに入れる。**期限付き**は既定 8h・上限 24h で自動失効。**特権 viewer** は期限なしで全体に 1 つ。見られる範囲は同じ |
-| 操作 | `just share add\|delete\|list\|get\|rotate\|prune` (稼働中の確認は `just share smoke`) |
+| 操作 | `just share add\|delete\|list\|get\|rotate\|prune` (稼働中の確認は `just share test-smoke`) |
 | パスワード | 保存はハッシュ (PBKDF2) だけ。表示は `add` と特権の `rotate` のときだけで、`get` は出さない |
 | URL | `get`・`list` で引く。`share` Pod を作り直す (再起動・設定変更・クラスタの作り直し) と変わる |
 | 失効 | `delete` は最大 2 秒、期限切れは期限どおり (認証が要求のたびに判定する) |
@@ -194,7 +194,7 @@ Cookie の属性は `Path=/; HttpOnly; Secure; SameSite=Lax` (期限は cookie �
 | `just share get <名前>` | その人の情報 (種別・作成・期限・残り) と 3 つの URL (パスワードは保存していないので出ない。忘れたら `delete` → `add`、特権は `rotate`) |
 | `just share rotate <名前>` | 特権 viewer のパスワードを作り直して表示 (期限付きに使うと、書く前に断る) |
 | `just share prune` | 期限切れの項目を 1 回の patch で消す |
-| `just share smoke` | 稼働中の share Pod を確かめる (下の「試験」の最後)。名前 `smoke-<乱数>` の資格情報を作り、終われば (途中で落ちても) 消す |
+| `just share test-smoke` | 稼働中の share Pod を確かめる (下の「試験」の最後)。名前 `test-smoke-<乱数>` の資格情報を作り、終われば (途中で落ちても) 消す |
 
 - **ハッシュは Pod で作る**: `kubectl exec -i deploy/share -c auth -- python -B -c '... share_auth.hash_password(sys.stdin.read())'` で、パスワードを標準入力から渡す。
   開発用コンテナに Python が無くても、デプロイされた認証サービスと同じ関数・同じ形式 (`pbkdf2_sha256$600000$...`) になり、パスワードは引数にも注釈にも出ない。
@@ -259,7 +259,7 @@ Cookie の属性は `Path=/; HttpOnly; Secure; SameSite=Lax` (期限は cookie �
 | CLI (`just/test_share_cli.py`、#42) | 偽の `kubectl` (`exec` は実物の `share_auth` を手元の python3 で動かす) で `just/share.sh` を実行 | `--ttl 25h`・`1441m`・`0`・形の誤り、不正な名前、`--permanent` と `--ttl` の併用は **kubectl を 1 回も呼ばずに**拒否。特権の 2 つ目・期限付きへの `rotate`・既にある名前の `add` は何も書かずに拒否。パスワードが Secret・kubectl の引数・curl の引数に出ない。`add` が作った項目は実物の `decide()` で、正しいパスワードが 200・誤りと期限後が 401、`delete` 後が 401、`rotate` 後の古いパスワードが 401。`get` はパスワードも hash も出さない |
 
 
-稼働中のクラスタの確認は `just share smoke` (#43)。share Pod の caddy の 3 つのポート (8081〜8083) に `kubectl port-forward` で直に当て、トンネル (外への公開) は使わない。
+稼働中のクラスタの確認は `just share test-smoke` (#43)。share Pod の caddy の 3 つのポート (8081〜8083) に `kubectl port-forward` で直に当て、トンネル (外への公開) は使わない。
 期限が 10 秒の資格情報を Secret に直接書き (`--ttl` は分単位なので CLI の `add` は通さない。ハッシュは `add` と同じく Pod の認証サービスで作る)、
 3 つの対象それぞれで、許可リストの内の経路 (grafana `/api/search`・headroom `/health`・backstage `/`) と外の経路 (`/profile/password`・`/v1/messages`・`/api/proxy/...`) に当てる。
 
@@ -275,7 +275,7 @@ headroom の 200 は Pod → 中継 (#38) → headroom まで届いたことも�
 
 `just ci` には入れない。稼働中のクラスタ (share Pod と、`just up` が作る Secret・ホストの中継) と、headroom・Grafana・Backstage が動いていることが前提で、
 CI の runner にはそれらが無いためである (`just ci` はクラスタを立てず、ネットワークにも出ない)。
-公開 URL (Quick Tunnel) まで含めた確認は、ネットワークと Cloudflare の稼働に左右されて不安定なので smoke にも入れない。`just share add` が DoH で URL を引けるまで待つ処理がその確認を兼ねる。
+公開 URL (Quick Tunnel) まで含めた確認は、ネットワークと Cloudflare の稼働に左右されて不安定なので test-smoke にも入れない。`just share add` が DoH で URL を引けるまで待つ処理がその確認を兼ねる。
 
 ## 実装の分け方 (Issue)
 
@@ -286,14 +286,14 @@ CI の runner にはそれらが無いためである (`just ci` はクラスタ
 | #40 ✅ | Caddyfile の経路 (許可リスト・Grafana の viewer 付与・Backstage の署名 cookie) と、経路の統合試験 (あわせて #48: headroom の HEAD を許可リストから外す) | #39 |
 | #41 ✅ (稼働中の確認は #43) | クラスタ内 Deployment `share` と ArgoCD Application、`_share-secrets`、URL の取得 (あわせて #49: Secret を注釈に値が残らない作り方に、#52: 認証サービスに届かないときの試験) | #38・#40 |
 | #42 ✅ (稼働中の確認は #43) | `just share add\|delete\|list\|get\|rotate\|prune` (あわせて #56: `grafana-secrets.sh` の Backstage の Basic を引数に出さない) | #39・#41 |
-| #43 ✅ | 稼働中のクラスタでの確認と `just share smoke` | #42 |
+| #43 ✅ | 稼働中のクラスタでの確認と `just share test-smoke` | #42 |
 | #44 ✅ | 旧 `just share` の廃止 (旧スクリプト・Caddyfile・viewer の作り直し・`just show` の状態ファイル)、docs・README の書き換え、CODEOWNERS | #42 |
 
 ## 受け入れる制約・残る問題
 
 - URL は `share` Pod の再起動でも変わる。配った URL が使えなくなるので、再起動の原因を作らない (ログのローテーションや probe の設定に注意)。
 - headroom の中継はホストの常駐物で、クラスタと寿命が別になる (合意済み)。トークンで bridge 上の他のコンテナからは守る。
-- Pod (kind のノードの外向き NAT) から `<ゲートウェイ>:8788` には届く (#43 で study-kind から確かめた。トークンありの `/health` が 200、なしが 401)。WSL2 の iptables を変えたら `just share smoke` の headroom で確かめ直す。
+- Pod (kind のノードの外向き NAT) から `<ゲートウェイ>:8788` には届く (#43 で study-kind から確かめた。トークンありの `/health` が 200、なしが 401)。WSL2 の iptables を変えたら `just share test-smoke` の headroom で確かめ直す。
 - Quick Tunnel は稼働の保証がない。クラスタの外向きの UDP 7844 (QUIC) が通らないときは `--protocol http2` にする。
 - 稼働中のクラスタ (study-kind) で確かめたこと (#43): share Pod が Ready (5/5)、3 つの URL が `just share list` で引ける、資格情報が空で全経路 401、`add` (`kubectl exec -i` の `python -B -c`・`patch --patch-file`・`go-template` の `base64decode`・DoH) → 200 と許可リスト外 404 → 期限後と `delete` 後 (約 2 秒) に 401、特権 viewer は 1 つだけで `rotate` 後の古いパスワードが 401、`get` はパスワードを出さない、4 つの Secret に `last-applied-configuration` が無い、Pod を作り直すと URL が変わり `get`・`list` が新しい URL を返す。
 - 旧 `just share <対象>` (ホストで caddy と cloudflared を起動し、使い捨てのパスワードを作る) は廃止した。旧レシピを残す経路は作らない

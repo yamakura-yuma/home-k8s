@@ -72,6 +72,6 @@ show what="":
 # 公開の本体は常駐する share Pod (clusters/kind/share)。人ごとの資格情報を Secret share-credentials に足す・消す・引く (docs/cluster/share.md)。
 # 検査 (名前・--ttl・--permanent の併用) はクラスタに触れる前に just/share.sh が行う。
 
-# 共有の資格情報を操作する (add <名前> [--ttl 30m|8h] [--permanent] | delete <名前> | list | get <名前> | rotate <名前> | prune | smoke)
+# 共有の資格情報を操作する (add <名前> [--ttl 30m|8h] [--permanent] | delete <名前> | list | get <名前> | rotate <名前> | prune | test-smoke)
 share *args:
     @bash just/share.sh {{kube_context}} {{args}}

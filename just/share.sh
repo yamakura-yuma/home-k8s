@@ -23,7 +23,7 @@ usage: just share add <名前> [--ttl <30m|8h>] [--permanent]   資格情報を�
        just share get <名前>                                  その人の情報と URL (パスワードは出ない)
        just share rotate <名前>                               特権 viewer のパスワードを作り直す
        just share prune                                       期限切れの項目を消す
-       just share smoke                                       稼働中の share Pod の caddy に port-forward で当てて確かめる
+       just share test-smoke                                  稼働中の share Pod の caddy に port-forward で当てて確かめる
 EOF
     exit 2
 }
@@ -179,7 +179,7 @@ print_urls() {
     share_urls "$ctx" | sed 's/^/  /' || true
 }
 
-# smoke の対象ごとの経路。OK は許可リストの内 (認証が通れば 200)、DENY は外 (認証が通っても 404)。PORT は caddy の待ち受け
+# test-smoke の対象ごとの経路。OK は許可リストの内 (認証が通れば 200)、DENY は外 (認証が通っても 404)。PORT は caddy の待ち受け
 declare -A SMOKE_OK=([grafana]=/api/search [headroom]=/health [backstage]=/)
 declare -A SMOKE_DENY=([grafana]=/profile/password [headroom]=/v1/messages [backstage]=/api/proxy/grafana/api/health)
 declare -A SMOKE_PORT=([grafana]=8081 [headroom]=8082 [backstage]=8083)
@@ -219,13 +219,13 @@ smoke_all() {
     done
 }
 
-# smoke: 稼働中の share Pod の caddy に port-forward で直に当て、認証と許可リストを確かめる。トンネル (外への公開) は使わない。
-# 名前 smoke-<乱数> の資格情報を Secret に直接書き (期限は数秒)、終わったら (途中で落ちても) 消す。CI には入れない (docs/cluster/share.md)
-smoke() {
+# test-smoke: 稼働中の share Pod の caddy に port-forward で直に当て、認証と許可リストを確かめる。トンネル (外への公開) は使わない。
+# 名前 test-smoke-<乱数> の資格情報を Secret に直接書き (期限は数秒)、終わったら (途中で落ちても) 消す。CI には入れない (docs/cluster/share.md)
+test_smoke() {
     # dir・pf_pid・name は EXIT の trap が使うので local にしない (trap は関数を抜けたあとに走る)
     local password hash expires target port deadline t0
     dir="$(umask 077; mktemp -d)"
-    name="smoke-$(openssl rand -hex 4)"
+    name="test-smoke-$(openssl rand -hex 4)"
     # 項目を消すのは失敗しても止めない (Secret が読めないなら、そもそも書けていない)
     trap '[ -z "${pf_pid:-}" ] || kill "$pf_pid" 2>/dev/null || true; (drop_entries "$name") >/dev/null 2>&1 || true; rm -rf "$dir"' EXIT
 
@@ -272,9 +272,9 @@ smoke() {
     smoke_all 401 401
 
     if [ "$SMOKE_FAILED" -gt 0 ]; then
-        die "smoke: $SMOKE_FAILED 件が期待と違う"
+        die "test-smoke: $SMOKE_FAILED 件が期待と違う"
     fi
-    echo "smoke: すべて期待どおり"
+    echo "test-smoke: すべて期待どおり"
 }
 
 now="$(date +%s)"
@@ -430,9 +430,9 @@ prune)
         echo "期限切れの項目を消した: ${expired[*]}"
     fi
     ;;
-smoke)
+test-smoke)
     [ $# -eq 0 ] || usage
-    smoke
+    test_smoke
     ;;
 *) usage ;;
 esac

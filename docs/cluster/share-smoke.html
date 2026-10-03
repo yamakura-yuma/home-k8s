@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>#43 just share smoke (変更前→変更後)</title>
+<title>#43 just share test-smoke (変更前→変更後)</title>
 <style>
   :root { --bg:#0f1419; --panel:#171e26; --line:#2c3846; --text:#e6edf3; --dim:#8b98a5; --add:#3fb950; --del:#f85149; --acc:#58a6ff; --warn:#d29922; }
   @media (prefers-color-scheme: light) { :root { --bg:#f6f8fa; --panel:#ffffff; --line:#d0d7de; --text:#1f2328; --dim:#59636e; --add:#1a7f37; --del:#cf222e; --acc:#0969da; --warn:#9a6700; } }
@@ -42,23 +42,23 @@
 </head>
 <body>
 <main>
-<h1>#43 <code>just share smoke</code></h1>
+<h1>#43 <code>just share test-smoke</code></h1>
 <p class="lead">変更前 → 変更後。稼働中の share Pod を確かめる入口を <code>just share</code> に 1 つ足す。CI には入れない (<code>Closes #43</code>)。</p>
 
 <h2>1. 何が変わるか</h2>
 <div class="panel">
 <table>
 <tr><th>項目</th><th>変更前</th><th>変更後</th></tr>
-<tr><td><code>just share</code> のサブコマンド</td><td>add・delete・list・get・rotate・prune</td><td class="add">+ <code>smoke</code></td></tr>
-<tr><td>稼働中の share Pod の確認</td><td class="del">手で curl (docs に「#43 で決める」)</td><td class="add"><code>just share smoke</code>。期待と違えば終了コード 1</td></tr>
+<tr><td><code>just share</code> のサブコマンド</td><td>add・delete・list・get・rotate・prune</td><td class="add">+ <code>test-smoke</code></td></tr>
+<tr><td>稼働中の share Pod の確認</td><td class="del">手で curl (docs に「#43 で決める」)</td><td class="add"><code>just share test-smoke</code>。期待と違えば終了コード 1</td></tr>
 <tr><td>当て先</td><td>-</td><td><code>kubectl port-forward</code> で caddy の 8081〜8083 に直に。トンネルは使わない</td></tr>
-<tr><td>資格情報</td><td>-</td><td><code>smoke-&lt;乱数&gt;</code> を期限 10 秒で Secret に直接書き、終われば (落ちても) 消す</td></tr>
+<tr><td>資格情報</td><td>-</td><td><code>test-smoke-&lt;乱数&gt;</code> を期限 10 秒で Secret に直接書き、終われば (落ちても) 消す</td></tr>
 <tr><td><code>just ci</code></td><td colspan="2">変えない (クラスタ・headroom・Grafana・Backstage が要るので CI の runner では走らない。理由を docs に書いた)</td></tr>
 <tr><td>docs</td><td class="del">「稼働中は未確認」</td><td class="add">study-kind で確かめた項目と、作り直さずに入れる手順 (<code>_share-relay-up</code>・<code>_share-secrets</code>)</td></tr>
 </table>
 </div>
 
-<h2>2. smoke の流れ (アニメーション)</h2>
+<h2>2. test-smoke の流れ (アニメーション)</h2>
 <div class="panel">
 <div class="ctrl">
   <button id="play" class="on" aria-pressed="true">自動で進める</button>
@@ -66,9 +66,9 @@
   <button id="next">次 →</button>
   <span id="stepno" class="dim"></span>
 </div>
-<svg viewBox="0 0 960 330" role="img" aria-label="smoke の段ごとの経路と応答">
+<svg viewBox="0 0 960 330" role="img" aria-label="test-smoke の段ごとの経路と応答">
   <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
-  <rect id="b-cli" class="box" x="20" y="130" width="150" height="60" rx="8"/><text x="38" y="156">just share smoke</text><text class="dim" x="38" y="176">ホスト (curl)</text>
+  <rect id="b-cli" class="box" x="20" y="130" width="150" height="60" rx="8"/><text x="38" y="156">just share test-smoke</text><text class="dim" x="38" y="176">ホスト (curl)</text>
   <rect id="b-pf" class="box" x="220" y="130" width="140" height="60" rx="8"/><text x="236" y="156">port-forward</text><text class="dim" x="236" y="176">:8081 :8082 :8083</text>
   <rect id="b-caddy" class="box" x="410" y="130" width="130" height="60" rx="8"/><text x="428" y="156">caddy</text><text class="dim" x="428" y="176">share Pod</text>
   <rect id="b-auth" class="box" x="410" y="235" width="130" height="60" rx="8"/><text x="428" y="261">auth</text><text class="dim" x="428" y="281">要求ごとに判定</text>
@@ -107,10 +107,10 @@
 <div class="panel">
 <table>
 <tr><th>ファイル</th><th>変更</th></tr>
-<tr><td><code>just/share.sh</code></td><td class="add">+ <code>smoke</code> (port-forward・期限 10 秒の項目・4 段の確認・EXIT で項目と port-forward を片付ける)</td></tr>
-<tr><td><code>justfile</code>・<code>README.md</code></td><td class="add">サブコマンドの一覧に <code>smoke</code></td></tr>
-<tr><td><code>just/test_share_cli.py</code></td><td class="add"><code>smoke extra</code> はクラスタに触れずに断る</td></tr>
-<tr><td><code>docs/cluster/share.md</code></td><td>試験の節に smoke と CI に入れない理由、作り直さずに入れる手順、稼働中で確かめたこと</td></tr>
+<tr><td><code>just/share.sh</code></td><td class="add">+ <code>test-smoke</code> (port-forward・期限 10 秒の項目・4 段の確認・EXIT で項目と port-forward を片付ける)</td></tr>
+<tr><td><code>justfile</code>・<code>README.md</code></td><td class="add">サブコマンドの一覧に <code>test-smoke</code></td></tr>
+<tr><td><code>just/test_share_cli.py</code></td><td class="add"><code>test-smoke extra</code> はクラスタに触れずに断る</td></tr>
+<tr><td><code>docs/cluster/share.md</code></td><td>試験の節に test-smoke と CI に入れない理由、作り直さずに入れる手順、稼働中で確かめたこと</td></tr>
 </table>
 </div>
 </main>
@@ -120,7 +120,7 @@ const steps = [
     lit:['b-cli','b-pf','b-caddy','a-cli','a-pf'], codes:['','',''] },
   { cap:'<b>1. 認証なし</b>: caddy が auth に聞き、資格情報が無いので 3 対象とも内も外も 401。upstream には進まない。',
     lit:['b-cli','b-pf','b-caddy','b-auth','a-cli','a-pf','a-auth','b-secret','a-sread'], bad:['a-g','a-h','a-b'], codes:['401 / 401','401 / 401','401 / 401'], cls:['ng','ng','ng'] },
-  { cap:'<b>2. 期限 10 秒の資格情報</b>: <code>smoke-&lt;乱数&gt;</code> を Secret に直接書く (ハッシュは Pod の認証サービスで作る)。内は 200、外は 404。',
+  { cap:'<b>2. 期限 10 秒の資格情報</b>: <code>test-smoke-&lt;乱数&gt;</code> を Secret に直接書く (ハッシュは Pod の認証サービスで作る)。内は 200、外は 404。',
     lit:['b-cli','b-pf','b-caddy','b-auth','b-secret','a-cli','a-pf','a-auth','a-sec','a-sread','a-g','a-h','a-b','b-g','b-h','b-b'], codes:['200 / 404','200 / 404','200 / 404'], cls:['ok','ok','ok'] },
   { cap:'<b>3. 期限後</b>: 同じ資格情報で全部 401。auth は要求ごとに期限を見る。',
     lit:['b-cli','b-pf','b-caddy','b-auth','a-cli','a-pf','a-auth','b-secret','a-sread'], bad:['a-g','a-h','a-b'], codes:['401 / 401','401 / 401','401 / 401'], cls:['ng','ng','ng'] },
