@@ -2,14 +2,15 @@
 
 標準ライブラリだけ (ConfigMap に置いて python:3.13-alpine で動かす)。判定は純関数 decide()。
 資格情報は Secret share-credentials (キー=名前、値=JSON
-{"hash": sha256(パスワード) の hex, "expires_at": epoch 秒|null, "privileged": bool, "created_at": epoch 秒})、
-cookie の署名鍵は Secret share-session-key (キー key)。設計は docs/cluster/share.md。
+{"hash": "pbkdf2_sha256$<反復回数>$<salt の hex>$<鍵の hex>", "expires_at": epoch 秒|null, "privileged": bool,
+"created_at": epoch 秒})、cookie の署名鍵は Secret share-session-key (キー key)。設計は docs/cluster/share.md。
 
 閉じる側に倒す: Secret が無い・K8s API に届かない・JSON が壊れている・名前が無い・期限切れは、すべて 401。
 
 環境変数:
   AUTH_SOURCE      既定は K8s API から Secret を読む。file:<path> なら JSON ファイルを読む (試験用)
   AUTH_CACHE_TTL   Secret を読み直す間隔 (秒、既定 2。0 なら毎回読む)。delete・rotate の反映の遅れの上限
+  AUTH_VERIFY_TTL  Basic の照合に成功した結果を覚える秒数 (既定 30。0 なら毎回 PBKDF2 を計算する)
   AUTH_LISTEN      待ち受け (既定 127.0.0.1:9000)
   AUTH_NAMESPACE   Secret の namespace (既定は ServiceAccount の namespace)
 """
@@ -21,8 +22,10 @@ import os
 import re
 import ssl
 import sys
+import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -31,15 +34,64 @@ CREDENTIALS_SECRET = "share-credentials"
 SESSION_KEY_SECRET = "share-session-key"
 COOKIE = "share_session"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,31}$")
-HASH_RE = re.compile(r"^[0-9a-f]{64}$")
+# pbkdf2_sha256$<反復回数>$<salt (16 byte) の hex>$<鍵 (32 byte) の hex>
+HASH_RE = re.compile(r"pbkdf2_sha256\$([0-9]{1,9})\$([0-9a-f]{32})\$([0-9a-f]{64})")
+# OWASP Password Storage Cheat Sheet の PBKDF2-HMAC-SHA256 の値。反復回数は項目ごとに持つので、将来上げても古い項目は読める
+ITERATIONS = 600_000
+MIN_ITERATIONS = 100_000  # これを下回る項目は、弱く書き換えられたものとして拒否する
 SA_DIR = "/var/run/secrets/kubernetes.io/serviceaccount"
-# 名前が無いときも同じ量の比較をする (名前の有無を応答の時間から探られないように)
-DUMMY_HASH = "0" * 64
+# 名前が無いときも同じ量の計算をする (名前の有無を応答の時間から探られないように)
+DUMMY_HASH = f"pbkdf2_sha256${ITERATIONS}${'0' * 32}${'0' * 64}"
+# 照合に成功した結果を覚える秒数。delete・期限切れ・ローテーションは覚えた結果より先に確かめるので効き続ける
+VERIFY_TTL = 30.0
 
 
-def hash_password(password):
-    # パスワードは openssl rand -hex 16 (128 bit) で推測できないので、遅い KDF は要らない
-    return hashlib.sha256(password.encode()).hexdigest()
+def hash_password(password, iterations=ITERATIONS, salt=None):
+    """PBKDF2-HMAC-SHA256 (ソルト付き)。Secret に置く "pbkdf2_sha256$..." の文字列を返す。"""
+    salt = os.urandom(16) if salt is None else salt
+    key = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, iterations, 32)
+    return f"pbkdf2_sha256${iterations}${salt.hex()}${key.hex()}"
+
+
+def verify_password(password, stored):
+    """stored (hash_password の形) とパスワードが合うか。形が違う・反復回数が少ないなら False。"""
+    match = HASH_RE.fullmatch(stored)
+    if match is None or int(match[1]) < MIN_ITERATIONS:
+        return False
+    salt = bytes.fromhex(match[2])
+    key = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, int(match[1]), 32)
+    return hmac.compare_digest(key.hex(), match[3])
+
+
+class VerifyCache:
+    """Basic の照合に成功した結果を ttl 秒だけ覚え、PBKDF2 (約 70ms) を要求のたびに計算しないようにする。
+
+    名前 -> (hash, パスワード, 覚えた時刻)。成功だけを覚える (失敗は毎回計算する)。覚えるのは名前ごとに 1 つなので、
+    大きさは名前の数で止まる (delete した名前の分は再起動まで残るが、hash が合わないので使われない)。hash が変われば (ローテーション・delete→add) 一致しないので使わない。
+    パスワードはプロセスのメモリに最大 ttl 秒だけ平文で残る (ハッシュ化はしない)。
+    """
+
+    def __init__(self, ttl=VERIFY_TTL, clock=time.monotonic):
+        self.ttl = ttl
+        self.clock = clock
+        self.lock = threading.Lock()
+        self.entries = {}
+
+    def __call__(self, name, password, stored):
+        now = self.clock()
+        with self.lock:
+            hit = self.entries.get(name)
+        if hit is not None and hit[0] == stored and now - hit[2] < self.ttl and hmac.compare_digest(hit[1].encode(), password.encode()):
+            return True
+        ok = verify_password(password, stored)
+        if ok and self.ttl > 0:
+            with self.lock:
+                self.entries[name] = (stored, password, now)
+        return ok
+
+
+def verify_uncached(name, password, stored):
+    return verify_password(password, stored)
 
 
 def parse_entry(raw):
@@ -47,7 +99,8 @@ def parse_entry(raw):
     try:
         entry = json.loads(raw) if isinstance(raw, (str, bytes)) else raw
         expires_at = entry["expires_at"]
-        if not isinstance(entry["hash"], str) or not HASH_RE.fullmatch(entry["hash"]):
+        match = HASH_RE.fullmatch(entry["hash"]) if isinstance(entry["hash"], str) else None
+        if match is None or int(match[1]) < MIN_ITERATIONS:
             return None
         if not isinstance(entry["privileged"], bool) or isinstance(entry["created_at"], bool):
             return None
@@ -74,37 +127,44 @@ def active_entry(credentials, name, now):
 
 
 def sign(session_key, name, entry):
-    # 署名に hash を混ぜる。rotate・delete→add で hash が変わるので、古い cookie も効かなくなる
-    message = f"{name}:{entry['hash']}".encode()
+    # cookie の署名は MAC (HMAC-SHA256) で、パスワードのハッシュ化ではない。パスワードもその派生物も入れない。
+    # 束ねるのは項目の salt (秘密ではない世代の印) だけ。salt は hash_password のたびに変わるので、
+    # rotate・delete→add の後は古い cookie も効かなくなる
+    salt = HASH_RE.fullmatch(entry["hash"])[2]
+    message = f"{name}:{salt}".encode()
     return hmac.new(session_key, message, hashlib.sha256).hexdigest()
 
 
-def decide(credentials, request, now, session_key=b""):
+def decide(credentials, request, now, session_key=b"", verifier=verify_uncached):
     """(status, headers) を返す。I/O はしない。
 
     credentials: 名前 -> 項目 (JSON 文字列か dict)。request: {"authorization": ..., "cookie": ...} (無ければ省く)。
     now: epoch 秒。session_key: cookie の署名鍵 (空なら cookie は受けない)。
+    verifier(名前, パスワード, 保存された hash): パスワードの照合。既定は毎回 PBKDF2 を計算し、サーバーは VerifyCache を渡す。
     Basic が付いていれば Basic だけで決める。それ以外 (Backstage の Bearer など) は cookie で決める。
     200 のときは、Basic で通った場合に限り署名つき cookie の Set-Cookie を返す。
     """
     try:
         authorization = request.get("authorization") or ""
         if authorization[:6].lower() == "basic ":
-            return _basic(credentials, authorization[6:].strip(), now, session_key)
+            return _basic(credentials, authorization[6:].strip(), now, session_key, verifier)
         return _cookie(credentials, request.get("cookie") or "", now, session_key)
     except Exception:  # 何が起きても通さない
         return 401, {}
 
 
-def _basic(credentials, token, now, session_key):
+def _basic(credentials, token, now, session_key, verifier):
     name, _, password = base64.b64decode(token, validate=True).decode().partition(":")
-    entry = active_entry(credentials, name, now)
-    expected = entry["hash"] if entry else DUMMY_HASH
-    if not hmac.compare_digest(hash_password(password), expected) or entry is None:
+    entry = active_entry(credentials, name, now)  # 期限・削除は、覚えた照合結果より先に毎回確かめる
+    if entry is None:
+        verify_password(password, DUMMY_HASH)  # 名前が無くても同じ量の計算をする
+        return 401, {}
+    if not verifier(name, password, entry["hash"]):
         return 401, {}
     headers = {}
     if session_key:
-        value = f"{name}.{sign(session_key, name, entry)}"
+        # name は NAME_RE を通っているので [a-z0-9-] だけ。quote は何も変えないが、ヘッダに改行が入らないことを明示する
+        value = f"{urllib.parse.quote(name, safe='')}.{sign(session_key, name, entry)}"
         headers["Set-Cookie"] = f"{COOKIE}={value}; Path=/; HttpOnly; Secure; SameSite=Lax"
     return 200, headers
 
@@ -206,12 +266,12 @@ class CachedSource:
         return self.value
 
 
-def make_handler(cache):
+def make_handler(cache, verifier=verify_uncached):
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             credentials, session_key = cache.load()
             request = {"authorization": self.headers.get("Authorization"), "cookie": self.headers.get("Cookie")}
-            status, headers = decide(credentials, request, time.time(), session_key)
+            status, headers = decide(credentials, request, time.time(), session_key, verifier)
             self.send_response(status)
             if status == 401:
                 headers = {**headers, "WWW-Authenticate": 'Basic realm="share", charset="UTF-8"'}
@@ -230,8 +290,9 @@ def make_handler(cache):
 
 def serve(env=os.environ):
     cache = CachedSource(source_from_env(env), float(env.get("AUTH_CACHE_TTL", "2")))
+    verifier = VerifyCache(float(env.get("AUTH_VERIFY_TTL", VERIFY_TTL)))
     host, _, port = env.get("AUTH_LISTEN", "127.0.0.1:9000").rpartition(":")
-    ThreadingHTTPServer((host, int(port)), make_handler(cache)).serve_forever()
+    ThreadingHTTPServer((host, int(port)), make_handler(cache, verifier)).serve_forever()
 
 
 if __name__ == "__main__":

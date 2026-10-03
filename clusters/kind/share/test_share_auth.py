@@ -5,12 +5,15 @@
 """
 import base64
 import contextlib
+import functools
+import hashlib
 import io
 import json
 import sys
 import tempfile
 import threading
 import unittest
+import unittest.mock
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -26,8 +29,14 @@ T0 = 1_000_000  # 発行時刻
 NOT_GIVEN = object()
 
 
+@functools.lru_cache(maxsize=None)
+def hashed(password):
+    """試験の速さのため、同じパスワードには同じ hash を返す (PBKDF2 は 1 回約 70ms)。ソルトの試験は hash_password を直接呼ぶ。"""
+    return sa.hash_password(password)
+
+
 def entry(password, expires_at=None, privileged=False):
-    return {"hash": sa.hash_password(password), "expires_at": expires_at, "privileged": privileged, "created_at": T0}
+    return {"hash": hashed(password), "expires_at": expires_at, "privileged": privileged, "created_at": T0}
 
 
 def basic(name, password):
@@ -196,6 +205,10 @@ class Decide(unittest.TestCase):
             "short-hash": json.dumps({**good, "hash": "abc"}),
             "upper-hash": json.dumps({**good, "hash": good["hash"].upper()}),
             "hash-type": json.dumps({**good, "hash": 1}),
+            "legacy-sha256": json.dumps({**good, "hash": hashlib.sha256(b"pw").hexdigest()}),
+            "other-scheme": json.dumps({**good, "hash": good["hash"].replace("pbkdf2_sha256", "pbkdf2_sha1", 1)}),
+            "weak-iterations": json.dumps({**good, "hash": sa.hash_password("pw", iterations=1000)}),
+            "trailing-newline": json.dumps({**good, "hash": good["hash"] + "\n"}),
             "expiry-string": json.dumps({**good, "expires_at": "never"}),
             "expiry-true": json.dumps({**good, "expires_at": True}),
             "privileged-str": json.dumps({**good, "privileged": "yes"}),
@@ -216,6 +229,130 @@ class Decide(unittest.TestCase):
     def test_creds_not_a_mapping_rejected(self):
         for creds in [None, [], "x"]:
             self.assertEqual(self.status(with_basic("alice", "pw-alice"), creds=creds), 401)
+
+
+class Password(unittest.TestCase):
+    def test_format_and_documented_iterations(self):
+        scheme, iterations, salt, key = sa.hash_password("pw").split("$")
+        self.assertEqual((scheme, int(iterations)), ("pbkdf2_sha256", 600_000))  # docs/cluster/share.md §2 の値
+        self.assertEqual((len(salt), len(key)), (32, 64))
+
+    def test_same_password_gets_different_salt(self):
+        self.assertNotEqual(sa.hash_password("pw", iterations=sa.MIN_ITERATIONS), sa.hash_password("pw", iterations=sa.MIN_ITERATIONS))
+
+    def test_verify(self):
+        stored = sa.hash_password("pw", iterations=sa.MIN_ITERATIONS)
+        self.assertTrue(sa.verify_password("pw", stored))
+        self.assertFalse(sa.verify_password("pw2", stored))
+        self.assertFalse(sa.verify_password("", stored))
+
+    def test_old_iteration_count_still_verifies(self):
+        # 反復回数は項目ごとに持つので、将来 ITERATIONS を上げても古い項目は読める
+        self.assertTrue(sa.verify_password("pw", sa.hash_password("pw", iterations=sa.MIN_ITERATIONS + 50_000)))
+
+    def test_malformed_or_weak_stored_value_never_verifies(self):
+        weak = sa.hash_password("pw", iterations=1000)
+        for stored in ["", "x", sa.DUMMY_HASH + "0", hashlib.sha256(b"pw").hexdigest(), weak]:
+            self.assertFalse(sa.verify_password("pw", stored), stored)
+
+    def test_unknown_name_still_computes_pbkdf2(self):
+        # 名前の有無を応答の時間から探られない。ダミーでも、保存された hash と同じ回数の反復をする
+        with unittest.mock.patch.object(hashlib, "pbkdf2_hmac", wraps=hashlib.pbkdf2_hmac) as kdf:
+            self.assertEqual(sa.decide({}, with_basic("nobody", "pw"), T0, KEY)[0], 401)
+        self.assertEqual([c.args[3] for c in kdf.call_args_list], [sa.ITERATIONS])
+
+
+class VerifyCache(unittest.TestCase):
+    """照合結果の覚え。覚えていても、期限・delete・ローテーションは毎回効く。"""
+
+    def setUp(self):
+        self.clock = [0.0]
+        self.kdf = []
+        real = sa.verify_password
+
+        def counting(password, stored):
+            self.kdf.append(1)
+            return real(password, stored)
+
+        patch = unittest.mock.patch.object(sa, "verify_password", counting)
+        patch.start()
+        self.addCleanup(patch.stop)
+        self.verifier = sa.VerifyCache(ttl=30, clock=lambda: self.clock[0])
+        self.creds = {"alice": entry("pw", expires_at=T0 + 3600)}
+
+    def status(self, password="pw", now=T0, creds=None):
+        request = with_basic("alice", password)
+        return sa.decide(self.creds if creds is None else creds, request, now, KEY, self.verifier)[0]
+
+    def test_second_request_skips_pbkdf2(self):
+        self.assertEqual(self.status(), 200)
+        self.assertEqual(self.status(), 200)
+        self.assertEqual(len(self.kdf), 1)
+
+    def test_wrong_password_is_never_remembered(self):
+        self.assertEqual(self.status("bad"), 401)
+        self.assertEqual(self.status("bad"), 401)
+        self.assertEqual(len(self.kdf), 2)
+
+    def test_wrong_password_after_success_still_rejected(self):
+        self.assertEqual(self.status(), 200)
+        self.assertEqual(self.status("bad"), 401)
+
+    def test_remembered_result_expires(self):
+        self.assertEqual(self.status(), 200)
+        self.clock[0] = 29.9
+        self.assertEqual(self.status(), 200)
+        self.assertEqual(len(self.kdf), 1)
+        self.clock[0] = 30.0
+        self.assertEqual(self.status(), 200)
+        self.assertEqual(len(self.kdf), 2)
+
+    def test_ttl_zero_remembers_nothing(self):
+        self.verifier = sa.VerifyCache(ttl=0, clock=lambda: self.clock[0])
+        self.status()
+        self.status()
+        self.assertEqual(len(self.kdf), 2)
+
+    def test_delete_wins_over_remembered_result(self):
+        self.assertEqual(self.status(), 200)
+        self.assertEqual(self.status(creds={}), 401)
+
+    def test_expiry_wins_over_remembered_result(self):
+        self.assertEqual(self.status(), 200)
+        self.assertEqual(self.status(now=T0 + 3600), 401)
+
+    def test_rotate_wins_over_remembered_result(self):
+        self.assertEqual(self.status(), 200)
+        self.creds["alice"] = entry("pw-2", expires_at=T0 + 3600)
+        self.assertEqual(self.status("pw"), 401)
+        self.assertEqual(self.status("pw-2"), 200)
+
+    def test_cookie_binds_salt_not_password_hash(self):
+        # 同じパスワードでも作り直せば salt が変わり、古い cookie は効かない
+        request = {"cookie": cookie_from(sa.decide(self.creds, with_basic("alice", "pw"), T0, KEY, self.verifier)[1])}
+        self.assertEqual(sa.decide(self.creds, request, T0, KEY)[0], 200)
+        self.creds["alice"] = {**self.creds["alice"], "hash": sa.hash_password("pw")}
+        self.assertEqual(sa.decide(self.creds, request, T0, KEY)[0], 401)
+
+    def test_delete_then_add_with_same_password_makes_new_hash(self):
+        # ソルトが違うので hash が変わり、覚えた結果は使われない (cookie の署名も別になる)
+        self.assertEqual(self.status(), 200)
+        self.creds["alice"] = {**self.creds["alice"], "hash": sa.hash_password("pw")}
+        before = len(self.kdf)
+        self.assertEqual(self.status(), 200)
+        self.assertEqual(len(self.kdf), before + 1)
+
+    def test_non_ascii_password_is_remembered_and_checked(self):
+        creds = {"alice": entry("パスワード", expires_at=T0 + 3600)}
+        self.assertEqual(self.status("パスワード", creds=creds), 200)
+        self.assertEqual(self.status("パスワード", creds=creds), 200)
+        self.assertEqual(len(self.kdf), 1)
+        self.assertEqual(self.status("パスワート", creds=creds), 401)
+
+    def test_one_slot_per_name(self):
+        for _ in range(3):
+            self.verifier("alice", "pw", self.creds["alice"]["hash"])
+        self.assertEqual(len(self.verifier.entries), 1)
 
 
 class Sources(unittest.TestCase):
@@ -360,7 +497,8 @@ class Server(unittest.TestCase):
         f.close()
         self.write()
         cache = sa.CachedSource(sa.FileSource(self.path), ttl=0)
-        self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), sa.make_handler(cache))
+        self.verifier = sa.VerifyCache(ttl=30)
+        self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), sa.make_handler(cache, self.verifier))
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
         self.addCleanup(self.httpd.server_close)
         self.addCleanup(self.httpd.shutdown)
@@ -403,6 +541,18 @@ class Server(unittest.TestCase):
         self.state["credentials"] = {}
         self.write()
         self.assertEqual(self.get(request)[0], 401)
+
+    def test_delete_and_rotate_win_over_remembered_result(self):
+        request = {"Authorization": basic("alice", "pw")}
+        self.assertEqual(self.get(request)[0], 200)
+        self.assertEqual(self.get(request)[0], 200)  # 2 回目は覚えた結果
+        self.state["credentials"]["alice"] = entry("pw-2", expires_at=4_000_000_000)
+        self.write()
+        self.assertEqual(self.get(request)[0], 401)
+        self.assertEqual(self.get({"Authorization": basic("alice", "pw-2")})[0], 200)
+        self.state["credentials"] = {}
+        self.write()
+        self.assertEqual(self.get({"Authorization": basic("alice", "pw-2")})[0], 401)
 
     def test_source_unreadable_is_401(self):
         request = {"Authorization": basic("alice", "pw")}
