@@ -9,8 +9,8 @@ Backstage は ArgoCD が GitHub の `main` から同期する ([argocd.md](argoc
 
 ```
 just up
-  ├─ docker build -t home-k8s-backstage:0.2.0 backstage   (repo の backstage/。ホストに node は要らない)
-  ├─ kind load docker-image home-k8s-backstage:0.2.0       (3 つのノードに入れる)
+  ├─ docker build -t home-k8s-backstage:0.3.0 backstage   (repo の backstage/。ホストに node は要らない)
+  ├─ kind load docker-image home-k8s-backstage:0.3.0       (3 つのノードに入れる)
   ├─ Secret observability/grafana-backstage                 (Grafana の閲覧用ユーザー backstage のパスワード)
   └─ Secret backstage/backstage-grafana                     (同じ資格情報を Backstage のプロキシ用に)
 
@@ -110,14 +110,18 @@ viewer と `backstage` は別のユーザーなので、viewer のパスワー�
 - 文書の画面 (TechDocs のタブと `/docs`) は検索欄を出し、検索の API が無いと開けない。そのため検索の
   プラグインも載せている。索引はメモリに持ち、起動後と 10 分ごとに作り直す。TechDocs の索引に
   入るのは、build 済みの文書だけ。起動直後はどの文書も build していないので、TechDocs の索引は次の作り直し
-  (最初に文書を開いてから最大 10 分後) まで無く、それまで検索欄は何も返さない (ログに `Missing index for techdocs`)
+  (最初に文書を開いてから最大 10 分後) まで無い。その間の検索は 0 件を返す (上流の Lunr は索引の無い種類の
+  検索で `Missing index` の 500 を返すので、`backstage/packages/backend/src/searchEngine.ts` で 0 件に変える)
+- 文書の画面は Google Fonts (fonts.googleapis.com) を読まない。mkdocs-material は既定で読むので、
+  `techdocs.generator.mkdocs.disableExternalFonts` で build の前に `theme.font: false` を足す。
+  文字は端末にあるフォント (mkdocs-material のシステムフォントの指定) になる。リポジトリの `mkdocs.yml` が `theme.font` を書けば、そちらが残る
 
 手元で文書の見た目を確かめるなら、リポジトリの直下で `mkdocs serve` (要 `pip install mkdocs-techdocs-core`)。
 
 ## イメージ
 
 レジストリ (GHCR など) には置かず、`just up` が手元で build して `kind load` する。chart の values は
-タグを `0.2.0` に固定し、`pullPolicy: Never` で pull しない。クラスタを作り直しても `just up` が入れ直す。
+タグを `0.3.0` に固定し、`pullPolicy: Never` で pull しない。クラスタを作り直しても `just up` が入れ直す。
 
 - `docker build` は層のキャッシュが効くので、`backstage/` を変えていなければすぐ終わる。初回は 5 分ほど
 - TechDocs の mkdocs は、実行用のイメージに Python の venv (`/opt/venv`) を作って pip で入れる (上流の
