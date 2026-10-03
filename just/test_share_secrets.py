@@ -136,6 +136,15 @@ class EverySecretCreatingScript(FakeEnv):
             for statement in secret_statements:
                 self.assertNotRegex(statement, r"\bapply\b", f"{name}: {statement}")
 
+    def test_scripts_pass_only_non_secret_values_with_from_literal(self):
+        # 静的な見張り: --from-literal は秘密でない値 (ユーザー名・中継の宛先) だけ。秘密は base64 にしても値なので、
+        # --from-file と一時ファイルで渡す (引数に出ると ps に残る。#56)。新しい鍵を足すときは、秘密でないと確かめてここに足す
+        non_secret = {"admin-user", "SHARE_RELAY_ADDR"}
+        for name in SECRET_SCRIPTS:
+            for statement in self.statements((JUST / name).read_text()):
+                for key in re.findall(r"--from-literal=([^=\s]+)=", statement):
+                    self.assertIn(key, non_secret, f"{name}: {statement}")
+
     def test_grafana_secrets_puts_all_four_without_annotation(self):
         files = {n: self.tmp / n for n in ("admin", "viewer", "backstage")}
         for name, path in files.items():
@@ -152,6 +161,10 @@ class EverySecretCreatingScript(FakeEnv):
             if e["manifest"].get("kind") == "Secret":
                 self.assertNotIn("annotations", e["manifest"]["metadata"])
         self.assertEqual([c for c in self.calls() if "PW-secret" in c], [], "パスワードが kubectl の引数に出た")
+        # Backstage の Basic は base64 でも値なので、引数に出ない (#56)
+        basic = base64.b64encode(b"backstage:BACKSTAGEPW-secret").decode()
+        self.assertEqual([c for c in self.calls() if basic in c or "from-literal" in c and "GRAFANA_BASIC_AUTH" in c], [],
+                         "Backstage の Basic が kubectl の引数に出た")
 
     def test_viewer_rotate_puts_the_secret_without_annotation(self):
         admin = self.tmp / "admin"

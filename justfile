@@ -66,10 +66,9 @@ show what="":
     @{{ if what =~ '^(|backstage)$' { 'echo "  URL:      http://localhost:7007"' } else { "" } }}
     @{{ if what =~ '^(|backstage)$' { 'echo "  ログイン: ゲスト"' } else { "" } }}
 
-# grafana は viewer のパスワードを作り直してから、headroom と backstage は使い捨てのパスワードを作って公開する。
-# URL が開けるようになった時点で URL と資格情報を表示する。Ctrl-C で止めれば URL は無効になる。
+# 公開の本体は常駐する share Pod (clusters/kind/share)。人ごとの資格情報を Secret share-credentials に足す・消す・引く (docs/cluster/share.md)。
+# 検査 (名前・--ttl・--permanent の併用) はクラスタに触れる前に just/share.sh が行う。
 
-# localhost のサービスを Cloudflare Quick Tunnel で一時公開する (what: grafana (localhost:3000) | headroom (localhost:8787) | backstage (localhost:7007))
-share what="grafana":
-    {{ if what =~ '^(grafana|headroom|backstage)$' { "" } else { error("usage: just share [grafana|headroom|backstage]") } }}
-    @bash just/observe-share.sh "{{grafana_password_file}}" "{{grafana_viewer_password_file}}" {{observe_ns}} "{{share_log_file}}" "{{share_state_file}}" {{what}}
+# 共有の資格情報を操作する (add <名前> [--ttl 30m|8h] [--permanent] | delete <名前> | list | get <名前> | rotate <名前> | prune)
+share *args:
+    @bash just/share.sh {{kube_context}} {{args}}

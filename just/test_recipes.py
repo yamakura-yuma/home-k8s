@@ -4,6 +4,7 @@
 レシピは実行せず `just --dry-run` / `just --list` の出力だけを見る (クラスタにもコンテナにも触れない)。
 `just` が無い環境では飛ばす。
 """
+import os
 import re
 import shutil
 import subprocess
@@ -84,12 +85,18 @@ class Recipes(unittest.TestCase):
         for action in ["install", "uninstall", "status"]:
             self.assertRegex(just("--dry-run", "orca-exporter", action).stderr, rf"orca-exporter\.sh\" {action}\n")
 
-    def test_share_passes_target(self):
-        for target in ["grafana", "headroom", "backstage"]:
-            self.assertRegex(just("--dry-run", "share", target).stderr, rf"observe-share\.sh\b.* {target}\n")
+    def test_share_passes_its_arguments_to_the_script(self):
+        # 公開レシピは share の 1 本で、サブコマンドの振り分けと検査は just/share.sh (test_share_cli.py)
+        for args in ["add alice", "add alice --ttl 2h", "add boss --permanent", "delete alice", "list", "get alice", "rotate boss", "prune"]:
+            self.assertRegex(just("--dry-run", "share", *args.split()).stderr, rf"bash just/share\.sh kind-study-kind {args}\n")
+
+    def test_share_follows_the_kube_context(self):
+        out = subprocess.run(["just", "--dry-run", "share", "list"], cwd=ROOT, capture_output=True, text=True,
+                             env={**os.environ, "HOME_K8S_KUBE_CONTEXT": "kind-verify"}).stderr
+        self.assertIn("share.sh kind-verify list", out)
 
     def test_bad_arguments_stop_with_usage(self):
-        for args in [("show", "nope"), ("share", "nope"), ("orca-exporter", "nope"), ("orca-exporter",), ("devcontainer", "nope")]:
+        for args in [("show", "nope"), ("orca-exporter", "nope"), ("orca-exporter",), ("devcontainer", "nope")]:
             r = just("--dry-run", *args)
             self.assertNotEqual(r.returncode, 0, args)
             if len(args) > 1:

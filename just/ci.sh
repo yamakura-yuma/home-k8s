@@ -12,7 +12,9 @@
 #   7. unittest        share の認証サービスと、share Pod の Caddyfile の経路・manifest (clusters/kind/share)。caddy と認証サービスを空きポートで起動し、
 #                      偽の upstream に向けて、認証なし・許可リスト外・delete・期限切れ・認証サービスに届かないときの拒否を確かめる。クラスタにもネットワークにも出ない
 #   8. share のホスト側  中継 (just/share-relay.Caddyfile) を caddy で起動して認証なし・許可リスト外の拒否を確かめ、Secret を作るスクリプトと
-#                      URL を引く関数を偽の kubectl で確かめる (注釈に値が残らない作り方、#49)。稼働中のクラスタ・ホストには触れない
+#                      URL を引く関数と CLI (just share add/delete/...、just/share.sh) を偽の kubectl で確かめる (注釈・引数に値が残らない作り方、#49・#56。
+#                      CLI は上限超えの --ttl・不正な名前・2 つ目の特権・期限付きへの rotate の拒否と、作った項目を実物の認証サービスに通す往復)。
+#                      稼働中のクラスタ・ホストには触れない
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -81,5 +83,5 @@ echo "ok (${share_renders[*]##*/})"
 command -v caddy >/dev/null || { echo "caddy が無い (devShells.ci に入っているはず)" >&2; exit 1; }
 echo "== share 認証の単体試験・Caddyfile の経路・manifest (caddy + 認証サービス + 偽の upstream) =="
 python3 -B -m unittest discover -s clusters/kind/share -v
-echo "== share のホスト側 (中継の caddy、Secret を作るスクリプト、URL を引く関数) =="
+echo "== share のホスト側 (中継の caddy、Secret を作るスクリプト、URL を引く関数、CLI) =="
 python3 -B -m unittest discover -s just -p 'test_share_*.py' -v
