@@ -3,8 +3,9 @@
 # headroom は同じポートでプロキシ本体 (/v1/messages など。手元の Anthropic の認証を使って転送する) とダッシュボードを返すので、
 # 8787 を bridge に出すとプロキシ本体まで bridge 上の他のコンテナから使われる。ここでは
 #   1. 共有トークンのヘッダ (X-Share-Relay-Token) が無い・違う要求は、経路に関わらず 401
-#   2. トークンがあっても、ダッシュボードが使う読み取りの GET・HEAD だけを通し、残りは 404
+#   2. トークンがあっても、ダッシュボードが使う読み取りの GET だけを通し、残りは 404
 # にする。設定の変更 (POST /settings、/dashboard/settings) や /stats/reset、/cache/clear も通さない。
+# HEAD は通さない (#48): 実機の headroom は許可リストの経路の HEAD に 404 を返し、Anthropic へ素通しするとみられる。HEAD を使う用途は無い。
 # 環境変数 (just/share-relay.sh が docker run -e で渡す): SHARE_RELAY_BIND (待ち受けるアドレス)、SHARE_RELAY_PORT、
 # SHARE_RELAY_TOKEN (空なら起動しない)、SHARE_RELAY_UPSTREAM (省略時 localhost:8787。試験が偽の upstream に向ける)。
 {
@@ -19,7 +20,7 @@ http://:{$SHARE_RELAY_PORT} {
 		respond 401
 	}
 	@dashboard {
-		method GET HEAD
+		method GET
 		path /dashboard /health /stats /stats-history /stats-lifetime /transformations/feed /favicon.ico
 	}
 	handle @dashboard {

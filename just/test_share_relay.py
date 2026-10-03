@@ -147,14 +147,19 @@ class Relay(unittest.TestCase):
         self.assertEqual(self.upstream.seen, [], "認証なしの要求が upstream に届いた")
 
     def test_token_allows_read_only_dashboard_routes(self):
-        for method in ["GET", "HEAD"]:
-            for path in ALLOWED:
-                self.assertEqual(request(self.port, method, path, self.auth()), 200, (method, path))
-        self.assertEqual(len(self.upstream.seen), 2 * len(ALLOWED))
+        for path in ALLOWED:
+            self.assertEqual(request(self.port, "GET", path, self.auth()), 200, path)
+        self.assertEqual(len(self.upstream.seen), len(ALLOWED))
         for method, path, headers in self.upstream.seen:
             self.assertIn(path, ALLOWED)
             self.assertNotIn("X-Share-Relay-Token", headers, "トークンを upstream に渡した")
             self.assertEqual(headers["Host"], f"127.0.0.1:{self.upstream.server_port}")
+
+    def test_head_is_not_allowed(self):
+        # #48: 実機の headroom は許可リストの経路の HEAD に 404 を返し、Anthropic へ素通しするとみられる。HEAD は中継で止める
+        for path in ALLOWED:
+            self.assertEqual(request(self.port, "HEAD", path, self.auth()), 404, path)
+        self.assertEqual(self.upstream.seen, [], "HEAD が upstream に届いた")
 
     def test_query_string_passes_through_on_allowed_route(self):
         self.assertEqual(request(self.port, "GET", "/stats-history?days=7", self.auth()), 200)

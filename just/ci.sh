@@ -8,7 +8,8 @@
 #   3. kustomize build / 素の manifest  同じ Application の path (dashboards、storage、headlamp/manifests)
 #   4. kubeconform     3 までの出力を、kind の Kubernetes の版のスキーマに照らす
 #   5. kube-linter     3 までの出力 (.kube-linter.yaml)
-#   6. unittest        share の認証サービス (clusters/kind/share)。クラスタにもネットワークにも出ない
+#   6. unittest        share の認証サービスと、share Pod の Caddyfile の経路 (clusters/kind/share)。caddy と認証サービスを空きポートで起動し、
+#                      偽の upstream に向けて、認証なし・許可リスト外・delete・期限切れの拒否を確かめる。クラスタにもネットワークにも出ない
 #   7. share 中継の試験  just/share-relay.Caddyfile を caddy で起動し、認証なし・許可リスト外の拒否を確かめる (稼働中のクラスタ・ホストには触れない)
 set -euo pipefail
 
@@ -64,8 +65,9 @@ kubeconform -strict -summary -ignore-missing-schemas -kubernetes-version "$k8s_v
 echo "== kube-linter =="
 kube-linter lint --config .kube-linter.yaml "$out"
 
-echo "== share 認証の単体試験 (unittest) =="
-python3 -B -m unittest discover -s clusters/kind/share
-echo "== share 中継 (caddy + 偽の upstream、スクリプトの引数) =="
+# caddy の試験は caddy が無いと飛ばされるので、CI では無いことを失敗にする
 command -v caddy >/dev/null || { echo "caddy が無い (devShells.ci に入っているはず)" >&2; exit 1; }
+echo "== share 認証の単体試験と Caddyfile の経路 (caddy + 認証サービス + 偽の upstream) =="
+python3 -B -m unittest discover -s clusters/kind/share -v
+echo "== share 中継 (caddy + 偽の upstream、スクリプトの引数) =="
 python3 -B -m unittest discover -s just -p 'test_share_relay.py' -v

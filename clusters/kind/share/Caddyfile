@@ -1,0 +1,124 @@
+# share Pod の caddy (just share を常駐させる構成、docs/cluster/share.md)。cloudflared の 3 本のトンネルが 3 つのポートに入り、
+# 認証サービス (share_auth.py、127.0.0.1:9000) を通った要求にだけ、対象ごとの許可リストを掛けて upstream に渡す。
+#   :8081 grafana    :8082 headroom (ホストの中継経由)    :8083 backstage
+# 順序は固定: 認証が通らなければ経路を問わず 401 (経路の存在を探らせない)、通ったあとで許可リストの外が 404。
+# 特権 viewer も期限付きも同じ表を通る (見られる範囲に差をつけない)。
+#
+# 環境変数 (Deployment が渡す。#41。{$VAR} で既定の無いものは、空だと起動しない):
+#   SHARE_GRAFANA_BASIC  Grafana に渡す Basic の値 = base64("viewer:<Secret grafana-viewer のパスワード>")。Caddyfile に
+#                        base64 の関数が無いので、起動時に組み立てて渡す。人の資格情報は Grafana に渡さず、これに差し替える
+#   SHARE_RELAY_TOKEN    headroom の中継 (just/share-relay.Caddyfile) の共有トークン (Secret share-host)
+#   SHARE_RELAY_ADDR     中継の <bridge のゲートウェイ>:<ポート> (Secret share-host。例 172.18.0.1:8788)
+#   SHARE_AUTH_ADDR      認証サービス (既定 127.0.0.1:9000)
+#   SHARE_GRAFANA_UPSTREAM / SHARE_BACKSTAGE_UPSTREAM  既定は Service (grafana.observability.svc:80 / backstage.backstage.svc:7007)。試験が偽の upstream に向ける
+#   SHARE_GRAFANA_PORT / SHARE_HEADROOM_PORT / SHARE_BACKSTAGE_PORT  待ち受け (既定 8081 / 8082 / 8083)。待ち受けは 127.0.0.1 だけ (同じ Pod の cloudflared からだけ届く)
+{
+	admin off
+	auto_https off
+}
+
+# 必須の環境変数が空なら、起動しない (空の Basic や空のトークンで、認証が抜けたまま立ち上がらない)。caddy は {$VAR} が空でも
+# 通すが、header の matcher は値が空だと設定の読み込みで落ちるので、それを番人に使う (just/share-relay.Caddyfile も同じ)
+(require_env) {
+	@required_env header X-Share-Required {$SHARE_GRAFANA_BASIC}
+	@required_env2 header X-Share-Required {$SHARE_RELAY_TOKEN}
+	@required_env3 header X-Share-Required {$SHARE_RELAY_ADDR}
+}
+
+# 認証。認証サービスに「同じ要求」(Authorization・Cookie をそのまま) を GET で聞く。2xx 以外 (401) はその応答をそのまま返し、
+# 以降の許可リストにも upstream にも進まない。forward_auth の短縮形は、認証サービスの応答のヘッダを upstream への要求に
+# 写すだけで、クライアントへの応答には載せられない。署名つき cookie の Set-Cookie (Basic で通ったときだけ付く。Backstage の
+# Bearer の API 呼び出しは cookie で通る) を載せるため、forward_auth の中身を書き下し、2xx の分岐で Set-Cookie を応答に載せる
+(share_auth) {
+	reverse_proxy {$SHARE_AUTH_ADDR:127.0.0.1:9000} {
+		method GET
+		rewrite /
+		header_up X-Forwarded-Method {method}
+		header_up X-Forwarded-Uri {uri}
+		@authenticated status 2xx
+		handle_response @authenticated {
+			@cookie expression `{rp.header.Set-Cookie} != ""`
+			header @cookie +Set-Cookie {rp.header.Set-Cookie}
+		}
+	}
+}
+
+# Grafana の root_url は http://localhost:3000/ のままなので、短縮リンク (/goto/<uid>) などは Location: http://localhost:3000/... を
+# 返す。別の PC のブラウザではそれがその PC 自身を指して開けないので、相対パスに書き換える。
+# Host はそのまま渡す (Grafana のログイン時の Origin 確認が Host と比べるため)
+http://:{$SHARE_GRAFANA_PORT:8081} {
+	bind 127.0.0.1
+	import require_env
+	route {
+		import share_auth
+		# viewer のパスワードを人が変えて他の人を締め出せないようにする
+		@password path /profile/password /profile/password/ /api/user/password /api/user/password/
+		respond @password 404
+		reverse_proxy {$SHARE_GRAFANA_UPSTREAM:grafana.observability.svc:80} {
+			# 人の資格情報 (Basic) は渡さず、viewer の鍵に差し替える。share_session の cookie も渡さない
+			header_up Authorization "Basic {$SHARE_GRAFANA_BASIC}"
+			header_up -Cookie
+			header_down Location ^http://localhost:3000/ /
+		}
+	}
+}
+
+# headroom は同じポートでプロキシ本体 (/v1/messages など。手元の Anthropic の認証を使って転送する) とダッシュボードを返すので、
+# ダッシュボードが使う読み取りの GET だけを、ホストの中継 (トークン付き) に渡す。中継も同じ許可リストを掛ける (二重)。
+# HEAD は通さない: 実機の headroom は許可リストの経路の HEAD に 404 を返し、Anthropic へ素通しするとみられる (#48)
+http://:{$SHARE_HEADROOM_PORT:8082} {
+	bind 127.0.0.1
+	route {
+		import share_auth
+		@dashboard {
+			method GET
+			path /dashboard /health /stats /stats-history /stats-lifetime /transformations/feed /favicon.ico
+		}
+		handle @dashboard {
+			reverse_proxy {$SHARE_RELAY_ADDR} {
+				header_up X-Share-Relay-Token {$SHARE_RELAY_TOKEN}
+				# 人の資格情報・cookie は中継にも headroom にも渡さない
+				header_up -Authorization
+				header_up -Cookie
+			}
+		}
+		respond 404
+	}
+}
+
+# Backstage はバックエンドのプロキシ (/api/proxy/grafana/api) で Grafana の API を、Backstage が持つ資格情報で読む。
+# また POST /api/catalog/locations は、外からカタログに任意の URL を読ませる。画面と TechDocs を読むのに要る経路だけを通す。
+#   GET・HEAD: /api/proxy 以外はすべて (画面・カタログ・TechDocs の読み取り)
+#   POST: ゲストのログイン (/api/auth/*) と、カタログのエンティティの一括取得 (/api/catalog/entities/by-refs) だけ
+# 画面の API 呼び出しは Authorization: Bearer (Backstage のトークン) を付けるので、Basic は最初のページの読み込みでしか使えない。
+# Basic で通ると認証サービスの署名つき cookie (share_session) が付き、以後は cookie で通る
+(backstage_cookie) {
+	# TechDocs の文書の CSS や画像は cookie (backstage-auth) で認証する。Backstage はその cookie に backend.baseUrl の
+	# ホスト名 (Domain=localhost) を付けるので、trycloudflare のホストではブラウザが捨てて文書が表示されない。Domain を外す
+	header_down Set-Cookie "; Domain=localhost" ""
+}
+
+http://:{$SHARE_BACKSTAGE_PORT:8083} {
+	bind 127.0.0.1
+	@read {
+		method GET HEAD
+		not path /api/proxy /api/proxy/*
+	}
+	@write {
+		method POST
+		path /api/auth/* /api/catalog/entities/by-refs
+	}
+	@basic header Authorization "Basic *"
+	route {
+		import share_auth
+		# Basic の資格情報は Backstage に渡さない (Backstage は Bearer のトークンだけを見る)
+		request_header @basic -Authorization
+		reverse_proxy @read {$SHARE_BACKSTAGE_UPSTREAM:backstage.backstage.svc:7007} {
+			import backstage_cookie
+		}
+		reverse_proxy @write {$SHARE_BACKSTAGE_UPSTREAM:backstage.backstage.svc:7007} {
+			import backstage_cookie
+		}
+		respond 404
+	}
+}
