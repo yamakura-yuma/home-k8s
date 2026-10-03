@@ -163,8 +163,11 @@ def _basic(credentials, token, now, session_key, verifier):
         return 401, {}
     headers = {}
     if session_key:
-        # name は NAME_RE を通っているので [a-z0-9-] だけ。quote は何も変えないが、ヘッダに改行が入らないことを明示する
-        value = f"{urllib.parse.quote(name, safe='')}.{sign(session_key, name, entry)}"
+        # cookie には、要求の文字列ではなく Secret に保存されている名前を使う (active_entry で一致を確かめ済みなので同じ値)。
+        # Authorization は「名前:パスワード」の 1 つの値なので、要求から取った name を使うと、静的解析 (CodeQL) が
+        # パスワードを署名や Set-Cookie に流していると誤検知する
+        stored_name = next(key for key in credentials if key == name)
+        value = f"{urllib.parse.quote(stored_name, safe='')}.{sign(session_key, stored_name, entry)}"
         headers["Set-Cookie"] = f"{COOKIE}={value}; Path=/; HttpOnly; Secure; SameSite=Lax"
     return 200, headers
 
