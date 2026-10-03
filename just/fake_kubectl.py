@@ -38,7 +38,7 @@ while i < len(argv):
     i += 1
 
 
-def secret_manifest(name):
+def build_manifest(name):
     data = {}
     for arg in args:
         if arg.startswith("--from-literal="):
@@ -58,7 +58,7 @@ dry_run = any(a.startswith("--dry-run") for a in args)
 if args[:2] == ["get", "secret"]:
     sys.exit(0 if args[2] in os.environ.get("FAKE_EXISTING", "").split() else 1)
 elif args[:3] == ["create", "secret", "generic"]:
-    manifest = secret_manifest(args[3])
+    manifest = build_manifest(args[3])
     if dry_run:
         print(json.dumps(manifest))
     else:

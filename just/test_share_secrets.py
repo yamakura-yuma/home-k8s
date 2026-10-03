@@ -19,7 +19,7 @@ sys.dont_write_bytecode = True  # __pycache__ をリポジトリに作らない
 
 JUST = Path(__file__).resolve().parent
 FAKE_KUBECTL = JUST / "fake_kubectl.py"
-VIEWER_PASSWORD = "viewer-pw-0123456789"
+VIEWER_VALUE = "viewer-pw-0123456789"
 FAKE_RANDOM = "ab" * 32  # 偽の openssl rand -hex 32 の出力
 SECRET_SCRIPTS = ["grafana-secrets.sh", "grafana-viewer-rotate.sh", "share-relay.sh", "share-secrets.sh"]
 
@@ -44,7 +44,7 @@ class FakeEnv(unittest.TestCase):
         self.write_stub("curl", "echo 200")
         self.write_stub("openssl", f"echo {FAKE_RANDOM}")
         self.viewer_file = self.tmp / "viewer-password"
-        self.viewer_file.write_text(VIEWER_PASSWORD)
+        self.viewer_file.write_text(VIEWER_VALUE)
 
     def write_stub(self, name, body):
         path = self.bin / name
@@ -81,7 +81,7 @@ class ShareSecrets(FakeEnv):
                    if e["verb"] in ("create", "create-secret", "replace")}
         self.assertEqual(sorted(created), ["share-credentials", "share-grafana", "share-session-key"])
         self.assertEqual(created["share-credentials"].get("data", {}), {}, "資格情報は空で作る (拒否が既定)")
-        self.assertEqual(decode(created["share-grafana"]), {"viewer-password": VIEWER_PASSWORD})
+        self.assertEqual(decode(created["share-grafana"]), {"viewer-password": VIEWER_VALUE})
         self.assertEqual(list(decode(created["share-session-key"])), ["key"])
         self.assertEqual(decode(created["share-session-key"])["key"], FAKE_RANDOM)
         for call in self.calls():
@@ -109,7 +109,7 @@ class ShareSecrets(FakeEnv):
     def test_nothing_secret_reaches_the_command_line(self):
         self.assertEqual(self.run_share_secrets().returncode, 0)
         joined = "\n".join(self.calls())
-        self.assertNotIn(VIEWER_PASSWORD, joined)
+        self.assertNotIn(VIEWER_VALUE, joined)
         self.assertNotIn(FAKE_RANDOM, joined, "署名鍵が kubectl の引数に出た")
 
     def test_refuses_without_the_viewer_password(self):
