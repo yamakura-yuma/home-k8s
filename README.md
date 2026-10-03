@@ -46,7 +46,7 @@ just devcontainer down    # 開発用コンテナを削除
 | `just up` | kind のクラスタを作り、Backstage のイメージを build して kind load し、ArgoCD を入れ、Secret を作り、同期を待つ。打ち直しても同じ状態に戻る |
 | `just down` | kind のクラスタを削除する |
 | `just show [grafana\|grafana-admin\|argocd\|headlamp\|backstage]` | 接続先と資格情報を表示する。省略で全部。`grafana` は localhost:3000 の viewer、`grafana-admin` は自分用 (どちらも他の人には渡さない。渡す資格情報は `just share add`) |
-| `just share add <名前> [--ttl <期間>] [--permanent]`・`delete <名前>`・`list`・`get <名前>`・`rotate <名前>`・`prune` | 他の人に見せる人ごとの資格情報を配る・取り消す。公開の本体 (Cloudflare Quick Tunnel と caddy) はクラスタの `share` Pod で、`just up` と一緒に立つ。1 つの資格情報で Grafana・headroom のダッシュボード・Backstage の 3 つの URL に入れる。期限の既定は 8h・上限 24h、`--permanent` の特権 viewer は全体で 1 つ。`get` はパスワードを出さない。構成は `docs/cluster/share.md` |
+| `just share add <名前> [--ttl <期間>] [--permanent]`・`delete <名前>`・`list`・`get <名前>`・`rotate <名前>`・`prune`・`smoke` | 他の人に見せる人ごとの資格情報を配る・取り消す。公開の本体 (Cloudflare Quick Tunnel と caddy) はクラスタの `share` Pod で、`just up` と一緒に立つ。1 つの資格情報で Grafana・headroom のダッシュボード・Backstage の 3 つの URL に入れる。期限の既定は 8h・上限 24h、`--permanent` の特権 viewer は全体で 1 つ。`get` はパスワードを出さない。`smoke` は稼働中の share Pod に port-forward で当てて認証と失効を確かめる。構成は `docs/cluster/share.md` |
 | `just orca-exporter <install\|uninstall\|status>` | Orca の exporter を systemd のユーザーユニットとして入れる・消す・状態を見る |
 | `just devcontainer <up\|shell\|down>` | 開発用コンテナを起動する・シェルで入る・削除する |
 | `just ci` | PR のゲートと同じ静的チェック (yamllint、`helm template`、kubeconform、kube-linter)。クラスタは触らない。ツールは nix (`devShells.ci`) から入り、開発用コンテナを通さず直に走る。Actions も同じコマンド。設定は `.yamllint.yaml`・`.kube-linter.yaml` |

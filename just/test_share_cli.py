@@ -141,6 +141,7 @@ class RejectedBeforeTouchingTheCluster(CliCase):
         self.assert_rejected("delete")
         self.assert_rejected("list", "extra")
         self.assert_rejected("prune", "extra")
+        self.assert_rejected("smoke", "extra")
         self.assertIn("usage: just share", self.run_cli("nope").stderr)
 
 

@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>#43 just share smoke (変更前→変更後)</title>
+<style>
+  :root { --bg:#0f1419; --panel:#171e26; --line:#2c3846; --text:#e6edf3; --dim:#8b98a5; --add:#3fb950; --del:#f85149; --acc:#58a6ff; --warn:#d29922; }
+  @media (prefers-color-scheme: light) { :root { --bg:#f6f8fa; --panel:#ffffff; --line:#d0d7de; --text:#1f2328; --dim:#59636e; --add:#1a7f37; --del:#cf222e; --acc:#0969da; --warn:#9a6700; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.65 system-ui,"Hiragino Sans","Noto Sans JP",sans-serif; }
+  main { max-width:1040px; margin:0 auto; padding:24px 18px 64px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  h2 { font-size:17px; margin:34px 0 10px; border-left:4px solid var(--acc); padding-left:10px; }
+  p.lead { color:var(--dim); margin:0 0 18px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--dim); font-weight:600; }
+  .del { color:var(--del); } .add { color:var(--add); }
+  code, pre { font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace; font-size:13px; }
+  pre { margin:0; padding:10px 12px; background:var(--bg); border:1px solid var(--line); border-radius:8px; overflow:auto; }
+  .ctrl { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 10px; }
+  button { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 14px; font:inherit; cursor:pointer; }
+  button.on { border-color:var(--acc); color:var(--acc); }
+  button:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
+  svg { width:100%; height:auto; display:block; font-family:system-ui,"Noto Sans JP",sans-serif; }
+  svg text { fill:var(--text); font-size:13px; } svg .dim { fill:var(--dim); font-size:11.5px; }
+  .box { fill:var(--panel); stroke:var(--line); stroke-width:1.4; transition:stroke .3s, stroke-width .3s; }
+  .box.lit { stroke:var(--acc); stroke-width:2.6; }
+  .box.bad { stroke:var(--del); stroke-width:2.6; }
+  .box.off { opacity:.35; }
+  .arrow { stroke:var(--dim); stroke-width:1.6; fill:none; opacity:.25; transition:opacity .3s, stroke .3s; }
+  .arrow.lit { opacity:1; stroke:var(--acc); stroke-dasharray:6 5; animation:flow .8s linear infinite; }
+  .arrow.bad { opacity:1; stroke:var(--del); stroke-dasharray:6 5; animation:flow .8s linear infinite; }
+  @keyframes flow { to { stroke-dashoffset:-22; } }
+  .code { font-weight:700; font-size:14px; } .code.ok { fill:var(--add); } .code.ng { fill:var(--del); } .code.nf { fill:var(--warn); }
+  .caption { min-height:3.4em; margin:10px 0 0; }
+  .caption b { color:var(--acc); }
+  @media (prefers-reduced-motion: reduce) { .arrow.lit, .arrow.bad { animation:none; } }
+</style>
+</head>
+<body>
+<main>
+<h1>#43 <code>just share smoke</code></h1>
+<p class="lead">変更前 → 変更後。稼働中の share Pod を確かめる入口を <code>just share</code> に 1 つ足す。CI には入れない (<code>Closes #43</code>)。</p>
+
+<h2>1. 何が変わるか</h2>
+<div class="panel">
+<table>
+<tr><th>項目</th><th>変更前</th><th>変更後</th></tr>
+<tr><td><code>just share</code> のサブコマンド</td><td>add・delete・list・get・rotate・prune</td><td class="add">+ <code>smoke</code></td></tr>
+<tr><td>稼働中の share Pod の確認</td><td class="del">手で curl (docs に「#43 で決める」)</td><td class="add"><code>just share smoke</code>。期待と違えば終了コード 1</td></tr>
+<tr><td>当て先</td><td>-</td><td><code>kubectl port-forward</code> で caddy の 8081〜8083 に直に。トンネルは使わない</td></tr>
+<tr><td>資格情報</td><td>-</td><td><code>smoke-&lt;乱数&gt;</code> を期限 10 秒で Secret に直接書き、終われば (落ちても) 消す</td></tr>
+<tr><td><code>just ci</code></td><td colspan="2">変えない (クラスタ・headroom・Grafana・Backstage が要るので CI の runner では走らない。理由を docs に書いた)</td></tr>
+<tr><td>docs</td><td class="del">「稼働中は未確認」</td><td class="add">study-kind で確かめた項目と、作り直さずに入れる手順 (<code>_share-relay-up</code>・<code>_share-secrets</code>)</td></tr>
+</table>
+</div>
+
+<h2>2. smoke の流れ (アニメーション)</h2>
+<div class="panel">
+<div class="ctrl">
+  <button id="play" class="on" aria-pressed="true">自動で進める</button>
+  <button id="prev">← 前</button>
+  <button id="next">次 →</button>
+  <span id="stepno" class="dim"></span>
+</div>
+<svg viewBox="0 0 960 330" role="img" aria-label="smoke の段ごとの経路と応答">
+  <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+  <rect id="b-cli" class="box" x="20" y="130" width="150" height="60" rx="8"/><text x="38" y="156">just share smoke</text><text class="dim" x="38" y="176">ホスト (curl)</text>
+  <rect id="b-pf" class="box" x="220" y="130" width="140" height="60" rx="8"/><text x="236" y="156">port-forward</text><text class="dim" x="236" y="176">:8081 :8082 :8083</text>
+  <rect id="b-caddy" class="box" x="410" y="130" width="130" height="60" rx="8"/><text x="428" y="156">caddy</text><text class="dim" x="428" y="176">share Pod</text>
+  <rect id="b-auth" class="box" x="410" y="235" width="130" height="60" rx="8"/><text x="428" y="261">auth</text><text class="dim" x="428" y="281">要求ごとに判定</text>
+  <rect id="b-secret" class="box" x="220" y="235" width="140" height="60" rx="8"/><text x="236" y="261">Secret</text><text class="dim" x="236" y="281">share-credentials</text>
+  <rect id="b-g" class="box" x="610" y="30" width="170" height="50" rx="8"/><text x="626" y="60">grafana</text>
+  <rect id="b-h" class="box" x="610" y="135" width="170" height="50" rx="8"/><text x="626" y="158">headroom</text><text class="dim" x="626" y="175">中継 8788 経由</text>
+  <rect id="b-b" class="box" x="610" y="240" width="170" height="50" rx="8"/><text x="626" y="270">backstage</text>
+  <path id="a-cli" class="arrow" d="M170,160 L218,160" marker-end="url(#ah)"/>
+  <path id="a-pf" class="arrow" d="M360,160 L408,160" marker-end="url(#ah)"/>
+  <path id="a-auth" class="arrow" d="M475,190 L475,233" marker-end="url(#ah)"/>
+  <path id="a-sec" class="arrow" d="M290,190 L290,233" marker-end="url(#ah)"/>
+  <path id="a-sread" class="arrow" d="M408,265 L362,265" marker-end="url(#ah)"/>
+  <path id="a-g" class="arrow" d="M540,150 L608,58" marker-end="url(#ah)"/>
+  <path id="a-h" class="arrow" d="M540,160 L608,160" marker-end="url(#ah)"/>
+  <path id="a-b" class="arrow" d="M540,170 L608,262" marker-end="url(#ah)"/>
+  <text x="800" y="50" class="dim">内 / 外</text>
+  <text id="c-g" class="code" x="800" y="66"></text>
+  <text id="c-h" class="code" x="800" y="166"></text>
+  <text id="c-b" class="code" x="800" y="271"></text>
+</svg>
+<p id="cap" class="caption" aria-live="polite"></p>
+</div>
+
+<h2>3. 当てる経路</h2>
+<div class="panel">
+<table>
+<tr><th>対象 (caddy のポート)</th><th>許可リストの内</th><th>許可リストの外</th></tr>
+<tr><td>grafana (8081)</td><td><code>GET /api/search</code></td><td><code>/profile/password</code></td></tr>
+<tr><td>headroom (8082)</td><td><code>GET /health</code> (Pod → 中継 → headroom まで届いたことも示す)</td><td><code>/v1/messages</code></td></tr>
+<tr><td>backstage (8083)</td><td><code>GET /</code></td><td><code>/api/proxy/grafana/api/health</code></td></tr>
+</table>
+<p class="dim">認証サービスは Secret を最大 2 秒覚えるので、項目を書いた・消した直後は 5 秒まで当て直す。</p>
+</div>
+
+<h2>4. 変わるファイル</h2>
+<div class="panel">
+<table>
+<tr><th>ファイル</th><th>変更</th></tr>
+<tr><td><code>just/share.sh</code></td><td class="add">+ <code>smoke</code> (port-forward・期限 10 秒の項目・4 段の確認・EXIT で項目と port-forward を片付ける)</td></tr>
+<tr><td><code>justfile</code>・<code>README.md</code></td><td class="add">サブコマンドの一覧に <code>smoke</code></td></tr>
+<tr><td><code>just/test_share_cli.py</code></td><td class="add"><code>smoke extra</code> はクラスタに触れずに断る</td></tr>
+<tr><td><code>docs/cluster/share.md</code></td><td>試験の節に smoke と CI に入れない理由、作り直さずに入れる手順、稼働中で確かめたこと</td></tr>
+</table>
+</div>
+</main>
+<script>
+const steps = [
+  { cap:'<b>0. port-forward</b>: kubectl が空いているローカルのポートを選び、caddy の 8081〜8083 につなぐ。トンネル (外への公開) は通らない。',
+    lit:['b-cli','b-pf','b-caddy','a-cli','a-pf'], codes:['','',''] },
+  { cap:'<b>1. 認証なし</b>: caddy が auth に聞き、資格情報が無いので 3 対象とも内も外も 401。upstream には進まない。',
+    lit:['b-cli','b-pf','b-caddy','b-auth','a-cli','a-pf','a-auth','b-secret','a-sread'], bad:['a-g','a-h','a-b'], codes:['401 / 401','401 / 401','401 / 401'], cls:['ng','ng','ng'] },
+  { cap:'<b>2. 期限 10 秒の資格情報</b>: <code>smoke-&lt;乱数&gt;</code> を Secret に直接書く (ハッシュは Pod の認証サービスで作る)。内は 200、外は 404。',
+    lit:['b-cli','b-pf','b-caddy','b-auth','b-secret','a-cli','a-pf','a-auth','a-sec','a-sread','a-g','a-h','a-b','b-g','b-h','b-b'], codes:['200 / 404','200 / 404','200 / 404'], cls:['ok','ok','ok'] },
+  { cap:'<b>3. 期限後</b>: 同じ資格情報で全部 401。auth は要求ごとに期限を見る。',
+    lit:['b-cli','b-pf','b-caddy','b-auth','a-cli','a-pf','a-auth','b-secret','a-sread'], bad:['a-g','a-h','a-b'], codes:['401 / 401','401 / 401','401 / 401'], cls:['ng','ng','ng'] },
+  { cap:'<b>4. delete 後</b>: 期限を延ばして 200 に戻してから項目を消す。約 2 秒で全部 401 (study-kind で測った値)。',
+    lit:['b-cli','b-pf','b-caddy','b-auth','b-secret','a-cli','a-pf','a-auth','a-sec','a-sread'], bad:['a-g','a-h','a-b'], codes:['401 / 401','401 / 401','401 / 401'], cls:['ng','ng','ng'] },
+  { cap:'<b>5. 片付け</b>: EXIT の trap で項目と port-forward を消す。期待と違う応答が 1 つでもあれば終了コード 1。',
+    lit:['b-cli','b-secret','a-sec'], codes:['','',''] },
+];
+const all = [...document.querySelectorAll('.box,.arrow')];
+let i = 0, timer = null;
+function show(n) {
+  i = (n + steps.length) % steps.length;
+  const s = steps[i];
+  all.forEach(e => { e.classList.remove('lit','bad'); });
+  (s.lit||[]).forEach(id => document.getElementById(id).classList.add('lit'));
+  (s.bad||[]).forEach(id => document.getElementById(id).classList.add('bad'));
+  ['c-g','c-h','c-b'].forEach((id,k) => { const t = document.getElementById(id); t.textContent = s.codes[k]; t.setAttribute('class','code ' + ((s.cls||[])[k]||'')); });
+  document.getElementById('cap').innerHTML = s.cap;
+  document.getElementById('stepno').textContent = (i+1) + ' / ' + steps.length;
+}
+function play(on) {
+  const b = document.getElementById('play');
+  b.classList.toggle('on', on); b.setAttribute('aria-pressed', on);
+  clearInterval(timer); timer = on ? setInterval(() => show(i+1), 3200) : null;
+}
+document.getElementById('play').onclick = () => play(!timer);
+document.getElementById('prev').onclick = () => { play(false); show(i-1); };
+document.getElementById('next').onclick = () => { play(false); show(i+1); };
+show(0);
+play(!matchMedia('(prefers-reduced-motion: reduce)').matches);
+</script>
+</body>
+</html>

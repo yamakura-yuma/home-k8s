@@ -23,6 +23,7 @@ usage: just share add <名前> [--ttl <30m|8h>] [--permanent]   資格情報を�
        just share get <名前>                                  その人の情報と URL (パスワードは出ない)
        just share rotate <名前>                               特権 viewer のパスワードを作り直す
        just share prune                                       期限切れの項目を消す
+       just share smoke                                       稼働中の share Pod の caddy に port-forward で当てて確かめる
 EOF
     exit 2
 }
@@ -178,6 +179,104 @@ print_urls() {
     share_urls "$ctx" | sed 's/^/  /' || true
 }
 
+# smoke の対象ごとの経路。OK は許可リストの内 (認証が通れば 200)、DENY は外 (認証が通っても 404)。PORT は caddy の待ち受け
+declare -A SMOKE_OK=([grafana]=/api/search [headroom]=/health [backstage]=/)
+declare -A SMOKE_DENY=([grafana]=/profile/password [headroom]=/v1/messages [backstage]=/api/proxy/grafana/api/health)
+declare -A SMOKE_PORT=([grafana]=8081 [headroom]=8082 [backstage]=8083)
+declare -A SMOKE_LOCAL=()
+SMOKE_TTL_SECONDS=10
+# 認証サービスは Secret を最大 2 秒 (AUTH_CACHE_TTL) 覚えるので、項目を書いた・消した直後の確認はこの秒数まで当て直す
+SMOKE_SETTLE_SECONDS=5
+SMOKE_CRED=""
+SMOKE_FAILED=0
+
+# smoke_check <期待するコード> <対象> <経路> [当て直す秒数]: 資格情報は $SMOKE_CRED (curl の設定ファイル。空なら認証なし)
+smoke_check() {
+    local want="$1" target="$2" path="$3" deadline=$((SECONDS + ${4:-0})) code auth=()
+    [ -z "$SMOKE_CRED" ] || auth=(-K "$SMOKE_CRED")
+    while :; do
+        code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "${auth[@]}" \
+            "http://127.0.0.1:${SMOKE_LOCAL[$target]}$path" || true)"
+        if [ "$code" = "$want" ] || [ "$SECONDS" -ge "$deadline" ]; then
+            break
+        fi
+        sleep 0.5
+    done
+    if [ "$code" = "$want" ]; then
+        printf '  ok  %-9s %-32s %s\n' "$target" "$path" "$code"
+    else
+        printf '  NG  %-9s %-32s %s (期待は %s)\n' "$target" "$path" "$code" "$want"
+        SMOKE_FAILED=$((SMOKE_FAILED + 1))
+    fi
+}
+
+# smoke_all <許可リストの内のコード> <外のコード> [当て直す秒数]: 3 つの対象の内と外に当てる
+smoke_all() {
+    local target
+    for target in "${TARGETS[@]}"; do
+        smoke_check "$1" "$target" "${SMOKE_OK[$target]}" "${3:-0}"
+        smoke_check "$2" "$target" "${SMOKE_DENY[$target]}" "${3:-0}"
+    done
+}
+
+# smoke: 稼働中の share Pod の caddy に port-forward で直に当て、認証と許可リストを確かめる。トンネル (外への公開) は使わない。
+# 名前 smoke-<乱数> の資格情報を Secret に直接書き (期限は数秒)、終わったら (途中で落ちても) 消す。CI には入れない (docs/cluster/share.md)
+smoke() {
+    # dir・pf_pid・name は EXIT の trap が使うので local にしない (trap は関数を抜けたあとに走る)
+    local password hash expires target port deadline t0
+    dir="$(umask 077; mktemp -d)"
+    name="smoke-$(openssl rand -hex 4)"
+    # 項目を消すのは失敗しても止めない (Secret が読めないなら、そもそも書けていない)
+    trap '[ -z "${pf_pid:-}" ] || kill "$pf_pid" 2>/dev/null; (drop_entries "$name") >/dev/null 2>&1 || true; rm -rf "$dir"' EXIT
+
+    # ローカルのポートは kubectl に選ばせる (手元で 8081 などが使われていてもぶつからない)
+    # kc (関数) を & にするとサブシェルの pid になり、kill しても kubectl が残るので、kubectl を直に起動する
+    kubectl --context "$ctx" -n share port-forward deploy/share \
+        ":${SMOKE_PORT[grafana]}" ":${SMOKE_PORT[headroom]}" ":${SMOKE_PORT[backstage]}" >"$dir/pf" 2>&1 &
+    pf_pid=$!
+    deadline=$((SECONDS + 15))
+    while [ "$(grep -c '^Forwarding from 127\.0\.0\.1:' "$dir/pf")" -lt 3 ]; do
+        kill -0 "$pf_pid" 2>/dev/null && [ "$SECONDS" -lt "$deadline" ] \
+            || die "share Pod に port-forward できなかった: $(cat "$dir/pf")"
+        sleep 0.5
+    done
+    for target in "${TARGETS[@]}"; do
+        port="$(sed -n "s/^Forwarding from 127\.0\.0\.1:\([0-9]*\) -> ${SMOKE_PORT[$target]}\$/\1/p" "$dir/pf")"
+        SMOKE_LOCAL[$target]="$port"
+    done
+
+    echo "== 認証なし: 許可リストの内も外も 401"
+    smoke_all 401 401
+
+    password="$(new_password)"
+    hash="$(hash_password "$password")"
+    printf 'user = "%s:%s"\n' "$name" "$password" >"$dir/cred"
+    SMOKE_CRED="$dir/cred"
+    expires=$(($(date +%s) + SMOKE_TTL_SECONDS))
+    put_entry "$name" "$hash" "$expires" false
+    echo "== 期限 ${SMOKE_TTL_SECONDS} 秒の資格情報 $name: 内は 200、外は 404"
+    smoke_all 200 404 "$SMOKE_SETTLE_SECONDS"
+
+    while [ "$(date +%s)" -le "$expires" ]; do sleep 0.5; done
+    echo "== 期限後: 401"
+    smoke_all 401 401
+
+    put_entry "$name" "$hash" $(($(date +%s) + 60)) false
+    echo "== 期限を 60 秒に延ばして 200 に戻してから delete"
+    smoke_check 200 grafana "${SMOKE_OK[grafana]}" "$SMOKE_SETTLE_SECONDS"
+    drop_entries "$name"
+    t0=$SECONDS
+    echo "== delete 後: 401"
+    smoke_check 401 grafana "${SMOKE_OK[grafana]}" "$SMOKE_SETTLE_SECONDS"
+    echo "  (delete から 401 になるまで約 $((SECONDS - t0)) 秒)"
+    smoke_all 401 401
+
+    if [ "$SMOKE_FAILED" -gt 0 ]; then
+        die "smoke: $SMOKE_FAILED 件が期待と違う"
+    fi
+    echo "smoke: すべて期待どおり"
+}
+
 now="$(date +%s)"
 
 case "$cmd" in
@@ -330,6 +429,10 @@ prune)
         drop_entries "${expired[@]}"
         echo "期限切れの項目を消した: ${expired[*]}"
     fi
+    ;;
+smoke)
+    [ $# -eq 0 ] || usage
+    smoke
     ;;
 *) usage ;;
 esac
