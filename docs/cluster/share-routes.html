@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>share の Caddyfile の経路 (#40・#48・#51・#53) — diff の図</title>
+<style>
+:root { --bg:#0f1419; --panel:#171e26; --line:#2c3846; --text:#e6edf3; --dim:#8b98a5; --add:#3fb950; --del:#f85149; --acc:#58a6ff; --warn:#d29922; }
+@media (prefers-color-scheme: light) { :root { --bg:#f6f8fa; --panel:#ffffff; --line:#d0d7de; --text:#1f2328; --dim:#59636e; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font:15px/1.65 system-ui,"Hiragino Sans","Noto Sans JP",sans-serif; }
+main { max-width:1040px; margin:0 auto; padding:24px 16px 64px; }
+h1 { font-size:22px; margin:0 0 4px; }
+h2 { font-size:17px; margin:32px 0 8px; border-left:4px solid var(--acc); padding-left:10px; }
+p.lead { color:var(--dim); margin:0 0 16px; }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; }
+.tabs { display:flex; gap:8px; flex-wrap:wrap; margin:12px 0; }
+button, select { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 12px; font:inherit; cursor:pointer; }
+button.on { border-color:var(--acc); color:var(--acc); }
+.view { display:none; } .view.on { display:block; }
+svg { width:100%; height:auto; display:block; }
+svg text { font:13px system-ui,"Noto Sans JP",sans-serif; fill:var(--text); }
+svg .dim { fill:var(--dim); font-size:12px; }
+.node rect { fill:var(--panel); stroke:var(--line); stroke-width:1.6; transition:stroke .25s, fill .25s; }
+.node.hit rect { stroke:var(--acc); stroke-width:2.4; }
+.node.ok rect { stroke:var(--add); stroke-width:2.4; }
+.node.ng rect { stroke:var(--del); stroke-width:2.4; fill:color-mix(in srgb, var(--del) 14%, var(--panel)); }
+.pipe { stroke:var(--line); stroke-width:2; }
+#dot { fill:var(--acc); }
+.ctrl { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:8px 0 12px; }
+.ctrl label { color:var(--dim); font-size:13px; }
+.result { font-size:14px; min-height:54px; margin-top:6px; }
+.badge { display:inline-block; border-radius:5px; padding:0 8px; font-weight:700; font-variant-numeric:tabular-nums; }
+.b200 { background:color-mix(in srgb, var(--add) 25%, transparent); color:var(--add); }
+.b401, .b404 { background:color-mix(in srgb, var(--del) 22%, transparent); color:var(--del); }
+code { background:var(--bg); border:1px solid var(--line); border-radius:4px; padding:0 5px; font-size:13px; }
+table { border-collapse:collapse; width:100%; font-size:14px; }
+th, td { border:1px solid var(--line); padding:6px 9px; text-align:left; vertical-align:top; }
+th { background:var(--panel); }
+.diff { font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace; white-space:pre-wrap; margin:0; }
+.diff .a { background:color-mix(in srgb, var(--add) 18%, transparent); display:block; }
+.diff .d { background:color-mix(in srgb, var(--del) 18%, transparent); display:block; }
+.diff .c { color:var(--dim); display:block; }
+.log { max-height:260px; overflow:auto; }
+.log tr { animation:fade .5s ease; }
+@keyframes fade { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
+@media (prefers-reduced-motion: reduce) { .log tr { animation:none; } .node rect { transition:none; } }
+.legend { color:var(--dim); font-size:13px; margin-top:8px; }
+</style>
+</head>
+<body>
+<main>
+<h1>share の Caddyfile の経路 (#40)・headroom の中継 (#48・#53)・Grafana のプロフィール書き込み (#51)</h1>
+<p class="lead">認証サービス (#39) を前段にした 1 つの Caddyfile に、3 つの旧 Caddyfile の経路を移した diff。ここでは「要求がどこで止まるか」を流して見る。</p>
+
+<div class="tabs">
+  <button data-v="before" class="on">変更前→後</button>
+  <button data-v="flow">要求を流す</button>
+  <button data-v="tests">試験の表</button>
+  <button data-v="relay">headroom 中継 (main→今)</button>
+</div>
+
+<section class="view on" id="before">
+  <h2>門の置き場所が変わる</h2>
+  <div class="panel">
+  <svg viewBox="0 0 960 330" role="img" aria-label="変更前は対象ごとの Caddyfile が各自の basic_auth を持ち、変更後は 1 つの Caddyfile が共通の認証サービスを最初に通す">
+    <text x="10" y="20" style="font-weight:700">変更前 (just/*.Caddyfile ×3、旧 just share)</text>
+    <g class="node"><rect x="10" y="34" width="150" height="40" rx="8"/><text x="24" y="59">grafana 用 (門は Grafana)</text></g>
+    <g class="node"><rect x="10" y="84" width="150" height="40" rx="8"/><text x="24" y="109">headroom 用 basic_auth</text></g>
+    <g class="node"><rect x="10" y="134" width="150" height="40" rx="8"/><text x="24" y="159">backstage 用 basic_auth</text></g>
+    <text x="180" y="108" class="dim">共有のたびの使い捨てパスワード・3 ファイル・各自が許可リストを持つ</text>
+    <line x1="10" y1="190" x2="950" y2="190" stroke="var(--line)" stroke-dasharray="4 5"/>
+    <text x="10" y="214" style="font-weight:700">変更後 (clusters/kind/share/Caddyfile ×1、3 ポート)</text>
+    <g class="node ok"><rect x="10" y="228" width="170" height="44" rx="8"/><text x="24" y="255">forward_auth (共通)</text></g>
+    <line class="pipe" x1="180" y1="250" x2="260" y2="250"/>
+    <g class="node"><rect x="260" y="228" width="170" height="44" rx="8"/><text x="274" y="255">許可リスト (対象ごと)</text></g>
+    <line class="pipe" x1="430" y1="250" x2="510" y2="250"/>
+    <g class="node"><rect x="510" y="228" width="200" height="44" rx="8"/><text x="524" y="255">upstream に渡す前の書き換え</text></g>
+    <text x="10" y="302" class="dim">401: 経路を問わず / 404: 認証のあとで許可リストの外 / grafana は viewer の鍵に差し替え / headroom は中継のトークン / backstage は Basic を落とし Domain を外す</text>
+  </svg>
+  </div>
+  <h2>diff の要点</h2>
+  <div class="panel"><pre class="diff"><span class="c">clusters/kind/share/Caddyfile (新規)</span><span class="a">+ (share_auth)  reverse_proxy 認証サービス { handle_response @authenticated { header +Set-Cookie … } }</span><span class="a">+ :8081 grafana    route { share_auth; 404 /profile/password /api/user/password・/api/user /apis/preferences.grafana.app 以下の GET・HEAD 以外 (#51); Authorization を viewer に差し替え; Location 書き換え }</span><span class="a">+ :8082 headroom   route { share_auth; GET の許可リスト → 中継 (X-Share-Relay-Token) }</span><span class="a">+ :8083 backstage  route { share_auth; GET HEAD (/api/proxy 以外) / POST は /api/auth/* と by-refs だけ (大文字小文字を区別する完全一致、#53); Basic を落とす; Domain=localhost を外す }</span><span class="c">clusters/kind/share/test_share_caddy.py (新規)  caddy + 認証サービス + 偽の upstream の統合試験 17 本</span><span class="c">just/share-relay.Caddyfile・test_share_relay.py (headroom)</span><span class="d">- method GET HEAD</span><span class="a">+ method GET            (#48)</span><span class="c">just/share-relay.sh・share.just   説明・出力の文言を GET だけに (#48)</span><span class="c">just/ci.sh   caddy の有無の確認を、新しい試験の前に移す</span><span class="c">docs/cluster/share.md   #40・#48・#51・#53 の実装に合わせて書き換え</span></pre></div>
+</section>
+
+<section class="view" id="flow">
+  <h2>1 つの要求を流す</h2>
+  <p class="lead">資格情報・対象・要求を選んで「流す」。止まった場所と応答がわかる。「全部流す」で表の全行を順に流す。</p>
+  <div class="panel">
+    <div class="ctrl">
+      <label>資格情報 <select id="cred"></select></label>
+      <label>要求 <select id="req"></select></label>
+      <button id="run">流す</button>
+      <button id="all">全部流す</button>
+    </div>
+    <svg viewBox="0 0 960 150" role="img" aria-label="ブラウザから認証、許可リスト、upstream へ要求が進む様子">
+      <line class="pipe" x1="150" y1="75" x2="260" y2="75"/><line class="pipe" x1="420" y1="75" x2="530" y2="75"/><line class="pipe" x1="690" y1="75" x2="800" y2="75"/>
+      <g class="node" id="n0"><rect x="20" y="40" width="130" height="70" rx="10"/><text x="52" y="80">ブラウザ</text></g>
+      <g class="node" id="n1"><rect x="260" y="40" width="160" height="70" rx="10"/><text x="290" y="68">① 認証</text><text x="290" y="90" class="dim">forward_auth</text></g>
+      <g class="node" id="n2"><rect x="530" y="40" width="160" height="70" rx="10"/><text x="560" y="68">② 許可リスト</text><text x="560" y="90" class="dim">外れは 404</text></g>
+      <g class="node" id="n3"><rect x="800" y="40" width="140" height="70" rx="10"/><text x="820" y="68">upstream</text><text x="820" y="90" class="dim" id="upname">grafana</text></g>
+      <circle id="dot" cx="85" cy="75" r="9" opacity="0"/>
+    </svg>
+    <div class="result" id="result"></div>
+    <div class="legend">認証と許可リストの規則は clusters/kind/share/Caddyfile と同じ (試験の表と同じ入力)。この図は規則の写しで、caddy を動かしているわけではない。実際の挙動は test_share_caddy.py が caddy で確かめる。</div>
+  </div>
+  <h2>流した記録</h2>
+  <div class="panel log"><table><thead><tr><th>資格情報</th><th>要求</th><th>止まった所</th><th>応答</th></tr></thead><tbody id="log"></tbody></table></div>
+</section>
+
+<section class="view" id="tests">
+  <h2>試験の表 (拒否を確かめる)</h2>
+  <div class="panel"><table>
+    <tr><th>確かめること</th><th>入力</th><th>期待</th></tr>
+    <tr><td>認証なしは全経路 401</td><td>資格情報なし・誤り・Bearer だけ・改ざんした cookie を、3 対象の許可内外すべての経路に</td><td>401 + <code>WWW-Authenticate: Basic</code>。upstream に何も届かない</td></tr>
+    <tr><td>許可リストの外は 404</td><td>認証あり + headroom <code>POST /v1/messages</code>・<code>/stats/reset</code>・HEAD、backstage <code>/api/proxy*</code>・<code>POST /api/catalog/locations</code>、grafana <code>/profile/password</code> ほか</td><td>404。upstream に届かない。cookie で通っても同じ</td></tr>
+    <tr><td>delete・期限切れは次の要求から 401</td><td>通っていた項目を消す・期限を過去にする (キャッシュ TTL 0)</td><td>3 対象とも 401。Backstage の cookie 経路でも 401。同じ名前の作り直しでも古い cookie は 401</td></tr>
+    <tr><td>特権に追加の経路が無い</td><td>期限付き (alice) と特権 (root) に同じ全経路を当て、結果を比べる</td><td>2 つの結果が完全に一致</td></tr>
+    <tr><td>書き換え</td><td>grafana / headroom / backstage への要求の中身</td><td>Basic は viewer の鍵に差し替え・中継のトークンは人が指定しても上書き・Basic は Backstage に渡さない・Domain を外す・<code>Set-Cookie</code> が 2 本並ぶ</td></tr>
+    <tr><td>表記揺れ (#53)</td><td>認証あり + headroom の許可経路の大文字化 (<code>/Health</code>・<code>/DASHBOARD</code>・<code>/favicon.ICO</code>・<code>/%48ealth</code>)、backstage <code>/API/proxy</code>・<code>POST /api/PROXY/…</code>・<code>POST /api/catalog/Entities/by-refs</code></td><td>404。upstream に届かない (中継 <code>test_share_relay.py</code> も同じ)</td></tr>
+    <tr><td>プロフィールの書き込み (#51)</td><td>認証あり + grafana <code>PUT/POST/PATCH/DELETE</code> の <code>/api/user</code>・<code>/api/user/preferences</code>・<code>/api/user/using/1</code>・星・<code>/apis/preferences.grafana.app/…</code> (大文字・<code>%75ser</code>・末尾 <code>/</code> を含む)</td><td>404。upstream に届かない。<code>GET /api/user</code>・<code>/api/user/preferences</code> は 200</td></tr>
+    <tr><td>閉じる側に倒す</td><td>認証サービスに届かない / 必須の環境変数が空</td><td>通さない (502) / 起動しない</td></tr>
+  </table></div>
+</section>
+
+<section class="view" id="relay">
+  <h2>headroom の中継 (just/share-relay.Caddyfile): HEAD を通さない (#48)</h2>
+  <div class="panel">
+  <svg viewBox="0 0 960 190" role="img" aria-label="HEAD は中継と Caddyfile で止める。main では headroom まで届き 404 を返し Anthropic へ素通しされうる">
+    <text x="10" y="20" style="font-weight:700">main (method GET HEAD)</text>
+    <g class="node"><rect x="10" y="32" width="120" height="40" rx="8"/><text x="28" y="57">HEAD /health</text></g>
+    <line class="pipe" x1="130" y1="52" x2="270" y2="52"/><g class="node"><rect x="270" y="32" width="120" height="40" rx="8"/><text x="298" y="57">中継 (通す)</text></g>
+    <line class="pipe" x1="390" y1="52" x2="530" y2="52"/><g class="node ng"><rect x="530" y="32" width="150" height="40" rx="8"/><text x="548" y="57">headroom: 404</text></g>
+    <text x="700" y="52" class="dim">Cf-Ray が付く =</text><text x="700" y="70" class="dim">Anthropic へ素通しとみられる</text>
+    <text x="10" y="116" style="font-weight:700">今 (method GET)</text>
+    <g class="node"><rect x="10" y="128" width="120" height="40" rx="8"/><text x="28" y="153">HEAD /health</text></g>
+    <line class="pipe" x1="130" y1="148" x2="270" y2="148"/><g class="node ok"><rect x="270" y="128" width="190" height="40" rx="8"/><text x="288" y="153">Caddyfile / 中継: 404</text></g>
+    <text x="490" y="153" class="dim">headroom には届かない。GET の許可リストだけが通る</text>
+  </svg>
+  </div>
+  <p class="legend">HEAD を使う用途は無い (Pod の probe は tcpSocket)。just/share-relay.Caddyfile と clusters/kind/share/Caddyfile の両方で GET だけにし、どちらの試験でも「許可リストの経路への HEAD は 404 で upstream に届かない」を確かめる。</p>
+  <h2>同じ要求を、main の中継と今の中継に流す (#53)</h2>
+  <p class="lead">要求を選んで「流す」。上が main、下が今。認証は通った (alice) として、② 許可リストでどうなるかだけを見る。</p>
+  <div class="panel">
+    <div class="ctrl">
+      <label>要求 <select id="freq"></select></label>
+      <button id="frun">流す</button>
+      <button id="fall">全部流す</button>
+    </div>
+    <svg viewBox="0 0 960 250" role="img" aria-label="同じ要求をmainと今の許可リストに流す。表記揺れの headroom と HEAD は、main は upstream まで届き、今は許可リストで 404 になる">
+      <text x="10" y="20" style="font-weight:700">main</text>
+      <line class="pipe" x1="150" y1="65" x2="260" y2="65"/><line class="pipe" x1="420" y1="65" x2="530" y2="65"/><line class="pipe" x1="690" y1="65" x2="800" y2="65"/>
+      <g class="node" id="fo0"><rect x="20" y="40" width="130" height="50" rx="10"/><text x="52" y="70">ブラウザ</text></g>
+      <g class="node" id="fo1"><rect x="260" y="40" width="160" height="50" rx="10"/><text x="290" y="70">① 認証 (通る)</text></g>
+      <g class="node" id="fo2"><rect x="530" y="40" width="160" height="50" rx="10"/><text x="560" y="70">② 許可リスト</text></g>
+      <g class="node" id="fo3"><rect x="800" y="40" width="140" height="50" rx="10"/><text x="820" y="70">upstream</text></g>
+      <circle id="fdot0" cx="85" cy="65" r="8" opacity="0"/>
+      <text x="10" y="140" style="font-weight:700">今</text>
+      <line class="pipe" x1="150" y1="185" x2="260" y2="185"/><line class="pipe" x1="420" y1="185" x2="530" y2="185"/><line class="pipe" x1="690" y1="185" x2="800" y2="185"/>
+      <g class="node" id="fn0"><rect x="20" y="160" width="130" height="50" rx="10"/><text x="52" y="190">ブラウザ</text></g>
+      <g class="node" id="fn1"><rect x="260" y="160" width="160" height="50" rx="10"/><text x="290" y="190">① 認証 (通る)</text></g>
+      <g class="node" id="fn2"><rect x="530" y="160" width="160" height="50" rx="10"/><text x="560" y="190">② 許可リスト</text></g>
+      <g class="node" id="fn3"><rect x="800" y="160" width="140" height="50" rx="10"/><text x="820" y="190">upstream</text></g>
+      <circle id="fdot1" cx="85" cy="185" r="8" opacity="0"/>
+    </svg>
+    <div class="result" id="fresult"></div>
+    <div class="legend">許可リストの規則は just/share-relay.Caddyfile と同じ (試験の表と同じ入力)。この図は規則の写しで、caddy を動かしているわけではない。実際の挙動は test_share_caddy.py・test_share_relay.py が caddy で確かめる。</div>
+  </div>
+  <h2>diff の要点</h2>
+  <div class="panel"><pre class="diff"><span class="c">just/share-relay.Caddyfile (新 Caddyfile の :8082 も + 側と同じ)</span><span class="d">-   method GET HEAD</span><span class="a">+   method GET</span><span class="d">-   path /dashboard /health /stats /stats-history /stats-lifetime /transformations/feed /favicon.ico</span><span class="a">+   path_regexp dash ^/(dashboard|health|stats|stats-history|stats-lifetime|transformations/feed|favicon\.ico)$</span><span class="a">+   rewrite * /{re.dash.1}   (許可した経路そのものに書き換えて渡す)</span></pre></div>
+  <h2>閉じた経路・変わる経路 (中継)</h2>
+  <div class="panel"><table>
+    <tr><th>経路</th><th>main</th><th>今</th></tr>
+    <tr><td><code>HEAD /health</code> など許可経路の HEAD (#48)</td><td>中継が通し、headroom まで届いて 404 (Anthropic へ素通しとみられる)</td><td>404。headroom に届かない</td></tr>
+    <tr><td><code>GET /Health</code>・<code>/DASHBOARD</code>・<code>/favicon.ICO</code>・<code>/%48ealth</code> など許可経路の表記揺れ (#53)</td><td>通る (<code>path</code> が大文字小文字を区別しない)</td><td>404</td></tr>
+    <tr><td><code>GET /x/../health</code>・<code>/./health</code>・<code>/%2e/health</code> (ドットセグメント)</td><td>通り、<code>/x/../health</code> のまま headroom に届く</td><td>通るが、許可した経路 <code>/health</code> に書き換えて渡す。クエリは残る</td></tr>
+  </table></div>
+</section>
+
+</main>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  document.querySelectorAll(".tabs button").forEach(function (b) {
+    b.onclick = function () {
+      document.querySelectorAll(".tabs button").forEach(function (x) { x.classList.toggle("on", x === b); });
+      document.querySelectorAll(".view").forEach(function (v) { v.classList.toggle("on", v.id === b.dataset.v); });
+    };
+  });
+
+  var HEADROOM_OK = ["/dashboard", "/health", "/stats", "/stats-history", "/stats-lifetime", "/transformations/feed", "/favicon.ico"];
+  var CREDS = [
+    { id: "none", label: "なし", ok: false, why: "資格情報なし" },
+    { id: "wrong", label: "誤ったパスワード", ok: false, why: "パスワードが合わない" },
+    { id: "alice", label: "alice (期限付き・期限内)", ok: true },
+    { id: "root", label: "root (特権)", ok: true },
+    { id: "deleted", label: "削除済みの alice", ok: false, why: "Secret に項目が無い" },
+    { id: "expired", label: "期限切れの alice", ok: false, why: "期限ちょうども拒否" },
+    { id: "cookie", label: "署名つき cookie (alice)", ok: true, cookie: true },
+    { id: "cookiedel", label: "署名つき cookie (削除後)", ok: false, why: "cookie が正しくても名前が無い" }
+  ];
+  var REQS = [
+    { t: "grafana", m: "GET", p: "/dashboards" },
+    { t: "grafana", m: "GET", p: "/profile/password" },
+    { t: "grafana", m: "PUT", p: "/api/user/password" },
+    { t: "grafana", m: "PUT", p: "/api/user" },
+    { t: "headroom", m: "GET", p: "/stats" },
+    { t: "headroom", m: "GET", p: "/Health" },
+    { t: "headroom", m: "HEAD", p: "/health" },
+    { t: "headroom", m: "POST", p: "/v1/messages" },
+    { t: "headroom", m: "POST", p: "/stats/reset" },
+    { t: "backstage", m: "GET", p: "/" },
+    { t: "backstage", m: "GET", p: "/api/proxy/grafana/api/org" },
+    { t: "backstage", m: "POST", p: "/api/catalog/locations" },
+    { t: "backstage", m: "POST", p: "/api/catalog/entities/by-refs" }
+  ];
+
+  // Caddyfile の許可リスト。null なら通る、文字列なら 404 の理由
+  function allow(r) {
+    if (r.t === "grafana") {
+      if (/^\/(profile|api\/user)\/password\/?$/i.test(r.p)) return "viewer のパスワードを変えさせない";
+      if (/^\/(api\/user(\/|$)|apis\/preferences\.grafana\.app\/)/i.test(r.p) && r.m !== "GET" && r.m !== "HEAD") return "プロフィール・設定の書き込みは通さない (#51)";
+      return null;
+    }
+    if (r.t === "headroom") {
+      if (r.m === "HEAD") return "HEAD は通さない (#48)";
+      return r.m === "GET" && HEADROOM_OK.indexOf(r.p) >= 0 ? null : "許可リスト (GET のダッシュボード用 7 経路) の外";
+    }
+    if (/^\/api\/proxy(\/|$)/i.test(r.p)) return "/api/proxy は Grafana の API を読ませるので通さない";
+    if (r.m === "GET" || r.m === "HEAD") return null;
+    if (r.m === "POST" && (/^\/api\/auth\//.test(r.p) || r.p === "/api/catalog/entities/by-refs")) return null;
+    return "許可リスト (POST は /api/auth/* と by-refs だけ) の外";
+  }
+  function note(r, cred) {
+    if (r.t === "grafana") return "Authorization を viewer の鍵に差し替えて渡す。Location: http://localhost:3000/ は / に書き換え";
+    if (r.t === "headroom") return "人の Authorization・cookie を外し、X-Share-Relay-Token を付けて中継へ";
+    return "Basic は Backstage に渡さず" + (cred.cookie ? "、cookie で通ったので Set-Cookie は付け直さない" : "、share_session の Set-Cookie を応答に載せる") + "。Domain=localhost は外す";
+  }
+  function evaluate(cred, r) {
+    if (!cred.ok) return { stop: 1, status: 401, why: cred.why };
+    var no = allow(r);
+    if (no) return { stop: 2, status: 404, why: no };
+    return { stop: 3, status: 200, why: note(r, cred) };
+  }
+
+  CREDS.forEach(function (c, i) { $("cred").add(new Option(c.label, i)); });
+  REQS.forEach(function (r, i) { $("req").add(new Option(r.t + "  " + r.m + " " + r.p, i)); });
+  $("cred").value = 0;
+
+  var nodes = [0, 1, 2, 3].map(function (i) { return $("n" + i); });
+  var dot = $("dot");
+  var X = [85, 340, 610, 870];
+  var token = 0;
+
+  function reset() { nodes.forEach(function (n) { n.setAttribute("class", "node"); }); dot.setAttribute("opacity", 0); }
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function move(from, to, id) {
+    return new Promise(function (resolve) {
+      var t0 = null, dur = matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : 520;
+      function step(ts) {
+        if (id !== token) return resolve();
+        if (t0 === null) t0 = ts;
+        var k = Math.min(1, (ts - t0) / dur);
+        dot.setAttribute("cx", from + (to - from) * k);
+        if (k < 1) requestAnimationFrame(step); else resolve();
+      }
+      requestAnimationFrame(step);
+    });
+  }
+  function row(cred, r, res) {
+    var tr = document.createElement("tr");
+    var stage = res.stop === 1 ? "① 認証" : res.stop === 2 ? "② 許可リスト" : "upstream まで";
+    tr.innerHTML = "<td></td><td></td><td></td><td></td>";
+    tr.cells[0].textContent = cred.label;
+    tr.cells[1].textContent = r.t + " " + r.m + " " + r.p;
+    tr.cells[2].textContent = stage;
+    tr.cells[3].innerHTML = '<span class="badge b' + res.status + '">' + res.status + "</span>";
+    $("log").insertBefore(tr, $("log").firstChild);
+  }
+  async function play(cred, r) {
+    var id = ++token;
+    reset();
+    $("upname").textContent = r.t;
+    var res = evaluate(cred, r);
+    dot.setAttribute("opacity", 1); dot.setAttribute("cx", X[0]);
+    nodes[0].classList.add("hit");
+    for (var i = 1; i <= res.stop; i++) {
+      await move(X[i - 1], X[i], id);
+      if (id !== token) return;
+      var last = i === res.stop;
+      nodes[i].classList.add(last ? (res.status === 200 ? "ok" : "ng") : "hit");
+    }
+    if (res.status !== 200) { await sleep(120); await move(X[res.stop], X[0], id); }
+    if (id !== token) return;
+    $("result").innerHTML = '<span class="badge b' + res.status + '">' + res.status + "</span> " + (res.status === 200 ? "upstream へ。" : (res.stop === 1 ? "① 認証で止まる。" : "② 許可リストで止まる。upstream には届かない。")) + " " + res.why;
+    row(cred, r, res);
+    return res;
+  }
+
+  $("run").onclick = function () { play(CREDS[$("cred").value], REQS[$("req").value]); };
+  $("all").onclick = async function () {
+    $("all").disabled = true;
+    for (var ci = 0; ci < CREDS.length; ci++) {
+      for (var ri = 0; ri < REQS.length; ri++) {
+        $("cred").value = ci; $("req").value = ri;
+        await play(CREDS[ci], REQS[ri]);
+        await sleep(80);
+      }
+    }
+    $("all").disabled = false;
+  };
+  $("result").textContent = "資格情報と要求を選んで「流す」。";
+
+  // headroom の中継: main と今の許可リストに同じ要求を流す
+  var FREQS = [
+    { t: "headroom", m: "GET", p: "/health" },
+    { t: "headroom", m: "HEAD", p: "/health" },
+    { t: "headroom", m: "GET", p: "/Health" },
+    { t: "headroom", m: "GET", p: "/DASHBOARD" },
+    { t: "headroom", m: "GET", p: "/favicon.ICO" },
+    { t: "headroom", m: "POST", p: "/v1/messages" }
+  ];
+  function oldAllow(r) {
+    return (r.m === "GET" || r.m === "HEAD") && HEADROOM_OK.indexOf(r.p.toLowerCase()) >= 0 ? null : "許可リストの外";
+  }
+  function newAllow(r) {
+    if (r.m === "HEAD") return "HEAD は通さない (#48)";
+    return r.m === "GET" && HEADROOM_OK.indexOf(r.p) >= 0 ? null : "許可リストの外 (大文字小文字を区別する完全一致、#53)";
+  }
+  FREQS.forEach(function (r, i) { $("freq").add(new Option(r.t + "  " + r.m + " " + r.p, i)); });
+  var ftoken = 0;
+  function fmove(el, from, to, id) {
+    return new Promise(function (resolve) {
+      var t0 = null, dur = matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : 520;
+      function step(ts) {
+        if (id !== ftoken) return resolve();
+        if (t0 === null) t0 = ts;
+        var k = Math.min(1, (ts - t0) / dur);
+        el.setAttribute("cx", from + (to - from) * k);
+        if (k < 1) requestAnimationFrame(step); else resolve();
+      }
+      requestAnimationFrame(step);
+    });
+  }
+  async function lane(prefix, i, no, id) {
+    var ns = [0, 1, 2, 3].map(function (k) { return $(prefix + k); });
+    var d = $("fdot" + i);
+    ns.forEach(function (n) { n.setAttribute("class", "node"); });
+    d.setAttribute("opacity", 1); d.setAttribute("cx", X[0]);
+    ns[0].classList.add("hit");
+    var stop = no ? 2 : 3;
+    for (var k = 1; k <= stop; k++) {
+      await fmove(d, X[k - 1], X[k], id);
+      if (id !== ftoken) return;
+      ns[k].classList.add(k === stop ? (no ? "ng" : "ok") : "hit");
+    }
+    if (no) { await sleep(120); await fmove(d, X[2], X[0], id); }
+  }
+  async function fplay(r) {
+    var id = ++ftoken;
+    var o = oldAllow(r), n = newAllow(r);
+    $("fresult").textContent = "";
+    await Promise.all([lane("fo", 0, o, id), lane("fn", 1, n, id)]);
+    if (id !== ftoken) return;
+    function msg(label, no) { return label + ': <span class="badge b' + (no ? 404 : 200) + '">' + (no ? 404 : 200) + "</span> " + (no ? "② で止まる。" + no : "upstream まで届く"); }
+    var changed = (o === null) !== (n === null);
+    $("fresult").innerHTML = msg("main", o) + "<br>" + msg("今", n) + "<br>" + (changed ? (o === null ? "<b>この要求は、この変更で止まるようになった。</b>" : "この要求は、今は通る。") : "この要求の結果は変わらない。");
+  }
+  $("frun").onclick = function () { fplay(FREQS[$("freq").value]); };
+  $("fall").onclick = async function () {
+    $("fall").disabled = true;
+    for (var i = 0; i < FREQS.length; i++) { $("freq").value = i; await fplay(FREQS[i]); await sleep(500); }
+    $("fall").disabled = false;
+  };
+  $("fresult").textContent = "要求を選んで「流す」。";
+})();
+</script>
+</body>
+</html>

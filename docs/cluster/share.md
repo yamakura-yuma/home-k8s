@@ -1,8 +1,9 @@
 # 公開 (just share) を常駐させ、人ごとの資格情報で配る — 設計
 
-状態: 設計。実装は GitHub の Issue ごとに進め、そのたびにこの文書を実際の構成に書き換える。実装済み: #38 (headroom の中継)、認証サービス (#39、`clusters/kind/share/share_auth.py`)。
+状態: 設計。実装は GitHub の Issue ごとに進め、そのたびにこの文書を実際の構成に書き換える。実装済み: #38 (headroom の中継)、認証サービス (#39、`clusters/kind/share/share_auth.py`)、Caddyfile の経路と統合試験 (#40、`clusters/kind/share/Caddyfile`・`test_share_caddy.py`)。
 図の HTML (変更前→変更後のアニメーション): [share-design.html](share-design.html)
 認証サービス (#39) の diff の図 (判定を動かせるアニメーション): [share-auth.html](share-auth.html)
+Caddyfile の経路 (#40) の diff の図 (要求を流して通る・通らないを見るアニメーション): [share-routes.html](share-routes.html)
 
 ## 何を変えるか
 
@@ -49,10 +50,14 @@ headroom の中継 (ホスト側。#38 で実装済み):
   headroom 本体 (`127.0.0.1:8787`、systemd) は loopback のまま変えない。
 - **共有トークンのヘッダ (`X-Share-Relay-Token`) が無い・違う要求は、経路に関わらず 401** (デフォルト拒否)。トークンが空のときは起動しない
   (スクリプトと Caddyfile の両方で止める)。
-- トークンがあっても通すのは今と同じ **GET・HEAD の許可リスト** (`/dashboard /health /stats /stats-history /stats-lifetime /transformations/feed /favicon.ico`)
+- トークンがあっても通すのは **GET の許可リスト** (`/dashboard /health /stats /stats-history /stats-lifetime /transformations/feed /favicon.ico`)
   だけで、残りは 404 (`/v1/messages`・`/stats/reset`・`/settings`・`/cache/clear` ほか)。bridge 上の他のコンテナが見られるのも、
   トークンを知っていればこの読み取りだけ。upstream へはトークンのヘッダを渡さず、`Host` は upstream のものに書き換える。
-- クラスタ側 (Pod の caddy) も同じ許可リストをもう一度掛ける (二重。#40)。
+  **HEAD は通さない (#48)**: 実機の headroom は許可リストの経路の HEAD に 404 を返し (`server: uvicorn`)、中継越しの HEAD 応答には
+  `Cf-Ray` が付いていた。headroom が経路に無い HEAD を Anthropic 側へ素通ししているとみられ、「GET の読み取りだけを通す」趣旨からずれる。
+  HEAD を使う用途は無い (Pod の probe は `tcpSocket`) ので、許可リストから外して GET に絞る。HEAD→GET への書き換えは、HEAD の応答に本文を
+  返しうるので採らない。
+- クラスタ側 (Pod の caddy、`clusters/kind/share/Caddyfile` の `:8082`) も同じ許可リストをもう一度掛ける (二重。#40)。
 - トークンは `just up` が `openssl rand -hex 16` で作り、`~/.local/share/home-k8s/share/relay-token` (権限 600) に置く。
   あれば再利用するので、`just up` を打ち直しても値は変わらない。`just down` はコンテナだけを消し、トークンのファイルは残す。
   Caddyfile は同じ場所に `relay.Caddyfile` としてコピーしてからマウントする (worktree を消しても `--restart` で読めるように)。
@@ -63,8 +68,8 @@ headroom の中継 (ホスト側。#38 で実装済み):
 - `HOME_K8S_KUBE_CONTEXT` で別の kind クラスタに向けても、中継はホストに 1 つ (`home-k8s-share-relay`、8788) で、`up` が作り直し `down` が消す。
   中継は bridge のゲートウェイで待ち受けるので、同じ bridge の他のクラスタの Pod からも届く。受け入れる制約とする。
 - 試験 (`just ci` の段 6、`just/test_share_relay.py`): caddy を 127.0.0.1 の空きポートで起動し、偽の upstream に対して
-  トークン無し・違うトークンは全経路 401、トークンありは許可リストが GET・HEAD で 200 (upstream にトークンが渡らない)、
-  `POST /v1/messages`・`/stats/reset` ほか許可リスト外は 404 で upstream に届かないことを確かめる。
+  トークン無し・違うトークンは全経路 401、トークンありは許可リストが GET で 200 (upstream にトークンが渡らない)、
+  `POST /v1/messages`・`/stats/reset` ほか許可リスト外と、許可リストの経路への HEAD は 404 で upstream に届かないことを確かめる。
   スクリプトは偽の `docker`・`kubectl`・`curl` で、IPv4 ゲートウェイの選択・トークンの再利用・Secret のキー・空トークンの拒否を確かめる。
   稼働中のクラスタ・ホストには触れない。試験の caddy は `devShells.ci` の版 (nixpkgs)、コンテナは `caddy:2.11.6-alpine` で、パッチの版が違いうる。
   Pod から中継への到達は稼働中でしか確かめられないので CI に入れず、下の「残る問題」に書く。
@@ -121,8 +126,16 @@ reload の取りこぼしを心配することになるためである。代わ�
 - 人ごとの Grafana ユーザーは作らない (平文のパスワードを保存せずに済む。ユーザーの作成・削除の失敗で食い違うこともない)。
 - Grafana の閲覧者は全員 `viewer` として入る (今も同じ)。見られる範囲は他の対象と同じく viewer の権限で、admin は出ない。
 - 人が viewer のパスワードを変えて締め出さないよう、`/profile/password`・`/api/user/password` は 404 にする。
-- 確認が要る点: Grafana が **ページの要求にも** Basic を受けること (API は今 Backstage が Basic で叩いている)。
-  実装の Issue #40 の最初に確かめ、通らなければ「人ごとの Grafana ユーザーを API で作る」に切り替える (その場合は平文も Secret に持つ)。
+  viewer は共有相手全員で 1 人なので、ログイン名 (`PUT /api/user`) を変えられても Basic の付与が壊れる (#51)。使い捨ての Grafana 13.2.3 に viewer の Basic で書き込みを当てて確かめたところ、
+  `PUT /api/user`・`PUT`/`PATCH /api/user/preferences`・`POST /api/user/using/<org>`・`POST`/`DELETE /api/user/stars/*`、新しい preferences API の `PUT /apis/preferences.grafana.app/*/preferences/<自分>` が通った。
+  このため `/api/user` 以下と `/apis/preferences.grafana.app/` 以下は、GET・HEAD 以外を 404 にする (読み取りは画面が使うので通す)。ほかの書き込み (`/api/org/preferences`・`/api/users/*`・`POST /api/dashboards/db`・`/api/snapshots`) は Grafana が viewer に 401・403 を返すので、caddy では足さない。
+- 確認済み (#40): Grafana は **ページの要求にも** Basic を受ける。稼働中の Grafana (`localhost:3000`) に viewer の Basic を付けて
+  `/`・`/dashboards`・`/profile` が 200、付けない `/` は 302 (ログイン画面)、誤ったパスワードは 302 だった。さらに実際の Caddyfile の `:8081`
+  を稼働中の Grafana に向け (読み取りの要求だけ)、人の資格情報で `/`・`/dashboards`・`/api/user` が 200、`/profile/password`・`PUT /api/user/password` が
+  404、認証なし・誤ったパスワードが 401 になることを見た。したがって「人ごとの Grafana ユーザーを作る」への切り替えは要らず、設計は変わらない。
+  viewer の権限で `/explore` は 302 になる (Grafana 側の権限の挙動で、Basic の受理とは別)。
+- caddy は Basic の値を作れない (Caddyfile に base64 の関数が無い) ので、Deployment (#41) が起動時に `SHARE_GRAFANA_BASIC` =
+  `base64("viewer:<Secret grafana-viewer のパスワード>")` を組み立てて渡す。人の `Authorization` は Grafana に渡さず、これに差し替える。
 
 ### 5. 既存の経路の絞り込みを保つ
 
@@ -130,11 +143,22 @@ reload の取りこぼしを心配することになるためである。代わ�
 
 | 対象 | 通す | 通さない (404) |
 |---|---|---|
-| grafana | すべて (viewer の権限の範囲)。`Location: http://localhost:3000/` は `/` に書き換える | `/profile/password` `/api/user/password` |
-| headroom | GET・HEAD の `/dashboard /health /stats /stats-history /stats-lifetime /transformations/feed /favicon.ico` | それ以外 (`/v1/*`、`POST /settings`、`/stats/reset`、`/cache/clear` ほか) |
-| backstage | GET・HEAD の `/api/proxy` 以外すべて。POST は `/api/auth/*` と `/api/catalog/entities/by-refs` だけ | `/api/proxy*` (Grafana の API を Backstage の資格情報で読ませない)、`POST /api/catalog/locations` ほか |
+| grafana | すべて (viewer の権限の範囲)。`Location: http://localhost:3000/` は `/` に書き換える | `/profile/password` `/api/user/password`、`/api/user` 以下と `/apis/preferences.grafana.app/` 以下の GET・HEAD 以外 (#51) |
+| headroom | GET の `/dashboard /health /stats /stats-history /stats-lifetime /transformations/feed /favicon.ico` (大文字小文字を区別する完全一致。`/Health` は 404、#53) | それ以外 (`/v1/*`、`POST /settings`、`/stats/reset`、`/cache/clear`、許可リストの経路への HEAD ほか) |
+| backstage | GET・HEAD の `/api/proxy` 以外すべて。POST は `/api/auth/*` と `/api/catalog/entities/by-refs` だけ (POST の許可は大文字小文字を区別する) | `/api/proxy*` (表記揺れも) (Grafana の API を Backstage の資格情報で読ませない)、`POST /api/catalog/locations` ほか |
 
-現在の `just/*.Caddyfile` の経路・書き換え (Backstage の `Set-Cookie` の `Domain=localhost` 外し) は、この ConfigMap の Caddyfile に移す。
+現在の `just/*.Caddyfile` の経路・書き換え (Backstage の `Set-Cookie` の `Domain=localhost` 外し) は、`clusters/kind/share/Caddyfile` に移した
+(#41 がこれを ConfigMap にする。旧 `just/*.Caddyfile` は旧 `just share` が使うので #44 まで残す)。3 サイト (`:8081 grafana` `:8082 headroom` `:8083 backstage`)
+が共通の `share_auth` を最初に通す。
+
+- **認証**: `forward_auth` の短縮形は、認証サービスの応答のヘッダを upstream への要求に写すだけで、クライアントへの応答には載せられない。
+  署名つき cookie の `Set-Cookie` を応答に載せる (Basic で通ったときだけ認証サービスが付ける) ため、短縮形の中身を書き下した
+  `reverse_proxy <認証サービス> { method GET; rewrite /; handle_response @authenticated { header +Set-Cookie {rp.header.Set-Cookie} } }` にしてある。
+  2xx 以外 (401 と `WWW-Authenticate`) は認証サービスの応答がそのまま返り、許可リストにも upstream にも進まない。認証サービスに届かなければ
+  通さない (試験は 502)。`header +Set-Cookie` は追加なので、Backstage 自身の `Set-Cookie` (`Domain` を外したもの) と並ぶ。
+- **許可リストは認証のあと**: 認証が通らなければ経路を問わず 401、通ったあとで許可リストの外が 404 (`route` で順序を固定)。
+- 起動の番人: `SHARE_GRAFANA_BASIC`・`SHARE_RELAY_TOKEN`・`SHARE_RELAY_ADDR` が空なら設定の読み込みで落ちる (空の Basic・空のトークンで立ち上がらない)。
+  環境変数の一覧は Caddyfile の先頭にある。
 
 Backstage の API 呼び出しは `Authorization: Bearer` を使うので、Basic は最初のページの読み込みでしか使えない。
 今は通過後に共有ごとの合言葉の cookie を渡している。変更後は **署名つき cookie** にする
@@ -190,8 +214,8 @@ Cookie の属性は `Path=/; HttpOnly; Secure; SameSite=Lax` (期限は cookie �
 | 段 | 内容 | 拒否を確かめる点 |
 |---|---|---|
 | 認証の単体 (Python `unittest`、`clusters/kind/share/test_share_auth.py`。#39 で実装済みで `just ci` の最後の段) | `decide()` に資格情報と時刻を渡す。時刻は引数なので時間を進められる。K8s API は偽の HTTP サーバーで、`forward_auth` が見る応答は実際の HTTP で確かめる | 名前なし・誤パスワード・**期限の 1 秒前は通り 1 秒後は拒否**・**項目を消すと拒否**・`rotate` 後の古いパスワード・改ざんした cookie・Secret が空・資格情報が壊れている・改ざんした cookie の付け替え・`rotate` / 期限切れ / `delete` 後の cookie。上限 (24h) 超の `--ttl` は CLI の試験 (#42) |
-| 経路の統合 (caddy + auth + 偽の upstream) | `caddy` を空きポートで起動し、認証サービスは K8s API の代わりに JSON ファイルを読むモード (`AUTH_SOURCE=file:...`)。upstream は標準ライブラリの HTTP サーバー | 認証なしは全経路 401。認証ありでも headroom の `POST /v1/messages`・`/stats/reset`、backstage の `/api/proxy`・`POST /api/catalog/locations`、grafana の `/profile/password` は 404。**ファイルから項目を消す・期限を過去にする → キャッシュ TTL (テストでは 0) の後 401**。旧形式 (sha256)・反復が少ない hash は 401。照合結果の覚えがあっても、delete・期限切れ・ローテーションは次の要求から 401 |
-| 静的 | `caddy validate`。`share` namespace に NodePort・LoadBalancer・Ingress が無いこと (`yq`)。既存の kubeconform・kube-linter | 公開の入口を足していない |
+| 経路の統合 (caddy + auth + 偽の upstream。`clusters/kind/share/test_share_caddy.py`。#40 で実装済みで `just ci` の段 6) | `caddy` を空きポートで起動し、認証サービスは K8s API の代わりに JSON ファイルを読むモード (`AUTH_SOURCE=file:...`)。upstream は標準ライブラリの HTTP サーバー | 認証なしは全経路 401。認証ありでも headroom の `POST /v1/messages`・`/stats/reset`、backstage の `/api/proxy`・`POST /api/catalog/locations`、grafana の `/profile/password` は 404。**ファイルから項目を消す・期限を過去にする → キャッシュ TTL (テストでは 0) の後 401**。旧形式 (sha256)・反復が少ない hash は 401。照合結果の覚えがあっても、delete・期限切れ・ローテーションは次の要求から 401 |
+| 静的 | `caddy validate` (経路の統合の試験に含む)。`share` namespace に NodePort・LoadBalancer・Ingress が無いこと (`yq`)。既存の kubeconform・kube-linter | 公開の入口を足していない |
 
 `flake.nix` の `devShells.ci` に `caddy` を足す (今は `tools` 側にしかない)。
 
@@ -204,8 +228,8 @@ Cookie の属性は `Path=/; HttpOnly; Secure; SameSite=Lax` (期限は cookie �
 | # | 内容 | 前提 |
 |---|---|---|
 | #38 ✅ | headroom 中継 (ホスト側の caddy コンテナ、`just up`・`just down` への組み込み、`share-host` Secret) | なし |
-| #39 | 認証サービスと資格情報のモデル (Python、単体試験、`just ci` に組み込み、`caddy` を `devShells.ci` に追加) | なし |
-| #40 | Caddyfile の経路 (許可リスト・Grafana の viewer 付与・Backstage の署名 cookie) と、経路の統合試験 | #39 |
+| #39 ✅ | 認証サービスと資格情報のモデル (Python、単体試験、`just ci` に組み込み、`caddy` を `devShells.ci` に追加) | なし |
+| #40 ✅ | Caddyfile の経路 (許可リスト・Grafana の viewer 付与・Backstage の署名 cookie) と、経路の統合試験 (あわせて #48: headroom の HEAD を許可リストから外す) | #39 |
 | #41 | クラスタ内 Deployment `share` と ArgoCD Application、`_share-secrets`、URL の取得 | #38・#40 |
 | #42 | `just share add\|delete\|list\|get\|rotate\|prune` | #39・#41 |
 | #43 | 稼働中のクラスタでの確認 `just share smoke` | #42 |
@@ -218,5 +242,8 @@ Cookie の属性は `Path=/; HttpOnly; Secure; SameSite=Lax` (期限は cookie �
 - Pod (kind のノードの外向き NAT) から `<ゲートウェイ>:8788` に届くかは、WSL2 の iptables 次第で、稼働中のクラスタでしか確かめられない。#38 の実装では確かめていない (`just up` 後に Pod から `wget http://172.18.0.1:8788/` が 401 を返すこと。届かなければ原因をここに書く)。
 - Quick Tunnel は稼働の保証がない。クラスタの外向きの UDP 7844 (QUIC) が通らないときは `--protocol http2` にする。
 - 特権 viewer のパスワードは保存しないので、忘れたら `rotate` する。`get` で再表示したいなら、平文を Secret に持つ方式へ変える判断が要る。
-- Grafana への Basic の付与が通らなかったときの切り替え先 (人ごとの Grafana ユーザー) は、実装の Issue #40 で判断する。
+- Grafana への Basic の付与は #40 で確かめ、通った (§4)。人ごとの Grafana ユーザーへの切り替えは要らない。
+- 大文字小文字 (#53): caddy の `path` matcher は区別しないので、許可リストに使うと `GET /Health` が通って upstream に `/Health` のまま届く (headroom は区別するので、未知の経路としてプロキシ本体の受け口に落ちうる)。
+  許可は `path_regexp` (区別する・全体一致) で書く (headroom は中継と share の両方、backstage の POST)。拒否の `path` (grafana の password・`/api/user`、backstage の `/api/proxy`) は区別しないままにして、表記揺れの素通りを止める。
+  `path_regexp` は caddy が整えた path に当たるが、`reverse_proxy` は生の path を送るので、`/x/../health` のようなドットセグメントが許可リストを通って headroom にそのまま届く。headroom の許可では `rewrite * /{re.dash.1}` で許可した経路そのものに書き換えて渡す (クエリは残る)。
 - `stage C paths` の対象 (dotfiles の再利用 workflow) に `clusters/kind/share/`・`just/share*` を足すのは dotfiles 側の変更で、この repo の外。

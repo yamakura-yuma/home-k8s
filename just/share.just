@@ -1,5 +1,5 @@
 # just share を常駐させる構成 (docs/cluster/share.md) のうち、ホスト側の headroom 中継。公開レシピの `just up`・`just down` (justfile) が呼ぶ内部用。
-# 中継は headroom (localhost:8787) の GET・HEAD の許可リストだけを、kind の bridge のゲートウェイで待ち受けて転送する caddy コンテナ。
+# 中継は headroom (localhost:8787) の GET の許可リストだけを、kind の bridge のゲートウェイで待ち受けて転送する caddy コンテナ。
 # 状態の確認は docker を素手で叩くこと (`docker ps --filter name=home-k8s-share-relay`)。
 
 # 中継の共有トークン。リポジトリの外 (WSL2 ホスト側) に置き、2 回目以降は再利用する。値は Secret share/share-host にも入る

@@ -33,6 +33,10 @@ DENIED = [
     ("POST", "/cache/clear"), ("GET", "/cache/clear"), ("POST", "/dashboard"), ("PUT", "/stats"), ("DELETE", "/health"),
     ("GET", "/"), ("GET", "/stats/"), ("GET", "/dashboard/"), ("GET", "//v1/messages"), ("GET", "/dashboard/../v1/messages"),
     ("GET", "/dashboard/%2e%2e/v1/messages"), ("OPTIONS", "/dashboard"),
+    # #53: caddy の path は大文字小文字を区別しないが、許可リストは区別する (headroom は区別する)
+    *[("GET", variant) for path in ALLOWED for variant in (path.upper(), path[:2].upper() + path[2:], path[:-1] + path[-1].upper())],
+    ("GET", "/Health"), ("GET", "/DASHBOARD"), ("GET", "/Favicon.ico"), ("GET", "/favicon.ICO"), ("GET", "/Stats-History"),
+    ("GET", "/health%0a"), ("GET", "/%48ealth"),
 ]
 
 
@@ -147,18 +151,30 @@ class Relay(unittest.TestCase):
         self.assertEqual(self.upstream.seen, [], "認証なしの要求が upstream に届いた")
 
     def test_token_allows_read_only_dashboard_routes(self):
-        for method in ["GET", "HEAD"]:
-            for path in ALLOWED:
-                self.assertEqual(request(self.port, method, path, self.auth()), 200, (method, path))
-        self.assertEqual(len(self.upstream.seen), 2 * len(ALLOWED))
+        for path in ALLOWED:
+            self.assertEqual(request(self.port, "GET", path, self.auth()), 200, path)
+        self.assertEqual(len(self.upstream.seen), len(ALLOWED))
         for method, path, headers in self.upstream.seen:
             self.assertIn(path, ALLOWED)
             self.assertNotIn("X-Share-Relay-Token", headers, "トークンを upstream に渡した")
             self.assertEqual(headers["Host"], f"127.0.0.1:{self.upstream.server_port}")
 
+    def test_head_is_not_allowed(self):
+        # #48: 実機の headroom は許可リストの経路の HEAD に 404 を返し、Anthropic へ素通しするとみられる。HEAD は中継で止める
+        for path in ALLOWED:
+            self.assertEqual(request(self.port, "HEAD", path, self.auth()), 404, path)
+        self.assertEqual(self.upstream.seen, [], "HEAD が upstream に届いた")
+
     def test_query_string_passes_through_on_allowed_route(self):
         self.assertEqual(request(self.port, "GET", "/stats-history?days=7", self.auth()), 200)
         self.assertEqual(self.upstream.seen[0][1], "/stats-history?days=7")
+
+    def test_dot_segments_reach_headroom_only_as_the_allowed_path(self):
+        # path_regexp は caddy が整えた path に当たるが、reverse_proxy は生の path を送る。許可した経路そのものに書き換えて渡す
+        for raw, sent in [("/x/../health", "/health"), ("/./health", "/health"), ("/%2e/health", "/health"), ("/stats/../stats-history?days=7", "/stats-history?days=7")]:
+            self.upstream.seen.clear()
+            self.assertEqual(request(self.port, "GET", raw, self.auth()), 200, raw)
+            self.assertEqual([path for _, path, _ in self.upstream.seen], [sent], raw)
 
     def test_token_does_not_open_anything_outside_the_allowlist(self):
         for method, path in DENIED:

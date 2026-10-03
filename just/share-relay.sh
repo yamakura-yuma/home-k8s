@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # headroom の中継 (ホスト側の caddy コンテナ) を起動・削除する。`just up` の `_share-relay-up`、`just down` の `_share-relay-down` が呼ぶ。
 # 構成は docs/cluster/share.md。headroom (127.0.0.1:8787) は loopback のまま変えず、kind の bridge のゲートウェイだけで
-# 待ち受ける caddy が、共有トークン付きの GET・HEAD の許可リストだけを 8787 へ転送する (just/share-relay.Caddyfile)。
+# 待ち受ける caddy が、共有トークン付きの GET の許可リストだけを 8787 へ転送する (just/share-relay.Caddyfile)。
 # up: トークンを (無ければ生成して) ファイルと Secret share/share-host に入れ、コンテナを作り直す。トークンは作り直しても変えない。
 # down: コンテナを消す。トークンのファイルは残す (次の up で同じ値を使う)。
 # 引数: up   <トークンのファイル> <リポジトリの所有者を調べるディレクトリ> <kube context> <待ち受けのポート>
@@ -89,4 +89,4 @@ if [ "$code" != 401 ]; then
     echo "中継が $gateway:$port で待ち受けていない (トークン無しで $code)。docker logs $container を見る" >&2
     exit 1
 fi
-echo "中継 $container: $gateway:$port -> 127.0.0.1:8787 (GET・HEAD の許可リストだけ、トークン付き)"
+echo "中継 $container: $gateway:$port -> 127.0.0.1:8787 (GET の許可リストだけ、トークン付き)"
