@@ -222,7 +222,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "URL とパスワードを知っている人は**全ダッシュボード**を見られる。依頼文・コマンド・ファイルパスもそのまま見える。秘密っぽい値は `<REDACTED>` に伏せているが正規表現頼みなので、見せる前に [raw](/d/claude-code-raw?var-event=user_prompt) で `user_prompt` と `tool_result` を確かめる。相手も admin なので編集できる。終わったら Ctrl-C で止める (`just show grafana` で公開中か確かめられる)"
+        "content": "URL とパスワードを知っている人は**全ダッシュボード**を見られる。依頼文・コマンド・ファイルパスもそのまま見える。秘密っぽい値は `<REDACTED>` に伏せているが正規表現頼みなので、見せる前に [raw](/d/claude-code-raw?var-event=user_prompt) で `user_prompt` と `tool_result` を確かめる。渡すのは `just share add <名前>` が出す名前・パスワードで、相手は Viewer ロール (見るだけで、編集・保存と Explore はできない)。既定 8 時間で失効し (`--ttl` で 24h まで)、終わったら `just share delete <名前>`。URL は `just share get <名前>`"
       }
     },
     {

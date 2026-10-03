@@ -177,8 +177,8 @@ StatefulSet の `volumeClaimTemplates` を足すことになり、これは既�
 
 | ユーザー | パスワードの正本 | 今 | 永続化後に起きること | 永続化後のそろえ方 |
 |---|---|---|---|---|
-| admin | ホストのファイル → Secret `grafana-admin` | Grafana が初回起動で Secret の値で作る | `admin_password` は初回起動のときしか使われない (出典 5)。ファイルを作り直すと Secret と DB がずれ、サイドカーも `just share` も admin で入れなくなる | initContainer で `grafana cli admin reset-admin-password` を打ち、起動のたびに Secret の値にそろえる |
-| viewer | ホストのファイル → Secret `grafana-viewer` | サイドカーが「無ければ作る」 | DB に残るので作られない。`just share` が API で変えた値は DB にも Secret にも入るので、普段はずれない | サイドカーを Pod の起動ごとに一度だけ「無ければ作る、居ればパスワードを Secret の値に更新する」(`PUT /api/admin/users/:id/password`) に変える |
+| admin | ホストのファイル → Secret `grafana-admin` | Grafana が初回起動で Secret の値で作る | `admin_password` は初回起動のときしか使われない (出典 5)。ファイルを作り直すと Secret と DB がずれ、サイドカーも admin で入れなくなる | initContainer で `grafana cli admin reset-admin-password` を打ち、起動のたびに Secret の値にそろえる |
+| viewer | ホストのファイル → Secret `grafana-viewer` | サイドカーが「無ければ作る」 | DB に残るので作られない。viewer のパスワードを変えるのはファイルを書き換えて `just up` を打つときだけで、Secret にも share の写しにも同じ値が入る。DB へは Pod の起動時にそろえる | サイドカーを Pod の起動ごとに一度だけ「無ければ作る、居ればパスワードを Secret の値に更新する」(`PUT /api/admin/users/:id/password`) に変える |
 | backstage (argocd-grafana-backstage で追加予定) | ホストのファイル → Secret | サイドカーが「無ければ作る」予定 | viewer と同じ | viewer と同じ処理に載せる |
 
 admin をサイドカーでそろえないのは、サイドカーが admin の資格情報で API を叩くため、
@@ -189,9 +189,8 @@ admin をサイドカーでそろえないのは、サイドカーが admin の�
 DB が空の初回 (Grafana がまだ一度も起動していない) でも動き、そのとき admin はこのコマンドが作る
 (13.2.3-distroless で、空の DB と既存の DB の両方を docker で確かめた)。
 
-サイドカーがそろえるのを起動時の一度だけにするのは、`just share` が動いている Grafana の viewer の
-パスワードを変えるため。サイドカーの環境変数は Pod の起動時の Secret の値のままなので、繰り返しそろえると
-`just share` の変更を古い値に戻してしまう。
+サイドカーがそろえるのは起動時の一度だけで、繰り返さない。サイドカーの環境変数は Pod の起動時の Secret の値のままで、
+実行中に変わった値を読み直せないため、繰り返しても意味が無い。
 
 ## 実装時の確認方法
 
@@ -219,7 +218,6 @@ kubectl --context kind-study-kind -n observability get pvc   # 4 つとも Bound
 #    Grafana の Pod を消して作り直させる
 kubectl --context kind-study-kind -n observability delete pod -l app.kubernetes.io/name=grafana
 #    新しい値で 3 ユーザーともログイン (API なら curl -u <user>:<新しい値> localhost:3000/api/user) できる
-#    just share が動く (admin で viewer のパスワードを変える)
 ```
 
 ## 運用上の注意
@@ -264,7 +262,6 @@ kubectl --context kind-study-kind -n observability delete pod -l app.kubernetes.
 | Grafana の保存 | `persistence-check` ダッシュボードを保存 (UI の操作ではなく admin で HTTP API から作成) → 2 回目・3 回目の作り直し → 同じ作成時刻のまま残っていた |
 | サイドカー | 1 回目は「viewer を作った」、2 回目は「viewer のパスワードを Secret の値にそろえた」。3 回目は backstage を作り、Backstage のプロキシから Grafana の検索が 200 |
 | パスワードの書き換え | admin・viewer・backstage のファイルを書き換え → `just up` (Secret が `configured`) → Grafana の Pod を削除。3 ユーザーとも新しい値で 200、古い値で 401。Backstage の Pod を作り直すとプロキシも 200 |
-| `just share` の前段 | トンネルは開かず、`grafana-viewer-rotate.sh` だけを打った。viewer は新しい値で入れ、20〜30 秒後もそのまま (サイドカーが古い値に戻さない)。backstage は影響を受けない |
 
 ## 出典
 

@@ -34,8 +34,8 @@ Application backstage (backstage chart 2.10.2、clusters/kind/backstage/values.y
 
 DB はインメモリの SQLite で、Pod を作り直すとカタログは消えるが、起動のたびに GitHub から読み直す。
 ログインはゲストだけ (`auth.providers.guest.dangerouslyAllowOutsideDevelopment: true`)。127.0.0.1 にしか
-出さないので認証を付けていない。外に出すのは `just share backstage` のときだけで、そのときは caddy の
-パスワードと、通す経路の絞り込みを前に置く (下の「別の PC から見る」)。
+出さないので認証を付けていない。外からは常駐の `share` Pod 経由だけで、人ごとの資格情報と、
+通す経路の絞り込みを前に置く (下の「別の PC から見る」)。
 
 ## ダッシュボードの選び方
 
@@ -71,7 +71,7 @@ API で作るサービスアカウントのトークンは値を指定して作�
    の `proxy.endpoints./grafana/api.headers.Authorization` が `Basic ${GRAFANA_BASIC_AUTH}` として使う。
 
 ArgoCD の管理対象は Secret を名前で参照するだけで、公開 repo にも ArgoCD にも中身は入らない。
-`just share` が作り直すのは viewer のパスワードだけなので、共有しても Backstage は読み続けられる。
+viewer と `backstage` は別のユーザーなので、viewer のパスワードを変えても Backstage は読み続けられる。
 
 ## TechDocs
 
@@ -129,28 +129,30 @@ ArgoCD の管理対象は Secret を名前で参照するだけで、公開 repo
 - `@yarnpkg/core` は 4.9.1 に固定している (`backstage/package.json` の `resolutions`)。4.9.2 は依存の
   `got` に自分の repo の中のパッチを指していて、外から入れると yarn install が失敗する
 
-## 別の PC から見る (just share backstage)
+## 別の PC から見る (just share)
 
 ```sh
-just share backstage   # URL・ユーザー (viewer)・パスワードを表示する。Ctrl-C で止めると URL は無効になる
+just share add alice   # 名前・パスワードと、Grafana・headroom・Backstage の 3 つの URL を表示する (既定 8h で失効)
+just share get alice   # 3 つの URL を引き直す (パスワードは出ない)
 ```
 
-Grafana の `just share` ([claude-code-traces.md](../observability/claude-code-traces.md) の「別の PC から見る」)
-と同じく、Cloudflare Quick Tunnel (`*.trycloudflare.com`) と caddy (127.0.0.1:3003) を前に置き、
-localhost:7007 を一時的に公開する。パスワードは共有のたびに作る使い捨てで、表示するだけでファイルには残さない。
-使い終わったら必ず止める。
+Backstage は常駐の `share` Pod (`clusters/kind/share/`、構成は [share.md](share.md)) の caddy `:8083` と、
+Cloudflare Quick Tunnel (`*.trycloudflare.com`) を前に置いて公開している。入るには `just share add` が発行した
+名前・パスワード (Grafana・headroom と共通の 1 つ) を、Backstage の URL で打つ。使い終わったら `just share delete <名前>`。
+URL は `share` Pod を作り直すと変わる。
 
-Backstage は誰でもゲストで入れるので、パスワードは caddy の basic_auth で掛ける。ただし Backstage の画面は
-API を呼ぶときに `Authorization: Bearer` (Backstage のトークン) を付けるため、すべての要求に basic_auth を
-掛けると画面が動かない。そこで最初のページの読み込みで basic_auth を通ったブラウザに cookie
-(`share_session`、値は共有のたびに作る) を渡し、以後はその cookie を持つ要求だけを通す。
+Backstage は誰でもゲストで入れるので、パスワードは認証サービスで掛ける。ただし Backstage の画面は
+API を呼ぶときに `Authorization: Bearer` (Backstage のトークン) を付けるため、すべての要求に Basic 認証を
+掛けると画面が動かない。そこで最初のページの読み込みで Basic を通ったブラウザに、認証サービスが署名した cookie
+(`share_session`) を渡し、以後はその cookie を持つ要求だけを通す。cookie でも、名前が Secret にあり期限内かを
+毎回確かめるので、`delete`・期限切れはすぐ効く。
 
 TechDocs の文書の CSS や画像は、Backstage が発行する cookie (`backstage-auth`) で認証する。Backstage は
 この cookie に `backend.baseUrl` のホスト名 (`Domain=localhost`) を付けるので、そのままでは trycloudflare の
 ホストで捨てられ、文書の画面が読み込み中のまま止まる。caddy はこの `Domain` を外して返す。
 
 7007 をそのまま出すと、Backstage が Grafana の資格情報で読むプロキシ (`/api/proxy/grafana/api`) や、
-カタログに任意の URL を読ませる API まで外から使える。caddy (`just/share-backstage.Caddyfile`) は、
+カタログに任意の URL を読ませる API まで外から使える。caddy (`clusters/kind/share/Caddyfile`) は、
 画面と TechDocs を読むのに要る経路だけを通し、残りは 404 にする。
 
 | 経路 | メソッド | 外から | 理由 |
@@ -166,7 +168,7 @@ TechDocs の文書の CSS や画像は、Backstage が発行する cookie (`back
 | そのほかの POST・PUT・PATCH・DELETE | すべて | 404 | 読むだけの共有で要らない |
 
 Grafana のダッシュボードの一覧 (Overview のカード) は `/api/proxy` を通すので、共有先では読めずエラーになる。
-共有先で Grafana を見せたいときは `just share grafana` を別に立てる。
+共有先でも Grafana のダッシュボードは、同じ資格情報で Grafana の URL から見られる。
 
 ## 本番のクラスタに反映する手順 (この PR のマージ後)
 

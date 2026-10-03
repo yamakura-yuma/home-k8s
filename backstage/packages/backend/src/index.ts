@@ -7,7 +7,7 @@ const backend = createBackend();
 backend.add(import('@backstage/plugin-app-backend'));
 backend.add(import('@backstage/plugin-proxy-backend'));
 
-// ログインはゲストだけ (127.0.0.1 と、パスワード付きの just share にしか出さない)
+// ログインはゲストだけ (127.0.0.1 と、人ごとの資格情報つきの share Pod にしか出さない)
 backend.add(import('@backstage/plugin-auth-backend'));
 backend.add(import('@backstage/plugin-auth-backend-module-guest-provider'));
 

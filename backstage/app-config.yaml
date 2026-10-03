@@ -48,7 +48,7 @@ grafana:
   domain: http://localhost:3000
   unifiedAlerting: false
 
-# ログインはゲストだけ。127.0.0.1 と、パスワード付きの just share にしか出さないので、production でもゲストを許す
+# ログインはゲストだけ。127.0.0.1 と、人ごとの資格情報つきの share Pod にしか出さないので、production でもゲストを許す
 auth:
   providers:
     guest:

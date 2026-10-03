@@ -44,13 +44,16 @@ up: _kind-up _backstage-image _argocd-install _grafana-secrets _share-relay-up _
 down: _share-relay-down
     kind delete cluster --name {{kind_cluster}}
 
-# grafana は viewer の接続先 (共有中なら公開 URL) で、共有相手に渡してよい。grafana-admin は自分用で渡さない。
+# grafana は localhost:3000 の viewer (閲覧用) で、grafana-admin は自分用。どちらも他の人には渡さない。
+# 他の人に見せる資格情報と公開 URL は `just share add`・`just share get` (docs/cluster/share.md)。
 
 # 接続先と資格情報を表示する (what: grafana | grafana-admin | argocd | headlamp | backstage。省略で全部)
 show what="":
     {{ if what =~ '^(|grafana|grafana-admin|argocd|headlamp|backstage)$' { "" } else { error("usage: just show [grafana|grafana-admin|argocd|headlamp|backstage]") } }}
     @{{ if what == "" { "echo '== grafana (viewer) =='" } else { "" } }}
-    @{{ if what =~ '^(|grafana)$' { "bash just/observe-show-connection.sh \"" + grafana_viewer_password_file + "\" \"" + share_state_file + "\"" } else { "" } }}
+    @{{ if what =~ '^(|grafana)$' { 'echo "  URL:        http://localhost:3000"' } else { "" } }}
+    @{{ if what =~ '^(|grafana)$' { 'echo "  ユーザー:   viewer"' } else { "" } }}
+    @{{ if what =~ '^(|grafana)$' { 'echo "  パスワード: $(cat "' + grafana_viewer_password_file + '")"' } else { "" } }}
     @{{ if what == "" { "echo '== grafana-admin =='" } else { "" } }}
     @{{ if what =~ '^(|grafana-admin)$' { 'echo "  URL:        http://localhost:3000"' } else { "" } }}
     @{{ if what =~ '^(|grafana-admin)$' { 'echo "  ユーザー:   admin"' } else { "" } }}

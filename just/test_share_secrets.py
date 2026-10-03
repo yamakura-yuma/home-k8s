@@ -21,7 +21,7 @@ JUST = Path(__file__).resolve().parent
 FAKE_KUBECTL = JUST / "fake_kubectl.py"
 VIEWER_VALUE = "viewer-pw-0123456789"
 FAKE_RANDOM = "ab" * 32  # 偽の openssl rand -hex 32 の出力
-SECRET_SCRIPTS = ["grafana-secrets.sh", "grafana-viewer-rotate.sh", "share-relay.sh", "share-secrets.sh"]
+SECRET_SCRIPTS = ["grafana-secrets.sh", "share-relay.sh", "share-secrets.sh"]
 
 
 def decode(manifest):
@@ -165,17 +165,6 @@ class EverySecretCreatingScript(FakeEnv):
         basic = base64.b64encode(b"backstage:BACKSTAGEPW-secret").decode()
         self.assertEqual([c for c in self.calls() if basic in c or "from-literal" in c and "GRAFANA_BASIC_AUTH" in c], [],
                          "Backstage の Basic が kubectl の引数に出た")
-
-    def test_viewer_rotate_puts_the_secret_without_annotation(self):
-        admin = self.tmp / "admin"
-        admin.write_text("admin-pw")
-        self.write_stub("curl", 'case "$*" in *users/lookup*) echo \'{"id":7}\' ;; esac')
-        r = self.run_script("grafana-viewer-rotate.sh", str(admin), str(self.viewer_file), "observability")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        ((name, (verb, data)),) = self.secrets().items()
-        self.assertEqual((name, verb), ("grafana-viewer", "create"))
-        self.assertEqual(data["password"], self.viewer_file.read_text())
-        self.assertNotIn(self.viewer_file.read_text(), "\n".join(self.calls()))
 
 
 class ShareUrls(FakeEnv):

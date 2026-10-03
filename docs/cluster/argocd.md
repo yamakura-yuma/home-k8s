@@ -16,6 +16,7 @@ just up
   1. helm upgrade --install argocd (argo-cd chart、clusters/kind/argocd/values.yaml)
   2. Secret grafana-admin / grafana-viewer / grafana-backstage / backstage-grafana
      (Git の外のファイルから。just/grafana-secrets.sh)
+     headroom の中継 (ホストの docker コンテナ、just/share-relay.sh) と、share の Secret (just/share-secrets.sh)
   3. kubectl apply -f clusters/kind/argocd/root.yaml
   4. 全 Application が Synced/Healthy になるまで待つ
   5. Headlamp にログインするトークン (just/headlamp-token.sh)
@@ -29,7 +30,8 @@ Application root (clusters/kind/argocd/apps を同期する app-of-apps)
   ├── otel-collector  ┘
   ├── grafana         chart + grafana-values.yaml + dashboards/kustomization.yaml (ダッシュボードの ConfigMap)
   ├── headlamp        chart + clusters/kind/headlamp/ (values と読み取り専用の RBAC)
-  └── backstage       chart + clusters/kind/backstage/values.yaml (イメージは 0 で入れたもの)
+  ├── backstage       chart + clusters/kind/backstage/values.yaml (イメージは 0 で入れたもの)
+  └── share           clusters/kind/share/ (Deployment `share`。他の人に見せる公開の本体。share.md)
 ```
 
 | Application | chart | 版 | namespace |
@@ -38,6 +40,7 @@ Application root (clusters/kind/argocd/apps を同期する app-of-apps)
 | tempo / prometheus / loki / otel-collector / grafana | [claude-code-traces.md](../observability/claude-code-traces.md) の表 | 同左 | observability |
 | headlamp | `headlamp` (<https://kubernetes-sigs.github.io/headlamp>) | 0.45.0 | headlamp |
 | backstage | `backstage` (<https://backstage.github.io/charts>) | 2.10.2 | backstage |
+| share | なし (マニフェストのみ。caddy・認証・cloudflared ×3 の 1 Pod) | - | share |
 | storage | なし (マニフェストのみ) | - | なし (cluster-scoped) |
 
 子の Application は chart のリポジトリと home-k8s の 2 つをソースに持つ (multi-source)。
@@ -69,6 +72,7 @@ Node・PersistentVolume・StorageClass・CRD・ClusterRole を読むだけの `h
 |---|---|---|
 | `observability/grafana-admin`・`grafana-viewer`・`grafana-backstage` | `just up` | `~/.local/share/home-k8s/observability/grafana-*-password` (無ければ作る) |
 | `backstage/backstage-grafana` | `just up` | 上の `grafana-backstage-password` から、Backstage のプロキシが使う Basic 認証の値を作る ([backstage.md](backstage.md)) |
+| `share/share-credentials`・`share-session-key`・`share-grafana`・`share-host` | `just up`・`just share add` | 資格情報はハッシュだけ (`just share` が足す。空で作り、あれば触らない)。`share-grafana` は `grafana-viewer-password` の写し。`share-host` は headroom の中継の宛先とトークン ([share.md](share.md)) |
 | `headlamp/headlamp-token` | `just up` | kube-controller-manager が ServiceAccount `headlamp` のトークンを入れる。取り出して `~/.local/share/home-k8s/headlamp/token` に書く |
 | `argocd/argocd-initial-admin-secret` | ArgoCD (初回の起動時) | ArgoCD が乱数で作る |
 

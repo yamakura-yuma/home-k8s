@@ -30,7 +30,7 @@ class Recipes(unittest.TestCase):
 
     def test_show_expands_per_target(self):
         expect = {
-            "grafana": "observe-show-connection.sh",
+            "grafana": "grafana-viewer-password",
             "grafana-admin": "grafana-admin-password",
             "argocd": "argocd-initial-admin-secret",
             "headlamp": "headlamp/token",

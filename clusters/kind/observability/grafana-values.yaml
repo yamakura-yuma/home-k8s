@@ -31,7 +31,7 @@ admin:
   passwordKey: admin-password
 
 # Grafana が Secret の admin のパスワードを使うのは、grafana.db が空の初回だけ。永続化した後は
-# パスワードファイルを書き換えても DB の値のままになり、下のサイドカーも `just share` も admin で入れなくなる。
+# パスワードファイルを書き換えても DB の値のままになり、下のサイドカーも admin で入れなくなる。
 # そこで起動のたびに、Grafana の前に grafana cli で DB の admin (id 1) のパスワードを Secret の値にそろえる。
 # イメージは distroless で sh が無いので、同じイメージの grafana バイナリを exec 形式で直接打つ
 # (DB が空でも動く。DB の場所は環境変数 GF_PATHS_DATA の既定 /var/lib/grafana)
@@ -60,13 +60,13 @@ extraInitContainers:
       - name: storage
         mountPath: /var/lib/grafana
 
-# 共有相手に渡す閲覧用ユーザー viewer (Viewer ロール)。Grafana の横にサイドカーを置き、Pod の起動ごとに
+# 閲覧用ユーザー viewer (Viewer ロール。share Pod が人の代わりに入る)。Grafana の横にサイドカーを置き、Pod の起動ごとに
 # 一度だけ HTTP API で viewer を Secret の値にそろえる (居なければ作り、居ればパスワードを変える)。
 # Grafana のイメージは distroless で sh が無く、postStart の exec では作れないため別コンテナにする。
 # パスワードは `just up` が作る Secret grafana-viewer から読む。値はリポジトリに置かない。
-# 動いている間にパスワードを変えるのは `just share` で、ファイル・Secret・Grafana の 3 つを同時に変える。
-# サイドカーの環境変数は Pod の起動時の値のままなので、そろえるのは起動時の一度だけにし、そのあとは寝て待つ
-# (繰り返すと `just share` の変更を古い値に戻してしまう。コンテナが終わると再起動でまた打つので終わらせない)。
+# viewer のパスワードを変えるのは、ファイルを書き換えて `just up` を打つときだけ (Pod の再起動で反映される)。
+# サイドカーの環境変数は Pod の起動時の値のままで、実行中に変わった値を読み直せないので、そろえるのは起動時の一度だけにし、そのあとは寝て待つ
+# (コンテナが終わると再起動でまた打つので終わらせない)。
 # 同じサイドカーが Backstage 用の閲覧用ユーザー backstage (パスワードは Secret grafana-backstage) もそろえる。
 # Secret が無いあいだは何もしない (optional)。ユーザーを足すときは、環境変数を足して最後の upsert を 1 行足す。
 # ここは chart が tpl に通すので、二重波括弧を書かないこと
