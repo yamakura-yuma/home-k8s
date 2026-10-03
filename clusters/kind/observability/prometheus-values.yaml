@@ -15,12 +15,16 @@ server:
     - enable-feature=created-timestamp-zero-ingestion,promql-extended-range-selectors
   retention: 14d # Tempo に揃える
   # OTLP のリソース属性は既定では target_info にしか残らない。
-  # ワーカーごとに絞れるよう、Orca が付ける属性を各系列のラベルに昇格させる
-  # (ラベル名は . が _ になり orca_worktree_name などになる)。
+  # ワーカーごとに絞れるよう Orca が付ける属性と、grafana.com 15983 のための service.instance.id を
+  # 各系列のラベルに昇格させる (ラベル名は . が _ になり orca_worktree_name などになる)。
+  # 15983 (OTel Collector) の変数 divider は service_instance_id ラベルを前提にしている
+  # (service.instance.id は instance ラベルにもなるが、15983 はそれを読まない)。
+  # Claude Code はこの属性を送らないので、Claude Code の系列は増えない
   otlp:
     promote_resource_attributes:
       - orca.worktree.id
       - orca.worktree.name
+      - service.instance.id
   # PVC prometheus-server を /data にマウントし、TSDB をその根に置く。PV prometheus が claimRef で待っている。
   # ノードは PV の nodeAffinity が決めるので nodeSelector は要らない
   persistentVolume:

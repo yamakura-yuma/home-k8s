@@ -35,7 +35,7 @@ Kubernetes の 6 枚は dotdc/grafana-dashboards-kubernetes。どのダッシュ
 | `apiserver_*` | API サーバー | スクレイプ `kubernetes-api-servers` |
 | `otelcol_*` | OTel Collector 自身 | Collector が OTLP で Prometheus の OTLP 受信に送る (10 秒ごと) |
 
-ダッシュボードに合わせて足した設定が 4 つある。
+ダッシュボードに合わせて足した設定が 5 つある。
 
 - cAdvisor の系列に `node` ラベルを足す (`post_relabel_configs`)。dotdc は `container_*` と
   `machine_*` をノード名で絞るが、kubelet も chart の既定の relabel もこのラベルを付けない。
@@ -46,14 +46,18 @@ Kubernetes の 6 枚は dotdc/grafana-dashboards-kubernetes。どのダッシュ
   NetworkPolicy を挙げる。`kube_<リソース>_labels` は挙げたリソースにしか出ず、15758 はこれで数を数える。
 - Collector の送信間隔を 10 秒にする。15983 のパネルは最小間隔 10 秒で `$__rate_interval` が
   40 秒になり、既定の 60 秒ごとでは窓に点が 1 つしか入らず `rate()` が空になる。
+- Prometheus の `otlp.promote_resource_attributes` に `service.instance.id` を挙げる。15983 の変数
+  `divider` は `service_instance_id` (または `service.instance.id`) ラベルを前提にし、無いと
+  Service Instance Details と Processors の 1 段目 (incoming/outgoing items) が空になる。
+  Claude Code はこの属性を送らないので、Claude Code の系列にはラベルが付かず、系列は増えない。
 
 dotdc は全クエリに `cluster="$cluster"` を付けるが、この Prometheus の系列には `cluster` ラベルが無い。
 変数 `cluster` は候補 0 件で空になり、`cluster=""` は「ラベルが無い系列」に一致するので、そのまま埋まる。
 
 Collector の名前は Prometheus の OTLP 変換 (`UnderscoreEscapingWithSuffixes`) で `_total` や
 `_seconds` が付く (`otelcol_process_uptime_seconds_total` など)。15983 は接尾辞を変数で判定するので
-そのまま読める。`job` は Collector の `service.name` (`otelcol-k8s`)、`instance` は
-`service.instance.id` になる。
+そのまま読める。`job` は Collector の `service.name` (`otelcol-k8s`)、`instance` と
+`service_instance_id` は `service.instance.id` になる (`service_instance_id` は上の昇格で付く)。
 
 ## ファイルと Grafana への入り方
 
@@ -110,7 +114,6 @@ file provisioning はそのままでは読めない部分がある。
 | 15757・15759 | CPU Core Throttled | 事象待ち (`node_cpu_core_throttles_total` が 0 のまま) |
 | 15760 | Information 行 (Created by・Running on など) | 変数 `pod` が All のときは空。Pod を 1 つ選ぶと出る (上流の作り) |
 | 15762 | DNS Errors | 事象待ち (SERVFAIL・REFUSED の転送が無い) |
-| 15983 | Service Instance Details、Processors 1 段目 (incoming/outgoing items の Spans・Metric Points・Log Records) | 変数 `divider` が `service_instance_id` ラベルを前提にしている。OTLP で入れると `instance` になり、このラベルが無い |
 | 15983 | (空にはならない) Processors 2 段目の accepted/refused/dropped | Collector 0.161 は `otelcol_processor_accepted_*` などを出さないが、同じパネルの正規表現のクエリが `otelcol_processor_memory_limiter_accepted_*` を拾うので埋まる |
 | 15983 | enqueue_failed・send_failed・batch_size_trigger_send、Filter processors・Kubernetes 行 | 事象待ち、またはこの構成に部品 (filter・k8sattributes processor) が無い |
 | 25255 | Sessions・Top Sessions by Cost・Sessions by Terminal (2026-10-15 ごろまで 1 つ多い) | 空にはならない。2026-10-01 に `OTEL_METRICS_INCLUDE_SESSION_ID` を `true` にしてから、`session_id` ごとに正しく数える。ただし切り替え前の系列には `session_id` が無く、期間が切り替えの時刻をまたぐと、それらがまとめて空の `session_id` の「1 セッション」として加わる (Top Sessions by Cost では大きな 1 行)。切り替えの前から動いていたセッションには、`claude_code_session_count_total` は `session_id` 無しで、コスト・トークンは `session_id` 付きで出ているものがある (2026-10-01 に 3 件。理由は未確認)。そうしたセッションは Sessions では空の 1 つに入り、Top Sessions by Cost では `session_id` 付きの行にも出る。保持期間が 14 日なので 2026-10-15 ごろに消える。Prometheus の系列は消していない |
