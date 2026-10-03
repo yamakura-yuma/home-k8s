@@ -8,6 +8,7 @@
 #   3. kustomize build / 素の manifest  同じ Application の path (dashboards、storage、headlamp/manifests)
 #   4. kubeconform     3 までの出力を、kind の Kubernetes の版のスキーマに照らす
 #   5. kube-linter     3 までの出力 (.kube-linter.yaml)
+#   6. unittest        share の認証サービス (clusters/kind/share)。クラスタにもネットワークにも出ない
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -61,3 +62,6 @@ kubeconform -strict -summary -ignore-missing-schemas -kubernetes-version "$k8s_v
 
 echo "== kube-linter =="
 kube-linter lint --config .kube-linter.yaml "$out"
+
+echo "== share 認証の単体試験 (unittest) =="
+python3 -B -m unittest discover -s clusters/kind/share

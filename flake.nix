@@ -42,6 +42,7 @@
             kubeconform
             kube-linter
             python3
+            caddy # Caddyfile の validate と、経路の統合試験 (just/ci.sh)
           ];
         };
       });

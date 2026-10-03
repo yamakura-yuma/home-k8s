@@ -1,6 +1,6 @@
 # 公開 (just share) を常駐させ、人ごとの資格情報で配る — 設計
 
-状態: 設計 (実装前)。実装は GitHub の Issue ごとに進め、そのたびにこの文書を実際の構成に書き換える。
+状態: 設計。実装は GitHub の Issue ごとに進め、そのたびにこの文書を実際の構成に書き換える。実装済み: 認証サービス (#39、`clusters/kind/share/share_auth.py`)。
 図の HTML (変更前→変更後のアニメーション): [share-design.html](share-design.html)
 
 ## 何を変えるか
@@ -67,12 +67,14 @@ reload の取りこぼしを心配することになるためである。代わ�
 
 | 項目 | 内容 |
 |---|---|
-| 認証サービス | 標準ライブラリだけの Python (約 100 行)。ConfigMap に置き `python:3.13-alpine` で動かす。判定は純関数 `decide(credentials, request, now)` |
-| 資格情報の置き場 | Secret `share-credentials`。キーが名前、値が JSON `{"hash": "<sha256(パスワード)>", "expires_at": <epoch秒\|null>, "privileged": <bool>, "created_at": <epoch秒>}` |
+| 認証サービス | 標準ライブラリだけの Python (`clusters/kind/share/share_auth.py`)。ConfigMap に置き `python:3.13-alpine` で動かす (ConfigMap は #41)。判定は純関数 `decide(credentials, request, now, session_key)` で、`(status, headers)` を返す。`request` は `Authorization` と `Cookie` のヘッダ値だけ |
+| 資格情報の置き場 | Secret `share-credentials`。キーが名前、値が JSON `{"hash": "<sha256(パスワード) の hex 小文字 64 桁>", "expires_at": <epoch秒\|null>, "privileged": <bool>, "created_at": <epoch秒>}`。型を 1 つでも外した項目 (`expires_at: true` を含む) はその項目だけ拒否し、ほかの項目には響かない。cookie の署名鍵は Secret `share-session-key` のキー `key` |
 | パスワード | `openssl rand -hex 16` (128 bit) を `add` が 1 回だけ表示。保存はハッシュだけ。推測できない値なので遅い KDF は要らず、sha256 でよい |
-| 判定 | Basic の名前で Secret を引く → ハッシュを `compare_digest` → `expires_at` が null か今より後。1 つでも欠ければ 401 |
-| 反映の遅れ | **期限切れ: 0 秒** (要求ごとに現在時刻と比べる)。**delete: 最大 2 秒** (キャッシュの TTL)。**ローテーション: 同じ 2 秒** |
-| デフォルト拒否 | Secret が無い・K8s API に届かない・JSON が壊れている・名前が無い、はすべて 401 (閉じる側に倒す)。認証サービスが落ちていても caddy は 401/502 で通さない |
+| 判定 | Basic の名前 (`^[a-z0-9][a-z0-9-]{0,31}$`) で Secret を引く → ハッシュを `compare_digest` → `expires_at` が null か今より後 (**期限ちょうども拒否**)。1 つでも欠ければ 401。名前が無いときも同じ量のハッシュ比較をする。`Authorization` が Basic ならそれだけで決め、Basic でなければ (Backstage の Bearer など) cookie で決める |
+| 反映の遅れ | **期限切れ: 0 秒** (要求ごとに現在時刻と比べる)。**delete: 最大 2 秒** (キャッシュの TTL、環境変数 `AUTH_CACHE_TTL`)。**ローテーション: 同じ 2 秒** |
+| 設定 | `AUTH_SOURCE` (既定は K8s API。`file:<path>` で JSON ファイル。形は `{"credentials": {名前: 項目}, "session_key": "..."}`、項目は JSON 文字列でも dict でもよい)、`AUTH_CACHE_TTL` (既定 2)、`AUTH_LISTEN` (既定 `127.0.0.1:9000`)、`AUTH_NAMESPACE` (既定は ServiceAccount の namespace) |
+| 応答 | 200 か 401 だけ (本文なし)。どのメソッド・パスでも同じ判定。401 には `WWW-Authenticate: Basic` を付ける。Basic で通ったときだけ `Set-Cookie` (§5) を返す |
+| デフォルト拒否 | Secret が無い・K8s API に届かない・JSON が壊れている・名前が無い、はすべて 401 (閉じる側に倒す)。読めなかったときに古い値は使い回さない。認証サービスが落ちていても caddy は 401/502 で通さない。認証なしで 200 を返す経路 (health など) は持たない (Pod の probe は tcpSocket にする) |
 | 掃除 | 期限切れの項目は `list` では「期限切れ」と出し、`add` と `prune` が消す (CronJob は置かない)。残っていても判定は拒否なので、掃除は見た目の整理にすぎない |
 | RBAC | auth の ServiceAccount は Secret `share-credentials` と `share-session-key` の `get` だけ (resourceNames で限る) |
 
@@ -118,8 +120,10 @@ reload の取りこぼしを心配することになるためである。代わ�
 
 Backstage の API 呼び出しは `Authorization: Bearer` を使うので、Basic は最初のページの読み込みでしか使えない。
 今は通過後に共有ごとの合言葉の cookie を渡している。変更後は **署名つき cookie** にする
-(`<名前>.<署名>`。鍵は Secret `share-session-key`。`just up` が作る)。認証サービスは cookie でも Basic でも、
-**名前が Secret にあり期限内か**を毎回確かめるので、delete・期限切れが cookie 経路にも効く。
+(`<名前>.<署名>`。鍵は Secret `share-session-key`。`just up` が作る)。署名は `HMAC-SHA256(鍵, "<名前>:<その資格情報の hash>")` で、
+名前だけでなく hash にも束ねる。このため `rotate` や、`delete` → `add` で同じ名前を作り直したときも、古い cookie は効かなくなる。
+認証サービスは cookie でも Basic でも、**名前が Secret にあり期限内か**を毎回確かめるので、delete・期限切れが cookie 経路にも効く。
+Cookie の属性は `Path=/; HttpOnly; Secure; SameSite=Lax` (期限は cookie に持たせず、Secret の `expires_at` だけを正とする)。
 認証サービスの `Set-Cookie` を caddy が応答に載せる実装 (`forward_auth` の `handle_response`) は、実装で確かめる。
 
 ### 6. 特権 viewer
@@ -164,7 +168,7 @@ Backstage の API 呼び出しは `Authorization: Bearer` を使うので、Basi
 
 | 段 | 内容 | 拒否を確かめる点 |
 |---|---|---|
-| 認証の単体 (Python `unittest`) | `decide()` に資格情報と時刻を渡す。時刻は引数なので時間を進められる | 名前なし・誤パスワード・**期限の 1 秒前は通り 1 秒後は拒否**・**項目を消すと拒否**・`rotate` 後の古いパスワード・改ざんした cookie・Secret が空・資格情報が壊れている・上限 (24h) 超の `--ttl` |
+| 認証の単体 (Python `unittest`、`clusters/kind/share/test_share_auth.py`。#39 で実装済みで `just ci` の最後の段) | `decide()` に資格情報と時刻を渡す。時刻は引数なので時間を進められる。K8s API は偽の HTTP サーバーで、`forward_auth` が見る応答は実際の HTTP で確かめる | 名前なし・誤パスワード・**期限の 1 秒前は通り 1 秒後は拒否**・**項目を消すと拒否**・`rotate` 後の古いパスワード・改ざんした cookie・Secret が空・資格情報が壊れている・改ざんした cookie の付け替え・`rotate` / 期限切れ / `delete` 後の cookie。上限 (24h) 超の `--ttl` は CLI の試験 (#42) |
 | 経路の統合 (caddy + auth + 偽の upstream) | `caddy` を空きポートで起動し、認証サービスは K8s API の代わりに JSON ファイルを読むモード (`AUTH_SOURCE=file:...`)。upstream は標準ライブラリの HTTP サーバー | 認証なしは全経路 401。認証ありでも headroom の `POST /v1/messages`・`/stats/reset`、backstage の `/api/proxy`・`POST /api/catalog/locations`、grafana の `/profile/password` は 404。**ファイルから項目を消す・期限を過去にする → キャッシュ TTL (テストでは 0) の後 401** |
 | 静的 | `caddy validate`。`share` namespace に NodePort・LoadBalancer・Ingress が無いこと (`yq`)。既存の kubeconform・kube-linter | 公開の入口を足していない |
 
