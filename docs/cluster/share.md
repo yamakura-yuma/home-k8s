@@ -232,7 +232,7 @@ Cookie の属性は `Path=/; HttpOnly; Secure; SameSite=Lax` (期限は cookie �
 - `share-grafana` は写しで、caddy は起動時に 1 度だけ環境変数に読む。viewer のパスワードを変える処理は `just up` だけになった
   (`grafana-secrets.sh`・`share-secrets.sh` が同じファイルから `grafana-viewer` と `share-grafana` を同時に入れる。共有のたびの作り直しは #44 で廃止) が、
   `just up` は Pod を作り直さないので、**変えたあとは `deploy/grafana` と `deploy/share` の両方を `rollout restart` する**
-  (Grafana の DB はサイドカーが起動時にそろえる。片方だけだと Grafana の経路が 302 になる)。`share` を作り直すと URL が変わる。
+  (Grafana の DB はサイドカーが起動時にそろえる。片方だけだと Grafana の経路が 302 になる)。`share` を作り直すと URL が変わる。自動で読み直す仕組みは [#58](https://github.com/yamakura-yuma/home-k8s/issues/58)。
 - **Secret の作り方 (#49)**: `kubectl apply` は Secret の中身を注釈 `kubectl.kubernetes.io/last-applied-configuration` に残す。Secret を作る処理は `just/secret-lib.sh` の
   `put_secret` (あれば `replace`、無ければ `create`) か `create_secret_if_missing` (`create` だけ) を使う。どちらも注釈を付けず、`replace` は metadata を置き換えるので以前の `apply` が残した注釈も消える。
   `replace --force` (消して作り直す) は動いている Pod の下で消えるので使わない。対象は `grafana-secrets.sh`・`share-relay.sh`・`share-secrets.sh`。

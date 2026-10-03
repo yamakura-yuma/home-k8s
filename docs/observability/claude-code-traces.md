@@ -233,7 +233,7 @@ viewer のパスワードを変えるのは、ファイルを書き換えて `ju
 Secret `observability/grafana-viewer` と、公開の Pod (`share`) が持つ写し (Secret `share/share-grafana`) を一緒に入れ直す。
 ただし Grafana の DB へは Pod の起動時にサイドカーがそろえ、share の caddy は写しを Pod の起動時に 1 度だけ読むので、
 `just up` のあとに **`deploy/grafana` と `deploy/share` の両方を `rollout restart` する**。片方だけだと Grafana の経路が
-302 (ログイン画面) になる。`share` を作り直すと 3 つの公開 URL が変わる (`just share get` で引き直す)。
+302 (ログイン画面) になる。`share` を作り直すと 3 つの公開 URL が変わる (`just share get` で引き直す)。自動で読み直す仕組みは [#58](https://github.com/yamakura-yuma/home-k8s/issues/58)。
 人ごとの資格情報 (`just share add`) は Grafana のユーザーではないので、配るたびには viewer のパスワードは変わらない。
 
 パスワードのファイルの所有者はホストのユーザーにしてあるので、WSL2 のシェルから `cat` しても読める。
