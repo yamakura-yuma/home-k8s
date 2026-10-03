@@ -1,7 +1,8 @@
 # 公開 (just share) を常駐させ、人ごとの資格情報で配る — 設計
 
-状態: 設計。実装は GitHub の Issue ごとに進め、そのたびにこの文書を実際の構成に書き換える。実装済み: #38 (headroom の中継)。
+状態: 設計。実装は GitHub の Issue ごとに進め、そのたびにこの文書を実際の構成に書き換える。実装済み: #38 (headroom の中継)、認証サービス (#39、`clusters/kind/share/share_auth.py`)。
 図の HTML (変更前→変更後のアニメーション): [share-design.html](share-design.html)
+認証サービス (#39) の diff の図 (判定を動かせるアニメーション): [share-auth.html](share-auth.html)
 
 ## 何を変えるか
 
@@ -83,12 +84,15 @@ reload の取りこぼしを心配することになるためである。代わ�
 
 | 項目 | 内容 |
 |---|---|
-| 認証サービス | 標準ライブラリだけの Python (約 100 行)。ConfigMap に置き `python:3.13-alpine` で動かす。判定は純関数 `decide(credentials, request, now)` |
-| 資格情報の置き場 | Secret `share-credentials`。キーが名前、値が JSON `{"hash": "<sha256(パスワード)>", "expires_at": <epoch秒\|null>, "privileged": <bool>, "created_at": <epoch秒>}` |
-| パスワード | `openssl rand -hex 16` (128 bit) を `add` が 1 回だけ表示。保存はハッシュだけ。推測できない値なので遅い KDF は要らず、sha256 でよい |
-| 判定 | Basic の名前で Secret を引く → ハッシュを `compare_digest` → `expires_at` が null か今より後。1 つでも欠ければ 401 |
-| 反映の遅れ | **期限切れ: 0 秒** (要求ごとに現在時刻と比べる)。**delete: 最大 2 秒** (キャッシュの TTL)。**ローテーション: 同じ 2 秒** |
-| デフォルト拒否 | Secret が無い・K8s API に届かない・JSON が壊れている・名前が無い、はすべて 401 (閉じる側に倒す)。認証サービスが落ちていても caddy は 401/502 で通さない |
+| 認証サービス | 標準ライブラリだけの Python (`clusters/kind/share/share_auth.py`)。ConfigMap に置き `python:3.13-alpine` で動かす (ConfigMap は #41)。判定は純関数 `decide(credentials, request, now, session_key, verifier)` で、`(status, headers)` を返す。`request` は `Authorization` と `Cookie` のヘッダ値だけ |
+| 資格情報の置き場 | Secret `share-credentials`。キーが名前、値が JSON `{"hash": "pbkdf2_sha256$<反復回数>$<salt の hex 32 桁>$<鍵の hex 64 桁>", "expires_at": <epoch秒\|null>, "privileged": <bool>, "created_at": <epoch秒>}`。型を 1 つでも外した項目 (`expires_at: true` を含む) はその項目だけ拒否し、ほかの項目には響かない。cookie の署名鍵は Secret `share-session-key` のキー `key`。反復回数が 100,000 未満の項目は拒否する |
+| パスワード | `openssl rand -hex 16` (128 bit) を `add` が 1 回だけ表示。保存はハッシュだけで、**PBKDF2-HMAC-SHA256 (項目ごとのランダムな 16 byte のソルト、反復 600,000 回)**。反復回数は [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html) の PBKDF2-HMAC-SHA256 の推奨値。反復回数は項目に書くので、将来上げても古い項目は読める。1 回の計算は開発機で約 70ms (Python の `hashlib.pbkdf2_hmac`)。sha256 1 回の保存は CodeQL (`py/weak-sensitive-data-hashing`) に指摘されたので、遅い KDF にした |
+| 判定 | Basic の名前 (`^[a-z0-9][a-z0-9-]{0,31}$`) で Secret を引く → `expires_at` が null か今より後 (**期限ちょうども拒否**) → パスワードを PBKDF2 で照合 (`compare_digest`)。1 つでも欠ければ 401。名前が無いときもダミーの hash で同じ反復の PBKDF2 を計算する。`Authorization` が Basic ならそれだけで決め、Basic でなければ (Backstage の Bearer など) cookie で決める |
+| 照合結果の覚え | PBKDF2 は 1 回約 70ms で、ページを開くと要求が連発するため、**照合に成功した結果だけ**を名前ごとに 1 つ、プロセス内に **30 秒** (環境変数 `AUTH_VERIFY_TTL`、0 で無効) 覚える。覚えるのは (hash, パスワード, 時刻) で、パスワードは最大 30 秒だけメモリに平文で残る (キーをパスワードのハッシュにすると、同じ指摘を招き、弱いハッシュを足すことにもなる)。使う条件は 4 つ全部: 項目が今も Secret にあり期限内 (毎回先に確かめる) / hash が覚えた値と同じ (ローテーション・`delete` → `add` で変わる) / パスワードが覚えた値と `compare_digest` で一致 / 30 秒以内。失敗は覚えず毎回計算するので、誤パスワードを連打されると 1 要求あたり約 70ms の CPU を使う (単独運用なので受け入れる)。**Basic で通った後は cookie が使われる**ので、覚えが効くのは主にブラウザ以外の Basic の連続呼び出し |
+| 反映の遅れ | **期限切れ: 0 秒** (要求ごとに現在時刻と比べる)。**delete: 最大 2 秒** (キャッシュの TTL、環境変数 `AUTH_CACHE_TTL`)。**ローテーション: 同じ 2 秒** (照合結果の覚えは、これらを遅らせない) |
+| 設定 | `AUTH_SOURCE` (既定は K8s API。`file:<path>` で JSON ファイル。形は `{"credentials": {名前: 項目}, "session_key": "..."}`、項目は JSON 文字列でも dict でもよい)、`AUTH_CACHE_TTL` (既定 2)、`AUTH_VERIFY_TTL` (既定 30)、`AUTH_LISTEN` (既定 `127.0.0.1:9000`)、`AUTH_NAMESPACE` (既定は ServiceAccount の namespace) |
+| 応答 | 200 か 401 だけ (本文なし)。どのメソッド・パスでも同じ判定。401 には `WWW-Authenticate: Basic` を付ける。Basic で通ったときだけ `Set-Cookie` (§5) を返す |
+| デフォルト拒否 | Secret が無い・K8s API に届かない・JSON が壊れている・名前が無い、はすべて 401 (閉じる側に倒す)。読めなかったときに古い値は使い回さない。認証サービスが落ちていても caddy は 401/502 で通さない。認証なしで 200 を返す経路 (health など) は持たない (Pod の probe は tcpSocket にする) |
 | 掃除 | 期限切れの項目は `list` では「期限切れ」と出し、`add` と `prune` が消す (CronJob は置かない)。残っていても判定は拒否なので、掃除は見た目の整理にすぎない |
 | RBAC | auth の ServiceAccount は Secret `share-credentials` と `share-session-key` の `get` だけ (resourceNames で限る) |
 
@@ -134,8 +138,13 @@ reload の取りこぼしを心配することになるためである。代わ�
 
 Backstage の API 呼び出しは `Authorization: Bearer` を使うので、Basic は最初のページの読み込みでしか使えない。
 今は通過後に共有ごとの合言葉の cookie を渡している。変更後は **署名つき cookie** にする
-(`<名前>.<署名>`。鍵は Secret `share-session-key`。`just up` が作る)。認証サービスは cookie でも Basic でも、
-**名前が Secret にあり期限内か**を毎回確かめるので、delete・期限切れが cookie 経路にも効く。
+(`<名前>.<署名>`。鍵は Secret `share-session-key`。`just up` が作る)。署名は `HMAC-SHA256(鍵, "<名前>:<その資格情報の salt>")` で、
+名前だけでなく項目の salt (hash の 3 つ目の要素。秘密ではない) にも束ねる。salt は `add`・`rotate` のたびに変わるので、`rotate` や、
+`delete` → `add` で同じ名前を作り直したときも (同じパスワードでも)、古い cookie は効かなくなる。
+これは **MAC であってパスワードのハッシュ化ではない**。CodeQL の `py/weak-sensitive-data-hashing` は以前、保存 hash 全体をこの HMAC に入れた行も
+指摘した (パスワードの派生物を sha256 系に通す流れに見えたため)。パスワードやその派生物を入れず salt だけにして、その流れをなくした。
+認証サービスは cookie でも Basic でも、**名前が Secret にあり期限内か**を毎回確かめるので、delete・期限切れが cookie 経路にも効く。
+Cookie の属性は `Path=/; HttpOnly; Secure; SameSite=Lax` (期限は cookie に持たせず、Secret の `expires_at` だけを正とする)。
 認証サービスの `Set-Cookie` を caddy が応答に載せる実装 (`forward_auth` の `handle_response`) は、実装で確かめる。
 
 ### 6. 特権 viewer
@@ -180,8 +189,8 @@ Backstage の API 呼び出しは `Authorization: Bearer` を使うので、Basi
 
 | 段 | 内容 | 拒否を確かめる点 |
 |---|---|---|
-| 認証の単体 (Python `unittest`) | `decide()` に資格情報と時刻を渡す。時刻は引数なので時間を進められる | 名前なし・誤パスワード・**期限の 1 秒前は通り 1 秒後は拒否**・**項目を消すと拒否**・`rotate` 後の古いパスワード・改ざんした cookie・Secret が空・資格情報が壊れている・上限 (24h) 超の `--ttl` |
-| 経路の統合 (caddy + auth + 偽の upstream) | `caddy` を空きポートで起動し、認証サービスは K8s API の代わりに JSON ファイルを読むモード (`AUTH_SOURCE=file:...`)。upstream は標準ライブラリの HTTP サーバー | 認証なしは全経路 401。認証ありでも headroom の `POST /v1/messages`・`/stats/reset`、backstage の `/api/proxy`・`POST /api/catalog/locations`、grafana の `/profile/password` は 404。**ファイルから項目を消す・期限を過去にする → キャッシュ TTL (テストでは 0) の後 401** |
+| 認証の単体 (Python `unittest`、`clusters/kind/share/test_share_auth.py`。#39 で実装済みで `just ci` の最後の段) | `decide()` に資格情報と時刻を渡す。時刻は引数なので時間を進められる。K8s API は偽の HTTP サーバーで、`forward_auth` が見る応答は実際の HTTP で確かめる | 名前なし・誤パスワード・**期限の 1 秒前は通り 1 秒後は拒否**・**項目を消すと拒否**・`rotate` 後の古いパスワード・改ざんした cookie・Secret が空・資格情報が壊れている・改ざんした cookie の付け替え・`rotate` / 期限切れ / `delete` 後の cookie。上限 (24h) 超の `--ttl` は CLI の試験 (#42) |
+| 経路の統合 (caddy + auth + 偽の upstream) | `caddy` を空きポートで起動し、認証サービスは K8s API の代わりに JSON ファイルを読むモード (`AUTH_SOURCE=file:...`)。upstream は標準ライブラリの HTTP サーバー | 認証なしは全経路 401。認証ありでも headroom の `POST /v1/messages`・`/stats/reset`、backstage の `/api/proxy`・`POST /api/catalog/locations`、grafana の `/profile/password` は 404。**ファイルから項目を消す・期限を過去にする → キャッシュ TTL (テストでは 0) の後 401**。旧形式 (sha256)・反復が少ない hash は 401。照合結果の覚えがあっても、delete・期限切れ・ローテーションは次の要求から 401 |
 | 静的 | `caddy validate`。`share` namespace に NodePort・LoadBalancer・Ingress が無いこと (`yq`)。既存の kubeconform・kube-linter | 公開の入口を足していない |
 
 `flake.nix` の `devShells.ci` に `caddy` を足す (今は `tools` 側にしかない)。

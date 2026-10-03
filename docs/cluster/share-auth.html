@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>share 認証サービス (#39) — diff の図</title>
+<style>
+  :root {
+    --bg:#0f1419; --panel:#171e26; --line:#2c3846; --text:#e6edf3; --dim:#8b98a5;
+    --add:#3fb950; --del:#f85149; --acc:#58a6ff; --warn:#d29922; --ok:#3fb950;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f6f8fa; --panel:#ffffff; --line:#d0d7de; --text:#1f2328; --dim:#59636e; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.65 system-ui,"Hiragino Sans","Noto Sans JP",sans-serif; }
+  main { max-width:1040px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  h2 { font-size:17px; margin:36px 0 8px; border-left:4px solid var(--acc); padding-left:10px; }
+  p.lead { color:var(--dim); margin:0 0 16px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .tabs { display:flex; gap:8px; flex-wrap:wrap; margin:12px 0; }
+  button { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 14px; font:inherit; cursor:pointer; }
+  button.on { border-color:var(--acc); color:var(--acc); }
+  svg { width:100%; height:auto; display:block; }
+  svg text { font:12px system-ui,"Noto Sans JP",sans-serif; fill:var(--text); }
+  svg .dim { fill:var(--dim); }
+  .box { fill:var(--panel); stroke:var(--line); stroke-width:1.4; }
+  .box.add { stroke:var(--add); stroke-width:2; }
+  .box.host { fill:none; stroke-dasharray:3 4; }
+  .box.later { stroke-dasharray:5 4; }
+  .pipe { stroke:var(--dim); stroke-width:1.6; fill:none; }
+  .pipe.add { stroke:var(--add); }
+  .tag { font-weight:700; }
+  .t-add { fill:var(--add) !important; } .t-del { fill:var(--del) !important; } .t-acc { fill:var(--acc) !important; }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; color:var(--dim); font-size:13px; margin-top:8px; }
+  .legend i { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:6px; vertical-align:-1px; }
+  table { border-collapse:collapse; width:100%; font-size:14px; }
+  th,td { border:1px solid var(--line); padding:6px 10px; text-align:left; vertical-align:top; }
+  th { background:var(--panel); }
+  code { background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:0 4px; font-size:13px; }
+  .ctrl { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:8px 0; }
+  .ctrl .clock { font-variant-numeric:tabular-nums; color:var(--dim); }
+  input[type=range] { width:min(520px,100%); }
+  .ok { color:var(--ok); } .ng { color:var(--del); }
+  .view { display:none; } .view.on { display:block; }
+
+  /* 判定の段 */
+  .steps { display:grid; grid-template-columns:repeat(6,1fr); gap:8px; margin:10px 0; }
+  .step { border:1px solid var(--line); border-radius:8px; padding:8px; font-size:12.5px; background:var(--bg); min-height:84px; position:relative; transition:border-color .25s, background .25s; }
+  .step b { display:block; margin-bottom:2px; font-size:13px; }
+  .step.pass { border-color:var(--ok); }
+  .step.fail { border-color:var(--del); background:color-mix(in srgb, var(--del) 12%, var(--bg)); }
+  .step.skip { opacity:.4; }
+  .verdict { font-size:20px; font-weight:700; margin:6px 0; }
+  .out { font-size:13px; color:var(--dim); word-break:break-all; }
+  /* 期限のバー */
+  .life { position:relative; height:26px; border-radius:6px; background:var(--line); overflow:hidden; margin:6px 0 2px; }
+  .life .valid { position:absolute; inset:0 auto 0 0; background:color-mix(in srgb, var(--ok) 55%, transparent); }
+  .life .now { position:absolute; top:0; bottom:0; width:3px; background:var(--acc); }
+  .life .mark { position:absolute; top:0; bottom:0; width:2px; background:var(--del); }
+  .scale { display:flex; justify-content:space-between; color:var(--dim); font-size:12px; }
+
+  /* 流れる点 */
+  @keyframes flow { from { offset-distance:0%; } to { offset-distance:100%; } }
+  .dot { offset-rotate:0deg; animation:flow 3s linear infinite; }
+  .dot.old { fill:var(--acc); }
+  @keyframes pulse { 0%,100% { opacity:.4; } 50% { opacity:1; } }
+  .pulse { animation:pulse 1.8s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .dot,.pulse { animation:none; } }
+  @media (max-width:760px) { .steps { grid-template-columns:repeat(2,1fr); } }
+</style>
+</head>
+<body>
+<main>
+  <h1>share の認証サービスと資格情報のモデル (Issue #39) — diff の図</h1>
+  <p class="lead">設計メモ: <code>docs/cluster/share.md</code> の §2・§5。この PR は「判定の本体」だけを足す。Caddyfile (#40)・Deployment (#41)・CLI (#42) はまだ無い。<br>
+  <b>追記 (CodeQL の指摘への手直し):</b> パスワードの保存を sha256 から PBKDF2 に変えた。この手直しだけの diff の図とアニメーションは <a href="#pbkdf2">5. PBKDF2 化の diff</a>。</p>
+
+  <h2>1. この PR が足すもの (全体図の中の位置)</h2>
+  <div class="panel">
+    <svg viewBox="0 0 960 330" role="img" aria-label="この PR が足す範囲">
+      <rect class="box host" x="10" y="10" width="940" height="310" rx="10"/>
+      <text class="dim" x="24" y="32">kind クラスタ / namespace share (完成後の姿。実線の緑 = この PR、破線 = 後続の Issue)</text>
+
+      <rect class="box later" x="30" y="70" width="150" height="46" rx="6"/><text x="44" y="90">cloudflared ×3</text><text class="dim" x="44" y="106">#41</text>
+      <rect class="box later" x="250" y="70" width="170" height="46" rx="6"/><text x="264" y="90">caddy</text><text class="dim" x="264" y="106">#40 経路・許可リスト</text>
+      <rect class="box add" x="250" y="170" width="260" height="120" rx="6"/>
+      <text class="tag t-add" x="264" y="192">auth: share_auth.py</text>
+      <text class="dim" x="264" y="212">decide(credentials, request, now)</text>
+      <text class="dim" x="264" y="230">HTTP 200 / 401 (127.0.0.1:9000)</text>
+      <text class="dim" x="264" y="248">AUTH_SOURCE = K8s API | file:&lt;json&gt;</text>
+      <text class="dim" x="264" y="266">Secret のキャッシュ 2 秒 / 読めなければ 401</text>
+      <text class="dim" x="264" y="284">Basic: PBKDF2 照合 (成功は 30 秒だけ覚える)</text>
+      <rect class="box later" x="590" y="70" width="320" height="46" rx="6"/><text x="604" y="90">grafana / backstage / headroom 中継</text><text class="dim" x="604" y="106">許可リストを通った要求だけ届く</text>
+      <rect class="box add" x="590" y="170" width="320" height="50" rx="6"/><text class="tag t-add" x="604" y="192">Secret share-credentials</text><text class="dim" x="604" y="210">名前 → {hash, expires_at, privileged, created_at}</text>
+      <rect class="box add" x="590" y="240" width="320" height="50" rx="6"/><text class="tag t-add" x="604" y="262">Secret share-session-key</text><text class="dim" x="604" y="280">cookie の署名鍵 (HMAC-SHA256 の MAC)</text>
+
+      <path class="pipe" d="M180 93 H250"/><path class="pipe" d="M420 93 H590"/>
+      <path class="pipe add" d="M335 116 V170"/><text class="dim" x="345" y="148">forward_auth</text>
+      <path class="pipe add" d="M510 195 H590"/><path class="pipe add" d="M510 265 H590"/>
+      <circle class="dot old" r="5" style="offset-path:path('M30 93 H180 H250 H420')"/>
+      <circle class="dot old" r="5" style="offset-path:path('M335 116 V170');animation-delay:1s"/>
+    </svg>
+    <div class="legend"><span><i style="background:var(--add)"></i>この PR (追加)</span><span><i style="border:1.5px dashed var(--dim)"></i>後続 (#40・#41・#42)</span></div>
+  </div>
+
+  <h2>2. diff の内容 (ファイル別)</h2>
+  <table>
+    <tr><th>ファイル</th><th>変更</th><th>中身</th></tr>
+    <tr><td><code>clusters/kind/share/share_auth.py</code></td><td class="ok">新規</td><td>標準ライブラリだけの認証サービス。純関数 <code>decide()</code>、資格情報の取得元 (K8s API / JSON ファイル)、Secret の TTL キャッシュ、PBKDF2 の照合と成功の覚え (<code>VerifyCache</code>)、HTTP ハンドラ</td></tr>
+    <tr><td><code>clusters/kind/share/test_share_auth.py</code></td><td class="ok">新規</td><td>unittest 61 件 (PBKDF2・覚えの試験を含む)。拒否が主。時刻は引数なので実時間を待たない</td></tr>
+    <tr><td><code>just/ci.sh</code></td><td>追記</td><td>最後の段 <code>python3 -B -m unittest discover -s clusters/kind/share</code></td></tr>
+    <tr><td><code>flake.nix</code></td><td>追記</td><td><code>devShells.ci</code> に <code>caddy</code> (#40 の統合試験用)</td></tr>
+    <tr><td><code>docs/cluster/share.md</code></td><td>修正</td><td>§2・§5・試験の表を実装の実際 (ファイル名・環境変数・署名の式) に合わせた。§2 は PBKDF2・反復回数・照合結果の覚えを書いた</td></tr>
+    <tr><td><code>docs/cluster/share-auth.html</code></td><td class="ok">新規</td><td>この図</td></tr>
+  </table>
+
+  <h2>3. 判定を動かして確かめる (アニメーション)</h2>
+  <p class="lead">資格情報 <code>alice</code> は発行から 8 時間で失効する。スライダーで「今」を動かし、要求の種類を選ぶと、<code>decide()</code> の 6 段のどこで止まるかが光る。</p>
+  <div class="panel">
+    <div class="tabs" id="reqs">
+      <button class="on" data-req="basic">正しい Basic</button>
+      <button data-req="wrong">誤パスワード</button>
+      <button data-req="noname">名前なし</button>
+      <button data-req="cookie">発行済みの cookie</button>
+      <button data-req="forged">改ざんした cookie</button>
+    </div>
+    <div class="ctrl">
+      <label>今 <input type="range" id="now" min="0" max="9" step="0.0003" value="1"></label>
+      <span class="clock" id="clock"></span>
+      <button id="play">▶ 時間を進める</button>
+      <button id="btn-del">delete alice</button>
+      <button id="btn-rot">alice のパスワードを作り直す</button>
+      <button id="btn-reset">戻す</button>
+    </div>
+    <div class="life"><div class="valid" id="valid"></div><div class="mark" id="mark"></div><div class="now" id="nowbar"></div></div>
+    <div class="scale"><span>発行 0h</span><span>期限 8h (赤)</span><span>9h</span></div>
+    <div class="steps" id="steps"></div>
+    <div class="verdict" id="verdict"></div>
+    <div class="out" id="out"></div>
+  </div>
+
+  <h2>4. 完了条件と試験の対応</h2>
+  <table>
+    <tr><th>Issue の完了条件</th><th>試験 (<code>test_share_auth.py</code>)</th></tr>
+    <tr><td>名前なし</td><td><code>test_no_credentials_rejected</code>・<code>test_unknown_name_rejected</code>・<code>test_empty_name_and_password_rejected</code></td></tr>
+    <tr><td>誤パスワード</td><td><code>test_wrong_password_rejected</code></td></tr>
+    <tr><td>期限の 1 秒前は通り 1 秒後は拒否</td><td><code>test_expiry_boundary</code> (期限ちょうども拒否)・<code>test_cookie_rejected_after_expiry</code></td></tr>
+    <tr><td>項目を消すと拒否</td><td><code>test_deleted_entry_rejected</code>・<code>test_cookie_rejected_after_delete</code>・HTTP 越しの <code>test_delete_takes_effect_on_the_next_request</code></td></tr>
+    <tr><td>ローテーション後の古いパスワード</td><td><code>test_old_password_rejected_after_rotate</code>・<code>test_cookie_rejected_after_rotate</code></td></tr>
+    <tr><td>改ざんした cookie</td><td><code>test_tampered_cookie_rejected</code> (署名・名前の付け替え・署名なし)・別の鍵・鍵が空</td></tr>
+    <tr><td>Secret が空</td><td><code>test_empty_secret_rejected</code>・<code>test_cache_returns_empty_when_unreadable</code></td></tr>
+    <tr><td>資格情報の JSON が壊れている</td><td><code>test_broken_entry_rejected</code> (20 通り)・<code>test_broken_entry_does_not_affect_others</code></td></tr>
+    <tr><td>(手直し) 旧形式 (sha256)・反復が少ない・形が違う hash</td><td><code>test_broken_entry_rejected</code> の <code>legacy-sha256</code>・<code>weak-iterations</code> ほか、<code>test_malformed_or_weak_stored_value_never_verifies</code></td></tr>
+    <tr><td>(手直し) 形式と反復回数</td><td><code>test_format_and_documented_iterations</code> (600,000)・<code>test_same_password_gets_different_salt</code>・<code>test_old_iteration_count_still_verifies</code></td></tr>
+    <tr><td>(手直し) 名前が無くても PBKDF2 を計算する</td><td><code>test_unknown_name_still_computes_pbkdf2</code></td></tr>
+    <tr><td>(手直し) 覚えがあっても delete・期限・ローテーションが効く</td><td><code>VerifyCache</code> の 12 試験と、HTTP 越しの <code>test_delete_and_rotate_win_over_remembered_result</code></td></tr>
+    <tr><td>K8s API に届かない・Secret が無い</td><td><code>KubernetesSource</code> の 4 試験 (偽の API サーバー)</td></tr>
+  </table>
+  <p class="lead">設計メモの表にある「上限 24h 超の <code>--ttl</code>」は CLI の入力検査なので #42 で試験する (この Issue の完了条件には無い)。</p>
+
+  <h2 id="pbkdf2">5. PBKDF2 化の diff (CodeQL <code>py/weak-sensitive-data-hashing</code> への手直し)</h2>
+  <p class="lead">変更前は <code>sha256(パスワード)</code> を保存して比べていた。変更後は、項目ごとのソルトを付けた PBKDF2-HMAC-SHA256 (600,000 回、OWASP の推奨値) で保存し、照合に成功した結果だけを 30 秒覚えて、要求のたびに約 70ms を使わないようにする。</p>
+  <div class="panel">
+    <svg viewBox="0 0 960 300" role="img" aria-label="照合の流れの変更前と変更後">
+      <text class="tag t-del" x="24" y="28">変更前</text>
+      <rect class="box" x="24" y="40" width="150" height="46" rx="6"/><text x="38" y="68">Basic のパスワード</text>
+      <rect class="box" x="250" y="40" width="190" height="46" rx="6" style="stroke:var(--del)"/><text x="264" y="60">sha256 1 回</text><text class="dim" x="264" y="76">ソルトなし・約 1µs</text>
+      <rect class="box" x="520" y="40" width="200" height="46" rx="6"/><text x="534" y="60">compare_digest</text><text class="dim" x="534" y="76">保存値: hex 64 桁</text>
+      <path class="pipe" d="M174 63 H250"/><path class="pipe" d="M440 63 H520"/>
+      <circle class="dot old" r="5" style="offset-path:path('M24 63 H174 H250 H440 H520');animation-duration:1.2s"/>
+
+      <text class="tag t-add" x="24" y="128">変更後</text>
+      <rect class="box add" x="24" y="140" width="150" height="46" rx="6"/><text x="38" y="168">Basic のパスワード</text>
+      <rect class="box add" x="250" y="140" width="190" height="46" rx="6"/><text x="264" y="160">覚え (名前ごと 1 つ)</text><text class="dim" x="264" y="176">hash 同じ・30 秒以内・一致</text>
+      <rect class="box add" x="250" y="220" width="190" height="60" rx="6"/><text class="tag t-add" x="264" y="240">PBKDF2 600,000 回</text><text class="dim" x="264" y="258">項目のソルトと反復回数で</text><text class="dim" x="264" y="272">約 70ms (外れたときだけ)</text>
+      <rect class="box add" x="520" y="140" width="200" height="46" rx="6"/><text x="534" y="160">compare_digest</text><text class="dim" x="534" y="176">保存値: pbkdf2_sha256$…</text>
+      <rect class="box add" x="760" y="140" width="176" height="46" rx="6"/><text x="774" y="160">200 / 401</text><text class="dim" x="774" y="176">期限・削除は毎回先に確認</text>
+      <path class="pipe add" d="M174 163 H250"/><path class="pipe add" d="M440 163 H520"/><path class="pipe add" d="M720 163 H760"/>
+      <path class="pipe add" d="M345 186 V220"/><path class="pipe add" d="M440 250 H620 V186"/>
+      <circle class="dot old" r="5" style="offset-path:path('M24 163 H174 H250 H440 H520 H760');animation-duration:1.2s"/>
+      <circle class="dot old" r="5" style="offset-path:path('M345 186 V220 H440 H620 V186 H760');animation-duration:3s;animation-delay:.6s"/>
+    </svg>
+    <div class="legend"><span><i style="background:var(--acc)"></i>要求 (上の点は覚えがあるとき、下の点は外れたとき)</span></div>
+  </div>
+
+  <h3 style="margin:18px 0 6px">この手直しのファイル別 diff</h3>
+  <table>
+    <tr><th>ファイル</th><th>変更前</th><th>変更後</th></tr>
+    <tr><td><code>share_auth.py</code> の保存形式</td><td><code>hash</code> = sha256 の hex 64 桁</td><td><code>hash</code> = <code>pbkdf2_sha256$600000$&lt;salt 32 桁&gt;$&lt;鍵 64 桁&gt;</code>。100,000 回未満・形の違うもの・旧形式は項目ごと拒否</td></tr>
+    <tr><td><code>share_auth.py</code> の照合</td><td><code>compare_digest(sha256(pw), hash)</code></td><td><code>verify_password()</code> (PBKDF2 → <code>compare_digest</code>)。名前が無いときもダミーで同じ反復を計算。<code>VerifyCache</code> が成功だけ覚える</td></tr>
+    <tr><td><code>share_auth.py</code> の cookie 署名</td><td><code>HMAC(鍵, 名前:保存 hash)</code></td><td><code>HMAC(鍵, 名前:salt)</code>。MAC であってパスワードのハッシュ化ではない。パスワードの派生物を入れず、salt (作り直すたびに変わる) だけに束ねる。作り直し後に古い cookie が効かない性質は同じ</td></tr>
+    <tr><td><code>share_auth.py</code> の cookie</td><td>名前をそのまま Set-Cookie に入れる</td><td><code>urllib.parse.quote</code> を通す (名前は <code>[a-z0-9-]</code> なので値は変わらない。CodeQL の response splitting 指摘への対応)</td></tr>
+    <tr><td><code>test_share_auth.py</code></td><td>42 件</td><td>61 件。旧形式の拒否、反復回数、ソルト、覚えの無効化条件 (delete・期限・ローテーション・TTL) を追加</td></tr>
+    <tr><td><code>docs/cluster/share.md</code> §2</td><td>「遅い KDF は要らず、sha256 でよい」</td><td>PBKDF2・反復回数と出典・覚えの方式と無効化条件・残るリスクを書いた</td></tr>
+  </table>
+
+  <h3 style="margin:18px 0 6px">覚えを動かして確かめる (アニメーション)</h3>
+  <p class="lead">資格情報 <code>alice</code> (パスワード <code>pw-alice</code>) に Basic を送る。「PBKDF2 を計算した回数」と「覚えを使った回数」が数えられる。覚えがあっても、delete・期限切れ・作り直しは次の要求から効く。</p>
+  <div class="panel">
+    <div class="tabs" id="vc-actions">
+      <button data-a="ok">正しい Basic を送る</button>
+      <button data-a="bad">誤パスワードを送る</button>
+      <button data-a="t10">10 秒進める</button>
+      <button data-a="t30">30 秒進める</button>
+      <button data-a="del">alice を delete</button>
+      <button data-a="rot">alice のパスワードを作り直す</button>
+      <button data-a="exp">期限を過ぎる</button>
+      <button data-a="reset">戻す</button>
+    </div>
+    <div class="ctrl"><span class="clock" id="vc-clock"></span><span class="clock" id="vc-slot"></span></div>
+    <div class="life" aria-label="覚えの残り時間"><div class="valid" id="vc-bar" style="width:0"></div></div>
+    <div class="scale"><span>覚えた時刻</span><span>30 秒で失効</span></div>
+    <div class="verdict" id="vc-count"></div>
+    <div id="vc-log" class="out" style="line-height:1.9"></div>
+  </div>
+</main>
+
+<script>
+// share_auth.py の decide() の写し。説明用で、本物は Python。時間の単位は「時間」。
+const EXPIRY = 8;
+const state = { exists: true, req: "basic", now: 1, rotated: false };
+const STEPS = ["1 Authorization を読む", "2 名前の形式・Secret にある", "3 項目の JSON が正しい", "4 PBKDF2 / 署名を比べる", "5 期限内 (now < expires_at)", "6 200 を返す"];
+const stepsEl = document.getElementById("steps");
+STEPS.forEach(t => { const d = document.createElement("div"); d.className = "step"; d.innerHTML = "<b>" + t + "</b><span></span>"; stepsEl.appendChild(d); });
+
+function run() {
+  const r = state.req, now = state.now;
+  const res = Array(6).fill("skip"), note = Array(6).fill("");
+  let status = 401, why = "";
+  const fail = (i, msg) => { res[i] = "fail"; note[i] = msg; why = msg; };
+  const pass = (i, msg) => { res[i] = "pass"; note[i] = msg || ""; };
+  if (r === "noname") { fail(0, "Authorization も Cookie も無い"); }
+  else {
+    pass(0, r === "basic" || r === "wrong" ? "Basic alice:…" : "Cookie share_session=…");
+    if (!state.exists) fail(1, "Secret に alice が無い (delete 済み)");
+    else {
+      pass(1, "alice");
+      pass(2, "hash・expires_at・privileged・created_at が揃う");
+      // 4 段: Basic は PBKDF2 (覚えがあれば計算を省く。5 節)、cookie は HMAC(鍵, 名前:salt)
+      let ok;
+      // 作り直し後は、古いパスワードも古い cookie も効かない (署名が salt に束ねてある)
+      ok = (r === "basic" || r === "cookie") && !state.rotated;
+      if (!ok) fail(3, r === "forged" ? "署名が合わない (compare_digest)" : state.rotated ? "salt・hash が変わった: 古い値は効かない" : "PBKDF2 が合わない");
+      else {
+        pass(3, r === "cookie" ? "署名 OK" : "PBKDF2 一致");
+        if (!(now < EXPIRY)) fail(4, "期限切れ (期限ちょうども拒否)");
+        else { pass(4, "残り " + (EXPIRY - now).toFixed(2) + "h"); pass(5, r === "basic" ? "200 + Set-Cookie" : "200"); status = 200; }
+      }
+    }
+  }
+  document.querySelectorAll(".step").forEach((el, i) => { el.className = "step " + res[i]; el.querySelector("span").textContent = note[i]; });
+  const v = document.getElementById("verdict");
+  v.textContent = status === 200 ? "200 通す" : "401 拒否";
+  v.className = "verdict " + (status === 200 ? "ok" : "ng");
+  document.getElementById("out").textContent = status === 200 ? "" : "理由: " + why + " (どの失敗も同じ 401。外からは区別できない)";
+  const pct = Math.min(now / 9, 1) * 100;
+  document.getElementById("nowbar").style.left = "calc(" + pct + "% - 1px)";
+  document.getElementById("mark").style.left = (EXPIRY / 9 * 100) + "%";
+  document.getElementById("valid").style.width = state.exists ? (EXPIRY / 9 * 100) + "%" : "0";
+  const h = Math.floor(now), m = Math.round((now - h) * 60);
+  document.getElementById("clock").textContent = "今 = 発行から " + h + "h" + String(m).padStart(2, "0") + "m (期限 8h00m)";
+}
+document.getElementById("now").oninput = e => { state.now = +e.target.value; run(); };
+document.getElementById("reqs").onclick = e => {
+  if (!e.target.dataset.req) return;
+  state.req = e.target.dataset.req;
+  document.querySelectorAll("#reqs button").forEach(b => b.classList.toggle("on", b === e.target));
+  run();
+};
+document.getElementById("btn-del").onclick = () => { state.exists = false; run(); };
+document.getElementById("btn-rot").onclick = () => { state.rotated = true; run(); };
+document.getElementById("btn-reset").onclick = () => { state.exists = true; state.rotated = false; state.now = 1; document.getElementById("now").value = 1; run(); };
+let timer = null;
+document.getElementById("play").onclick = e => {
+  if (timer) { clearInterval(timer); timer = null; e.target.textContent = "▶ 時間を進める"; return; }
+  if (state.now >= 9) state.now = 7;
+  e.target.textContent = "⏸ 止める";
+  timer = setInterval(() => {
+    state.now = Math.min(9, state.now + 0.02);
+    document.getElementById("now").value = state.now; run();
+    if (state.now >= 9) { clearInterval(timer); timer = null; e.target.textContent = "▶ 時間を進める"; }
+  }, 40);
+};
+if (matchMedia("(prefers-reduced-motion: reduce)").matches) document.getElementById("play").style.display = "none";
+run();
+
+// 5 節: VerifyCache の写し (説明用。本物は Python)。時間の単位は「秒」。
+(function () {
+  const TTL = 30;
+  const fresh = () => ({ t: 0, exists: true, expired: false, hashVer: 1, pw: "pw-alice", remembered: null, kdf: 0, hits: 0, log: [] });
+  const v = fresh();
+  const logEl = document.getElementById("vc-log");
+  function request(pw) {
+    let line;
+    if (!v.exists) { v.kdf++; line = ["401", "Secret に alice が無い", "PBKDF2 はダミーで計算"]; }
+    else if (v.expired) { v.kdf++; line = ["401", "期限切れ", "PBKDF2 はダミーで計算"]; }
+    else {
+      const r = v.remembered;
+      if (r && r.hashVer === v.hashVer && v.t - r.at < TTL && r.pw === pw) { v.hits++; line = ["200", "覚えが一致", "計算なし (0ms)"]; }
+      else {
+        v.kdf++;
+        const ok = pw === v.pw;
+        if (ok) v.remembered = { hashVer: v.hashVer, pw: pw, at: v.t };
+        line = [ok ? "200" : "401", ok ? "PBKDF2 が一致し、覚える" : "PBKDF2 が合わない (失敗は覚えない)", "約 70ms"];
+      }
+    }
+    v.log.unshift({ t: v.t, pw: pw, line: line });
+    v.log = v.log.slice(0, 8);
+  }
+  function draw() {
+    document.getElementById("vc-clock").textContent = "経過 " + v.t + " 秒 / alice: " + (!v.exists ? "削除済み" : v.expired ? "期限切れ" : "有効 (hash v" + v.hashVer + ")");
+    const r = v.remembered, left = r && r.hashVer === v.hashVer ? Math.max(0, TTL - (v.t - r.at)) : 0;
+    document.getElementById("vc-slot").textContent = r ? "覚え: 残り " + left + " 秒" : "覚え: なし";
+    document.getElementById("vc-bar").style.width = (left / TTL * 100) + "%";
+    document.getElementById("vc-count").textContent = "PBKDF2 を計算 " + v.kdf + " 回 / 覚えを使った " + v.hits + " 回";
+    logEl.innerHTML = "";
+    v.log.forEach((e, i) => {
+      const d = document.createElement("div");
+      d.className = e.line[0] === "200" ? "ok" : "ng";
+      d.style.opacity = String(1 - i * 0.1);
+      d.textContent = e.t + " 秒  " + e.pw + " → " + e.line[0] + "  " + e.line[1] + " (" + e.line[2] + ")";
+      logEl.appendChild(d);
+    });
+  }
+  const actions = {
+    ok: () => request(v.pw),
+    bad: () => request("wrong"),
+    t10: () => { v.t += 10; },
+    t30: () => { v.t += 30; },
+    del: () => { v.exists = false; },
+    rot: () => { v.exists = true; v.expired = false; v.hashVer++; v.pw = "pw-alice-" + v.hashVer; },
+    exp: () => { v.expired = true; },
+    reset: () => { Object.assign(v, fresh()); },
+  };
+  document.getElementById("vc-actions").onclick = e => {
+    const a = e.target.dataset && e.target.dataset.a;
+    if (!a) return;
+    actions[a]();
+    draw();
+  };
+  draw();
+})();
+</script>
+</body>
+</html>
