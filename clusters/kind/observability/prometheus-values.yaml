@@ -2,7 +2,7 @@
 # Claude Code のメトリクスを OTel Collector から OTLP (/api/v1/otlp) で受ける。
 # Kubernetes 自体の監視もこのスタックの目的に含める。grafana.com の Kubernetes ダッシュボード
 # (docs/observability/grafana-com-dashboards.md) が前提にする kube-state-metrics・node-exporter・
-# cAdvisor・API サーバー・CoreDNS のメトリクスは、下の scrapeConfigs とサブチャートでスクレイプする。
+# cAdvisor・kubelet・API サーバー・CoreDNS のメトリクスは、下の scrapeConfigs とサブチャートでスクレイプする。
 # 保存は Tempo と同じく PV (prometheus、clusters/kind/storage) で、WSL2 ホストの
 # ~/.local/share/home-k8s/observability/prometheus につながっている (docs/cluster/persistence.md)。
 server:
@@ -33,15 +33,26 @@ server:
     fsGroupChangePolicy: OnRootMismatch
 
 # chart 既定のスクレイプ対象のうち、grafana.com の Kubernetes ダッシュボード (dotdc 15757〜15762) が
-# 使うメトリクスを出す 3 つだけを使う。ほかは使うダッシュボードが無いので切ったままにする
+# 使うメトリクスを出す 4 つだけを使う。ほかは使うダッシュボードが無いので切ったままにする
 scrapeConfigs:
   prometheus:
     enabled: false
   # apiserver_* (15761 API Server)
   kubernetes-api-servers:
     enabled: true
+  # kubelet_volume_stats_* (kubelet 自身。15758 Namespaces・15759 Nodes の Persistent Volumes)。
+  # PVC は docs/cluster/persistence.md の 4 つ。kubelet は 1 ノード 2000 余りの系列を出すが、
+  # ダッシュボードが使うのはこれだけなので、ほかは捨てる
   kubernetes-nodes:
-    enabled: false
+    enabled: true
+    # 15759 は node ラベルで絞る。cAdvisor と同じく kubelet はこれを付けないので、ノード名から足す
+    post_relabel_configs: |
+      - source_labels: [__meta_kubernetes_node_name]
+        target_label: node
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: kubelet_volume_stats_.+
+        action: keep
   # container_* / machine_* (kubelet の cAdvisor。15757 Global・15758 Namespaces・15760 Pods)
   kubernetes-nodes-cadvisor:
     enabled: true
