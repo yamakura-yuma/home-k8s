@@ -227,7 +227,7 @@ smoke() {
     dir="$(umask 077; mktemp -d)"
     name="smoke-$(openssl rand -hex 4)"
     # 項目を消すのは失敗しても止めない (Secret が読めないなら、そもそも書けていない)
-    trap '[ -z "${pf_pid:-}" ] || kill "$pf_pid" 2>/dev/null; (drop_entries "$name") >/dev/null 2>&1 || true; rm -rf "$dir"' EXIT
+    trap '[ -z "${pf_pid:-}" ] || kill "$pf_pid" 2>/dev/null || true; (drop_entries "$name") >/dev/null 2>&1 || true; rm -rf "$dir"' EXIT
 
     # ローカルのポートは kubectl に選ばせる (手元で 8081 などが使われていてもぶつからない)
     # kc (関数) を & にするとサブシェルの pid になり、kill しても kubectl が残るので、kubectl を直に起動する

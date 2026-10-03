@@ -32,7 +32,7 @@ just up                   # kind のクラスタを作り (control-plane x1 + wo
                           # (OTel Collector/Tempo/Prometheus/Loki/Grafana)・Headlamp・Backstage を立ち上げて同期を待つ
 kubectl --context kind-study-kind get nodes -o wide   # ノード状態を確認
 just show                 # Grafana・ArgoCD・Headlamp・Backstage の接続先と資格情報を全部表示 (下の表)
-just share add alice     # 見せたい人に資格情報を発行 (既定 8h で失効)。名前・パスワードと、3 つの公開 URL を表示。ほかに delete / list / get / rotate / prune
+just share add alice     # 見せたい人に資格情報を発行 (既定 8h で失効)。名前・パスワードと、3 つの公開 URL を表示。ほかに delete / list / get / rotate / prune / smoke
 just orca-exporter install  # Orca のオーケストレーションを観測スタックに送る exporter を systemd で常駐させる (ホストで動く例外)
 just down                 # クラスタを削除
 just devcontainer down    # 開発用コンテナを削除
