@@ -50,10 +50,18 @@ class Recipes(unittest.TestCase):
         steps = ["kind create cluster", "observability/{tempo,prometheus,loki,grafana}",
                  "docker build -t home-k8s-backstage:", "kind load docker-image home-k8s-backstage:",
                  "helm upgrade --install argocd", "grafana-secrets.sh",
-                 "argocd/root.yaml", "argocd-wait.sh", "headlamp-token.sh"]
+                 "share-relay.sh up", "argocd/root.yaml", "argocd-wait.sh", "headlamp-token.sh"]
         pos = [out.find(step) for step in steps]
         self.assertNotIn(-1, pos, out)
         self.assertEqual(pos, sorted(pos))
+
+    def test_share_relay_follows_the_cluster(self):
+        # 中継は kind の bridge ができた後 (up)・クラスタを消す前 (down) に動く。ポートは Secret share-host の宛先と同じ値を渡す
+        up = just("--dry-run", "up").stderr
+        self.assertRegex(up, r'share-relay\.sh up ".*/share/relay-token" ".+" kind-study-kind 8788\n')
+        down = just("--dry-run", "down").stderr
+        self.assertLess(down.find("share-relay.sh down"), down.find("kind delete cluster"))
+        self.assertNotIn("share-relay", " ".join(just("--list").stdout.split()), "内部用は公開しない")
 
     def test_backstage_image_tag_matches_values(self):
         # kind load するイメージのタグと、chart が使うタグ (pull しない) がずれると Pod が起動しない

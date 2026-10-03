@@ -19,12 +19,16 @@
 # ストレージ (StorageClass と PV)
 /clusters/kind/storage/    @yamakura-yuma
 
-# Secret を作る・回すスクリプト (observability.just は grafana-secrets.sh の引数と、share の状態ファイルの置き場を決める)
+# Secret を作る・回すスクリプト (observability.just は grafana-secrets.sh の引数と、share の状態ファイルの置き場を決める。
+# share.just は share-relay.sh の引数 (トークンの置き場・ポート) を決める)
 /just/observability.just        @yamakura-yuma
 /just/grafana-secrets.sh        @yamakura-yuma
 /just/grafana-viewer-rotate.sh  @yamakura-yuma
 /just/headlamp-token.sh         @yamakura-yuma
+/just/share.just                @yamakura-yuma
+/just/share-relay.sh            @yamakura-yuma
 
 # 外部公開 (just share)
 /just/observe-share.sh     @yamakura-yuma
 /just/*.Caddyfile          @yamakura-yuma
+/just/test_share_relay.py  @yamakura-yuma

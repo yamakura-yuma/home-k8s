@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>#38 headroom の中継 — diff の図 (変更前→変更後)</title>
+<style>
+  :root {
+    --bg:#0f1419; --panel:#171e26; --line:#2c3846; --text:#e6edf3; --dim:#8b98a5;
+    --add:#3fb950; --del:#f85149; --acc:#58a6ff; --warn:#d29922;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f6f8fa; --panel:#ffffff; --line:#d0d7de; --text:#1f2328; --dim:#59636e; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.65 system-ui,"Hiragino Sans","Noto Sans JP",sans-serif; }
+  main { max-width:1040px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  h2 { font-size:17px; margin:36px 0 8px; border-left:4px solid var(--acc); padding-left:10px; }
+  p.lead { color:var(--dim); margin:0 0 16px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; }
+  .ctrl { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:10px 0; }
+  button { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 14px; font:inherit; cursor:pointer; }
+  button.on { border-color:var(--acc); color:var(--acc); }
+  svg { width:100%; height:auto; display:block; }
+  svg text { font:12px system-ui,"Noto Sans JP",sans-serif; fill:var(--text); }
+  svg .dim { fill:var(--dim); }
+  .box { fill:var(--panel); stroke:var(--line); stroke-width:1.4; }
+  .box.add { stroke:var(--add); stroke-width:2; }
+  .box.same { stroke:var(--dim); }
+  .box.later { stroke:var(--dim); stroke-dasharray:6 4; }
+  .zone { fill:none; stroke:var(--line); stroke-dasharray:3 4; }
+  .pipe { stroke:var(--dim); stroke-width:1.6; fill:none; }
+  .pipe.add { stroke:var(--add); stroke-width:2; }
+  .t-add { fill:var(--add) !important; font-weight:700; } .t-del { fill:var(--del) !important; font-weight:700; }
+  .t-acc { fill:var(--acc) !important; } .t-warn { fill:var(--warn) !important; font-weight:700; }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; color:var(--dim); font-size:13px; margin-top:8px; }
+  .legend i { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:6px; vertical-align:-1px; }
+  table { border-collapse:collapse; width:100%; font-size:14px; }
+  th,td { border:1px solid var(--line); padding:6px 10px; text-align:left; vertical-align:top; }
+  th { background:var(--panel); }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .a { color:var(--add); } .d { color:var(--del); }
+  code { background:var(--panel); border:1px solid var(--line); border-radius:4px; padding:0 4px; font-size:13px; }
+  .verdict { font-weight:700; }
+  .steps { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .step { border:1px solid var(--line); border-radius:8px; padding:4px 10px; background:var(--panel); font-size:13px; transition:background .3s,border-color .3s; }
+  .step.new { border-color:var(--add); color:var(--add); font-weight:700; }
+  .step.hot { background:var(--acc); color:#fff; border-color:var(--acc); }
+  .arrow { color:var(--dim); }
+  #log { min-height:3.2em; margin-top:8px; font-size:14px; }
+  .ok { color:var(--add); font-weight:700; } .ng { color:var(--del); font-weight:700; }
+  @media (prefers-reduced-motion: reduce) { .step { transition:none; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>#38 headroom の中継を足す — diff の図</h1>
+  <p class="lead">ブランチ <code>share-access-impl-38</code> / 設計メモ <code>docs/cluster/share.md</code> (PR #45) / Closes #38。
+    緑は追加、灰色の実線は変更なし、灰色の点線は後続の Issue (#41) で入るもの。</p>
+
+  <h2>1. 構成の変更前→変更後</h2>
+  <p class="lead">headroom は <code>127.0.0.1:8787</code> (loopback) にあり、クラスタの Pod からは届かない。kind の bridge のゲートウェイに、読み取りの GET だけを通す中継を足す。headroom 本体は変えない。</p>
+  <div class="ctrl" role="group" aria-label="表示">
+    <button id="b-before">変更前</button>
+    <button id="b-after" class="on">変更後</button>
+    <span style="width:12px"></span>
+    <button id="b-s1" class="on">① トークン無し</button>
+    <button id="b-s2">② トークン + GET /dashboard</button>
+    <button id="b-s3">③ トークン + POST /v1/messages</button>
+  </div>
+  <div class="panel">
+    <svg viewBox="0 0 960 400" role="img" aria-label="Pod から bridge の中継を通って headroom に届く経路の図">
+      <rect class="zone" x="14" y="14" width="300" height="372" rx="12"/>
+      <text class="dim" x="28" y="36">kind クラスタ (just up で立つ)</text>
+      <rect class="zone" x="334" y="14" width="620" height="372" rx="12"/>
+      <text class="dim" x="348" y="36">WSL2 ホスト</text>
+
+      <g id="g-pod">
+        <rect class="box later" x="34" y="70" width="260" height="90" rx="10"/>
+        <text x="48" y="94">Deployment <tspan class="t-acc">share</tspan> の Pod</text>
+        <text class="dim" x="48" y="114">cloudflared + caddy + 認証 (#41 で追加)</text>
+        <text class="dim" x="48" y="134">Secret share-host の値を envFrom で読む</text>
+      </g>
+      <g id="g-secret">
+        <rect class="box add" x="34" y="200" width="260" height="96" rx="10"/>
+        <text class="t-add" x="48" y="222">+ Secret share/share-host</text>
+        <text x="48" y="244">SHARE_RELAY_ADDR = 172.18.0.1:8788</text>
+        <text x="48" y="264">SHARE_RELAY_TOKEN = (hex 32 桁)</text>
+        <text class="dim" x="48" y="284">just up が作る。git には置かない</text>
+      </g>
+
+      <g id="g-relay">
+        <rect class="box add" x="372" y="70" width="250" height="150" rx="10"/>
+        <text class="t-add" x="386" y="94">+ 中継 home-k8s-share-relay</text>
+        <text x="386" y="116">caddy:2.11.6-alpine</text>
+        <text class="dim" x="386" y="136">--network host / --restart unless-stopped</text>
+        <text x="386" y="160">待ち受け: bridge の IPv4 ゲートウェイ</text>
+        <text class="t-acc" x="386" y="178">172.18.0.1:8788</text>
+        <text class="dim" x="386" y="200">① トークン無し/違う → 401</text>
+        <text class="dim" x="386" y="214" id="relay-l2">② 許可リストの GET・HEAD だけ 200、他は 404</text>
+      </g>
+      <g id="g-headroom">
+        <rect class="box same" x="700" y="70" width="234" height="150" rx="10"/>
+        <text x="714" y="94">headroom (systemd)</text>
+        <text class="dim" x="714" y="114">127.0.0.1:8787 — 変更なし</text>
+        <text x="714" y="144">/dashboard /health /stats …</text>
+        <text class="t-del" x="714" y="170">/v1/messages (プロキシ本体)</text>
+        <text class="t-del" x="714" y="190">/stats/reset /settings …</text>
+      </g>
+      <g id="g-files">
+        <rect class="box add" x="372" y="260" width="562" height="104" rx="10"/>
+        <text class="t-add" x="386" y="282">+ ホスト側の状態 (~/.local/share/home-k8s/share/)</text>
+        <text x="386" y="304">relay-token (権限 600、あれば再利用)</text>
+        <text x="386" y="324">relay.Caddyfile (just/share-relay.Caddyfile のコピー。worktree を消しても --restart で読める)</text>
+        <text class="dim" x="386" y="346">トークンは docker run の引数に出さず、環境変数で渡す</text>
+      </g>
+
+      <path id="p1" class="pipe add" d="M294 115 H372"/>
+      <path id="p2" class="pipe add" d="M622 115 H700"/>
+      <path id="p0" class="pipe" d="M164 296 V330 H372" stroke-dasharray="4 4"/>
+      <text class="dim" x="180" y="324">just up が同じ値をファイルにも書く</text>
+      <text class="dim" x="300" y="106" id="lbl1" text-anchor="start">要求</text>
+      <text id="x-before" class="t-del" x="300" y="106" opacity="0" style="display:none">✕ 届かない (loopback 限定)</text>
+      <circle id="dot" r="7" cx="-20" cy="-20" fill="var(--acc)"/>
+      <text id="mark" x="-50" y="-50" font-size="22" style="font-size:22px;font-weight:700">✓</text>
+    </svg>
+    <div id="log" aria-live="polite"></div>
+    <div class="legend">
+      <span><i style="background:var(--add)"></i>追加</span>
+      <span><i style="background:var(--dim)"></i>変更なし</span>
+      <span><i style="background:var(--del)"></i>通さないもの</span>
+    </div>
+  </div>
+
+  <h2>2. <code>just up</code> / <code>just down</code> の順序</h2>
+  <p class="lead">中継は kind の bridge ができた後に立ち上がり、クラスタを消す前に消える。<code>share-host</code> は ArgoCD が <code>share</code> Pod を同期する前に必要なので、<code>root.yaml</code> を apply する前に置く。</p>
+  <div class="panel">
+    <div class="steps" id="up"></div>
+    <div class="steps" id="down" style="margin-top:12px"></div>
+    <div class="ctrl"><button id="replay">もう一度再生</button></div>
+  </div>
+
+  <h2>3. 変更したファイル</h2>
+  <table>
+    <tr><th>ファイル</th><th class="num">追加</th><th class="num">削除</th><th>内容</th></tr>
+    <tr><td><code>just/share-relay.Caddyfile</code> (新)</td><td class="num a">+34</td><td class="num"></td><td>トークン無し・違う → 401、許可リストの GET・HEAD → upstream (トークンは渡さない)、残り → 404。空のトークンでは起動しない</td></tr>
+    <tr><td><code>just/share-relay.sh</code> (新)</td><td class="num a">+92</td><td class="num"></td><td><code>up</code>: IPv4 ゲートウェイを引く → トークンを作る/再利用 → Secret → コンテナ作り直し → 401 の応答を待つ。<code>down</code>: コンテナだけ消す</td></tr>
+    <tr><td><code>just/share.just</code> (新)</td><td class="num a">+16</td><td class="num"></td><td><code>_share-relay-up</code> / <code>_share-relay-down</code> (内部用。公開レシピは 7 個のまま)</td></tr>
+    <tr><td><code>justfile</code></td><td class="num a">+4</td><td class="num d">−3</td><td><code>up</code> に <code>_share-relay-up</code>、<code>down</code> に <code>_share-relay-down</code></td></tr>
+    <tr><td><code>just/test_share_relay.py</code> (新)</td><td class="num a">+274</td><td class="num"></td><td>caddy + 偽の upstream の試験 6 件、偽の docker/kubectl/curl でスクリプトの試験 8 件</td></tr>
+    <tr><td><code>just/test_recipes.py</code></td><td class="num a">+9</td><td class="num d">−1</td><td><code>up</code> の順序、<code>down</code> の順序、内部用が公開されないこと</td></tr>
+    <tr><td><code>just/ci.sh</code> / <code>flake.nix</code></td><td class="num a">+6</td><td class="num"></td><td><code>just ci</code> の段 6 として中継の試験を走らせる。<code>devShells.ci</code> に <code>caddy</code> を足す (設計メモは #39 だが、#38 の試験に要る)</td></tr>
+    <tr><td><code>.github/CODEOWNERS</code></td><td class="num a">+4</td><td class="num d">−1</td><td><code>share.just</code>・<code>share-relay.sh</code> を段階 C に (<code>*.Caddyfile</code> は既存の行が当たる)</td></tr>
+    <tr><td><code>docs/cluster/share.md</code></td><td class="num a">+31</td><td class="num d">−15</td><td>§1 の中継を実装の実際に (名前・キー・パス・試験)、#38 を済みに、残る問題に Pod からの到達を追記</td></tr>
+  </table>
+
+  <h2>4. 試験が確かめること</h2>
+  <table>
+    <tr><th>入力</th><th>期待</th><th>どこで</th></tr>
+    <tr><td>トークン無し・違う・空ヘッダ・クエリに入れた、のどれかで全経路</td><td class="verdict ng">401 (upstream に届かない)</td><td>caddy 実行</td></tr>
+    <tr><td>トークンあり + GET・HEAD の許可リスト 7 経路</td><td class="verdict a">200 (トークンは upstream に渡らない)</td><td>caddy 実行</td></tr>
+    <tr><td>トークンあり + <code>POST /v1/messages</code>・<code>/stats/reset</code>・<code>/settings</code>・<code>/cache/clear</code>・<code>//v1/messages</code>・<code>/dashboard/../v1/messages</code> ほか 20 通り</td><td class="verdict ng">404 (upstream に届かない)</td><td>caddy 実行</td></tr>
+    <tr><td>トークンが空</td><td class="verdict ng">起動しない (スクリプトも Caddyfile も)</td><td>caddy 実行・スクリプト</td></tr>
+    <tr><td>kind の bridge が IPv6 ゲートウェイを先に返す (実機もそう)</td><td>IPv4 を選ぶ</td><td>スクリプト</td></tr>
+    <tr><td><code>up</code> を 2 回</td><td>トークンは同じ、コンテナは作り直し</td><td>スクリプト</td></tr>
+  </table>
+  <p class="lead" style="margin-top:12px">稼働中のクラスタ・ホストには触れていない (<code>just up</code>・<code>kubectl apply</code>・<code>docker run</code> を打っていない)。Pod から <code>172.18.0.1:8788</code> に届くかは稼働中でしか確かめられず、未確認。</p>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let mode = 'after', scenario = 1, runId = 0;
+
+  const path1 = $('p1'), path2 = $('p2');
+  const L1 = path1.getTotalLength(), L2 = path2.getTotalLength();
+  const pt = (p, t) => p.getPointAtLength(t);
+  const sleep = (ms) => new Promise((r) => setTimeout(r, reduce ? 0 : ms));
+
+  function glide(p, L, from, to, ms, id) {
+    return new Promise((res) => {
+      const t0 = performance.now();
+      const tick = (now) => {
+        if (id !== runId) return res(false);
+        const k = reduce ? 1 : Math.min(1, (now - t0) / ms);
+        const q = pt(p, L * (from + (to - from) * k));
+        $('dot').setAttribute('cx', q.x); $('dot').setAttribute('cy', q.y);
+        k < 1 ? requestAnimationFrame(tick) : res(true);
+      };
+      requestAnimationFrame(tick);
+    });
+  }
+  function mark(x, y, ok, text) {
+    const m = $('mark'); m.setAttribute('x', x); m.setAttribute('y', y);
+    m.textContent = text; m.setAttribute('fill', ok ? 'var(--add)' : 'var(--del)');
+  }
+  function clearMark() { $('mark').setAttribute('x', -50); $('dot').setAttribute('cx', -20); }
+  function log(html) { $('log').innerHTML = html; }
+
+  const SCEN = {
+    1: { label: 'GET /dashboard (トークン無し)', code: 401, stop: 'relay', msg: '<span class="ng">401</span> 中継が止める。経路に関わらず、トークンが無ければ upstream には何も届かない。' },
+    2: { label: 'GET /dashboard + X-Share-Relay-Token', code: 200, stop: 'headroom', msg: '<span class="ok">200</span> 許可リストの GET。トークンのヘッダは外し、Host を upstream のものに書き換えて headroom へ。' },
+    3: { label: 'POST /v1/messages + X-Share-Relay-Token', code: 404, stop: 'relay', msg: '<span class="ng">404</span> トークンがあっても許可リスト外。headroom のプロキシ本体 (手元の Anthropic の認証で転送する) には届かない。' },
+  };
+
+  async function play() {
+    const id = ++runId;
+    clearMark();
+    $('relay-l2').style.opacity = 1;
+    if (mode === 'before') {
+      $('x-before').style.display = ''; $('x-before').setAttribute('opacity', 1); $('lbl1').style.display = 'none';
+      log('<span class="ng">変更前</span>: headroom は loopback 限定で、クラスタの Pod からは届かない (中継が無い)。');
+      return;
+    }
+    $('x-before').style.display = 'none'; $('lbl1').style.display = '';
+    const s = SCEN[scenario];
+    $('lbl1').textContent = s.label;
+    log('要求: <code>' + s.label + '</code>');
+    $('dot').setAttribute('fill', 'var(--acc)');
+    if (!(await glide(path1, L1, 0, 1, 1100, id))) return;
+    await sleep(350);
+    if (id !== runId) return;
+    if (s.stop === 'relay') {
+      mark(330, 100, false, '✕');
+      await glide(path1, L1, 1, 0.55, 700, id);
+      if (id !== runId) return;
+      log(s.msg);
+    } else {
+      $('dot').setAttribute('fill', 'var(--add)');
+      if (!(await glide(path2, L2, 0, 1, 1100, id))) return;
+      mark(930, 100, true, '✓');
+      log(s.msg);
+    }
+    await sleep(2600);
+    if (id === runId) play();
+  }
+
+  function setMode(m) { mode = m; $('b-before').classList.toggle('on', m === 'before'); $('b-after').classList.toggle('on', m === 'after');
+    ['g-relay', 'g-secret', 'g-files', 'p1', 'p2', 'p0'].forEach((g) => { $(g).style.opacity = m === 'before' ? 0.12 : 1; });
+    play(); }
+  function setScn(n) { scenario = n; [1, 2, 3].forEach((i) => $('b-s' + i).classList.toggle('on', i === n)); if (mode === 'after') play(); }
+  $('b-before').onclick = () => setMode('before'); $('b-after').onclick = () => setMode('after');
+  [1, 2, 3].forEach((i) => { $('b-s' + i).onclick = () => { setMode('after'); setScn(i); }; });
+
+  // just up / down の順序
+  const UP = [['_kind-up', 0], ['_backstage-image', 0], ['_argocd-install', 0], ['_grafana-secrets', 0], ['_share-relay-up', 1], ['root.yaml を apply', 0], ['argocd-wait', 0], ['_headlamp-token', 0]];
+  const DOWN = [['_share-relay-down', 1], ['kind delete cluster', 0]];
+  function build(el, title, rows) {
+    el.innerHTML = '<b style="min-width:7em">' + title + '</b>' + rows.map((r, i) => (i ? '<span class="arrow">→</span>' : '') + '<span class="step' + (r[1] ? ' new' : '') + '">' + r[0] + '</span>').join('');
+  }
+  build($('up'), 'just up', UP); build($('down'), 'just down', DOWN);
+  let replayId = 0;
+  async function replay() {
+    const id = ++replayId;
+    const all = [...document.querySelectorAll('#up .step'), ...document.querySelectorAll('#down .step')];
+    all.forEach((s) => s.classList.remove('hot'));
+    for (const s of all) {
+      if (id !== replayId) return;
+      s.classList.add('hot'); await sleep(s.classList.contains('new') ? 1000 : 450); s.classList.remove('hot');
+    }
+  }
+  $('replay').onclick = replay;
+  replay(); play();
+})();
+</script>
+</body>
+</html>
