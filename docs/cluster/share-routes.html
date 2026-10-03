@@ -50,15 +50,14 @@ th { background:var(--panel); }
 </head>
 <body>
 <main>
-<h1>share の Caddyfile の経路 (#40)・headroom の HEAD (#48)・大文字小文字 (#53)・Grafana のプロフィール書き込み (#51)</h1>
+<h1>share の Caddyfile の経路 (#40)・headroom の中継 (#48・#53)・Grafana のプロフィール書き込み (#51)</h1>
 <p class="lead">認証サービス (#39) を前段にした 1 つの Caddyfile に、3 つの旧 Caddyfile の経路を移した diff。ここでは「要求がどこで止まるか」を流して見る。</p>
 
 <div class="tabs">
   <button data-v="before" class="on">変更前→後</button>
   <button data-v="flow">要求を流す</button>
   <button data-v="tests">試験の表</button>
-  <button data-v="head">#48 HEAD</button>
-  <button data-v="fix">#53・#51 今回の diff</button>
+  <button data-v="relay">headroom 中継 (main→今)</button>
 </div>
 
 <section class="view on" id="before">
@@ -124,41 +123,39 @@ th { background:var(--panel); }
   </table></div>
 </section>
 
-<section class="view" id="head">
-  <h2>#48: headroom の HEAD</h2>
+<section class="view" id="relay">
+  <h2>headroom の中継 (just/share-relay.Caddyfile): HEAD を通さない (#48)</h2>
   <div class="panel">
-  <svg viewBox="0 0 960 190" role="img" aria-label="HEAD は中継と Caddyfile で止める。以前は headroom まで届き 404 を返し Anthropic へ素通しされうる">
-    <text x="10" y="20" style="font-weight:700">以前 (method GET HEAD)</text>
+  <svg viewBox="0 0 960 190" role="img" aria-label="HEAD は中継と Caddyfile で止める。main では headroom まで届き 404 を返し Anthropic へ素通しされうる">
+    <text x="10" y="20" style="font-weight:700">main (method GET HEAD)</text>
     <g class="node"><rect x="10" y="32" width="120" height="40" rx="8"/><text x="28" y="57">HEAD /health</text></g>
     <line class="pipe" x1="130" y1="52" x2="270" y2="52"/><g class="node"><rect x="270" y="32" width="120" height="40" rx="8"/><text x="298" y="57">中継 (通す)</text></g>
     <line class="pipe" x1="390" y1="52" x2="530" y2="52"/><g class="node ng"><rect x="530" y="32" width="150" height="40" rx="8"/><text x="548" y="57">headroom: 404</text></g>
     <text x="700" y="52" class="dim">Cf-Ray が付く =</text><text x="700" y="70" class="dim">Anthropic へ素通しとみられる</text>
-    <text x="10" y="116" style="font-weight:700">以後 (method GET)</text>
+    <text x="10" y="116" style="font-weight:700">今 (method GET)</text>
     <g class="node"><rect x="10" y="128" width="120" height="40" rx="8"/><text x="28" y="153">HEAD /health</text></g>
     <line class="pipe" x1="130" y1="148" x2="270" y2="148"/><g class="node ok"><rect x="270" y="128" width="190" height="40" rx="8"/><text x="288" y="153">Caddyfile / 中継: 404</text></g>
     <text x="490" y="153" class="dim">headroom には届かない。GET の許可リストだけが通る</text>
   </svg>
   </div>
   <p class="legend">HEAD を使う用途は無い (Pod の probe は tcpSocket)。HEAD→GET への書き換えは、HEAD の応答に本文を返しうるので採らなかった。just/share-relay.Caddyfile と clusters/kind/share/Caddyfile の両方で GET だけにし、どちらの試験でも「許可リストの経路への HEAD は 404 で upstream に届かない」を確かめる。</p>
-</section>
-<section class="view" id="fix">
-  <h2>#53・#51: 同じ要求を、旧 (#50 の最初の版) と新に流す</h2>
-  <p class="lead">要求を選んで「流す」。上が修正前、下が今回の修正後。認証は通った (alice) として、② 許可リストでどうなるかだけを見る。</p>
+  <h2>同じ要求を、main の中継と今の中継に流す (#53)</h2>
+  <p class="lead">要求を選んで「流す」。上が main、下が今。認証は通った (alice) として、② 許可リストでどうなるかだけを見る。</p>
   <div class="panel">
     <div class="ctrl">
       <label>要求 <select id="freq"></select></label>
       <button id="frun">流す</button>
       <button id="fall">全部流す</button>
     </div>
-    <svg viewBox="0 0 960 250" role="img" aria-label="同じ要求を修正前と修正後の許可リストに流す。表記揺れの headroom と、grafana のプロフィール書き込みは、修正前は upstream まで届き、修正後は許可リストで 404 になる">
-      <text x="10" y="20" style="font-weight:700">修正前</text>
+    <svg viewBox="0 0 960 250" role="img" aria-label="同じ要求をmainと今の許可リストに流す。表記揺れの headroom と、grafana のプロフィール書き込みは、mainは upstream まで届き、今は許可リストで 404 になる">
+      <text x="10" y="20" style="font-weight:700">main</text>
       <line class="pipe" x1="150" y1="65" x2="260" y2="65"/><line class="pipe" x1="420" y1="65" x2="530" y2="65"/><line class="pipe" x1="690" y1="65" x2="800" y2="65"/>
       <g class="node" id="fo0"><rect x="20" y="40" width="130" height="50" rx="10"/><text x="52" y="70">ブラウザ</text></g>
       <g class="node" id="fo1"><rect x="260" y="40" width="160" height="50" rx="10"/><text x="290" y="70">① 認証 (通る)</text></g>
       <g class="node" id="fo2"><rect x="530" y="40" width="160" height="50" rx="10"/><text x="560" y="70">② 許可リスト</text></g>
       <g class="node" id="fo3"><rect x="800" y="40" width="140" height="50" rx="10"/><text x="820" y="70">upstream</text></g>
       <circle id="fdot0" cx="85" cy="65" r="8" opacity="0"/>
-      <text x="10" y="140" style="font-weight:700">修正後</text>
+      <text x="10" y="140" style="font-weight:700">今</text>
       <line class="pipe" x1="150" y1="185" x2="260" y2="185"/><line class="pipe" x1="420" y1="185" x2="530" y2="185"/><line class="pipe" x1="690" y1="185" x2="800" y2="185"/>
       <g class="node" id="fn0"><rect x="20" y="160" width="130" height="50" rx="10"/><text x="52" y="190">ブラウザ</text></g>
       <g class="node" id="fn1"><rect x="260" y="160" width="160" height="50" rx="10"/><text x="290" y="190">① 認証 (通る)</text></g>
@@ -167,20 +164,16 @@ th { background:var(--panel); }
       <circle id="fdot1" cx="85" cy="185" r="8" opacity="0"/>
     </svg>
     <div class="result" id="fresult"></div>
-    <div class="legend">許可リストの規則は clusters/kind/share/Caddyfile と同じ (試験の表と同じ入力)。この図は規則の写しで、caddy を動かしているわけではない。実際の挙動は test_share_caddy.py・test_share_relay.py が caddy で確かめる。</div>
+    <div class="legend">許可リストの規則は just/share-relay.Caddyfile と同じ (試験の表と同じ入力)。この図は規則の写しで、caddy を動かしているわけではない。実際の挙動は test_share_caddy.py・test_share_relay.py が caddy で確かめる。</div>
   </div>
   <h2>diff の要点</h2>
-  <div class="panel"><pre class="diff"><span class="c">just/share-relay.Caddyfile・clusters/kind/share/Caddyfile (headroom)</span><span class="d">-   path /dashboard /health /stats /stats-history /stats-lifetime /transformations/feed /favicon.ico</span><span class="a">+   path_regexp dash ^/(dashboard|health|stats|stats-history|stats-lifetime|transformations/feed|favicon\.ico)$</span><span class="a">+   rewrite * /{re.dash.1}   (許可した経路そのものに書き換えて渡す)</span><span class="c">clusters/kind/share/Caddyfile (grafana)</span><span class="a">+   @user_write { path /api/user /api/user/* /apis/preferences.grafana.app/* ; not method GET HEAD }</span><span class="a">+   respond @user_write 404</span><span class="c">clusters/kind/share/Caddyfile (backstage の POST の許可)</span><span class="d">-   path /api/auth/* /api/catalog/entities/by-refs</span><span class="a">+   path_regexp ^/api/auth/.*$|^/api/catalog/entities/by-refs$</span></pre></div>
-  <h2>閉じた経路</h2>
+  <div class="panel"><pre class="diff"><span class="c">just/share-relay.Caddyfile (clusters/kind/share/Caddyfile の headroom も同じ)</span><span class="d">-   method GET HEAD</span><span class="a">+   method GET</span><span class="d">-   path /dashboard /health /stats /stats-history /stats-lifetime /transformations/feed /favicon.ico</span><span class="a">+   path_regexp dash ^/(dashboard|health|stats|stats-history|stats-lifetime|transformations/feed|favicon\.ico)$</span><span class="a">+   rewrite * /{re.dash.1}   (許可した経路そのものに書き換えて渡す)</span></pre></div>
+  <h2>閉じた経路・変わる経路 (中継)</h2>
   <div class="panel"><table>
-    <tr><th>対象</th><th>経路</th><th>以前</th><th>以後</th></tr>
-    <tr><td>headroom</td><td><code>GET /Health</code>・<code>/DASHBOARD</code> など許可経路の表記揺れ (中継・share の両方)</td><td>200 (許可リストを通る)</td><td>404</td></tr>
-    <tr><td>grafana</td><td><code>PUT /api/user</code> (ログイン名・メールの変更)</td><td>200 (viewer が通る。Basic の付与が壊れる)</td><td>404</td></tr>
-    <tr><td>grafana</td><td><code>PUT・PATCH /api/user/preferences</code>・<code>POST /api/user/using/&lt;org&gt;</code>・星 (<code>POST・DELETE /api/user/stars/*</code>)</td><td>200 (viewer の共有設定が書き換わる)</td><td>404</td></tr>
-    <tr><td>grafana</td><td><code>PUT /apis/preferences.grafana.app/…/preferences/&lt;自分&gt;</code> (新しい API)</td><td>200</td><td>404</td></tr>
-    <tr><td>headroom</td><td><code>GET /x/../health</code>・<code>/./health</code>・<code>/%2e/health</code> (ドットセグメント。レビューの指摘)</td><td>200。headroom に <code>/x/../health</code> のまま届く</td><td>200 だが、許可した経路 <code>/health</code> に書き換えて渡す (<code>rewrite * /{re.dash.1}</code>)。クエリは残る</td></tr>
-    <tr><td>backstage</td><td><code>POST /api/catalog/Entities/by-refs</code> など POST の許可の表記揺れ</td><td>200</td><td>404</td></tr>
-    <tr><td>backstage</td><td><code>/api/PROXY/…</code> (拒否側)</td><td>404 (拒否の <code>path</code> が区別しないので止まっていた)</td><td>404 (そのまま。試験で固定)</td></tr>
+    <tr><th>経路</th><th>main</th><th>今</th></tr>
+    <tr><td><code>HEAD /health</code> など許可経路の HEAD (#48)</td><td>200 で通り、headroom が 404 を返す (Anthropic へ素通しとみられる)</td><td>404。headroom に届かない</td></tr>
+    <tr><td><code>GET /Health</code>・<code>/DASHBOARD</code>・<code>/favicon.ICO</code>・<code>/%48ealth</code> など許可経路の表記揺れ (#53)</td><td>通る (<code>path</code> が大文字小文字を区別しない)</td><td>404</td></tr>
+    <tr><td><code>GET /x/../health</code>・<code>/./health</code>・<code>/%2e/health</code> (ドットセグメント)</td><td>通り、<code>/x/../health</code> のまま headroom に届く</td><td>通るが、許可した経路 <code>/health</code> に書き換えて渡す。クエリは残る</td></tr>
   </table></div>
 </section>
 
@@ -319,38 +312,21 @@ th { background:var(--panel); }
   };
   $("result").textContent = "資格情報と要求を選んで「流す」。";
 
-  // #53・#51: 旧 (#50 の最初の版) と新の許可リストに同じ要求を流す
+  // headroom の中継: main と今の許可リストに同じ要求を流す
   var FREQS = [
+    { t: "headroom", m: "GET", p: "/health" },
+    { t: "headroom", m: "HEAD", p: "/health" },
     { t: "headroom", m: "GET", p: "/Health" },
     { t: "headroom", m: "GET", p: "/DASHBOARD" },
-    { t: "headroom", m: "GET", p: "/health" },
-    { t: "grafana", m: "PUT", p: "/api/user" },
-    { t: "grafana", m: "PUT", p: "/api/user/preferences" },
-    { t: "grafana", m: "POST", p: "/api/user/using/1" },
-    { t: "grafana", m: "PUT", p: "/apis/preferences.grafana.app/v1alpha1/namespaces/default/preferences/user-x" },
-    { t: "grafana", m: "GET", p: "/api/user" },
-    { t: "grafana", m: "PUT", p: "/api/user/password" },
-    { t: "backstage", m: "POST", p: "/api/catalog/Entities/by-refs" },
-    { t: "backstage", m: "GET", p: "/API/proxy/grafana/api/org" }
+    { t: "headroom", m: "GET", p: "/favicon.ICO" },
+    { t: "headroom", m: "POST", p: "/v1/messages" }
   ];
   function oldAllow(r) {
-    var ci = r.p.toLowerCase();
-    if (r.t === "grafana") return /^\/(profile|api\/user)\/password\/?$/.test(ci) ? "viewer のパスワードを変えさせない" : null;
-    if (r.t === "headroom") return r.m === "GET" && HEADROOM_OK.indexOf(ci) >= 0 ? null : "許可リストの外";
-    if (/^\/api\/proxy(\/|$)/.test(ci)) return "/api/proxy は通さない";
-    if (r.m === "GET" || r.m === "HEAD") return null;
-    return r.m === "POST" && (/^\/api\/auth\//.test(ci) || ci === "/api/catalog/entities/by-refs") ? null : "許可リストの外";
+    return (r.m === "GET" || r.m === "HEAD") && HEADROOM_OK.indexOf(r.p.toLowerCase()) >= 0 ? null : "許可リストの外";
   }
   function newAllow(r) {
-    if (r.t === "grafana") {
-      if (/^\/(profile|api\/user)\/password\/?$/i.test(r.p)) return "viewer のパスワードを変えさせない";
-      if (/^\/(api\/user(\/|$)|apis\/preferences\.grafana\.app\/)/i.test(r.p) && r.m !== "GET" && r.m !== "HEAD") return "プロフィール・設定の書き込みは通さない (#51)";
-      return null;
-    }
-    if (r.t === "headroom") return r.m === "GET" && HEADROOM_OK.indexOf(r.p) >= 0 ? null : "許可リストの外 (大文字小文字を区別する完全一致、#53)";
-    if (/^\/api\/proxy(\/|$)/i.test(r.p)) return "/api/proxy は通さない (表記揺れも)";
-    if (r.m === "GET" || r.m === "HEAD") return null;
-    return r.m === "POST" && (/^\/api\/auth\//.test(r.p) || r.p === "/api/catalog/entities/by-refs") ? null : "許可リスト (POST は大文字小文字を区別して完全一致) の外";
+    if (r.m === "HEAD") return "HEAD は通さない (#48)";
+    return r.m === "GET" && HEADROOM_OK.indexOf(r.p) >= 0 ? null : "許可リストの外 (大文字小文字を区別する完全一致、#53)";
   }
   FREQS.forEach(function (r, i) { $("freq").add(new Option(r.t + "  " + r.m + " " + r.p, i)); });
   var ftoken = 0;
@@ -389,7 +365,7 @@ th { background:var(--panel); }
     if (id !== ftoken) return;
     function msg(label, no) { return label + ': <span class="badge b' + (no ? 404 : 200) + '">' + (no ? 404 : 200) + "</span> " + (no ? "② で止まる。" + no : "upstream まで届く"); }
     var changed = (o === null) !== (n === null);
-    $("fresult").innerHTML = msg("修正前", o) + "<br>" + msg("修正後", n) + "<br>" + (changed ? (o === null ? "<b>この要求は、今回の修正で止まるようになった。</b>" : "この要求は、修正後は通る。") : "この要求の結果は変わらない。");
+    $("fresult").innerHTML = msg("main", o) + "<br>" + msg("今", n) + "<br>" + (changed ? (o === null ? "<b>この要求は、この変更で止まるようになった。</b>" : "この要求は、今は通る。") : "この要求の結果は変わらない。");
   }
   $("frun").onclick = function () { fplay(FREQS[$("freq").value]); };
   $("fall").onclick = async function () {
