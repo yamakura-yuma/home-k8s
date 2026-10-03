@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>#42 just share の CLI (変更前→変更後)</title>
+<style>
+  :root { --bg:#0f1419; --panel:#171e26; --line:#2c3846; --text:#e6edf3; --dim:#8b98a5; --add:#3fb950; --del:#f85149; --acc:#58a6ff; --warn:#d29922; }
+  @media (prefers-color-scheme: light) { :root { --bg:#f6f8fa; --panel:#ffffff; --line:#d0d7de; --text:#1f2328; --dim:#59636e; --add:#1a7f37; --del:#cf222e; --acc:#0969da; --warn:#9a6700; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.65 system-ui,"Hiragino Sans","Noto Sans JP",sans-serif; }
+  main { max-width:1040px; margin:0 auto; padding:24px 18px 64px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  h2 { font-size:17px; margin:34px 0 10px; border-left:4px solid var(--acc); padding-left:10px; }
+  p.lead { color:var(--dim); margin:0 0 18px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--dim); font-weight:600; }
+  td.del, .del { color:var(--del); } td.add, .add { color:var(--add); }
+  code, pre { font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace; font-size:13px; }
+  pre { margin:0; padding:10px 12px; background:var(--bg); border:1px solid var(--line); border-radius:8px; overflow:auto; }
+  .ctrl { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 10px; }
+  button { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 14px; font:inherit; cursor:pointer; }
+  button.on { border-color:var(--acc); color:var(--acc); }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
+  svg { width:100%; height:auto; display:block; font-family:system-ui,"Noto Sans JP",sans-serif; }
+  svg text { fill:var(--text); font-size:13px; } svg .dim { fill:var(--dim); font-size:11.5px; }
+  .box { fill:var(--panel); stroke:var(--line); stroke-width:1.4; transition:stroke .3s, stroke-width .3s; }
+  .box.lit { stroke:var(--acc); stroke-width:2.6; }
+  .box.bad { stroke:var(--del); stroke-width:2.6; }
+  .arrow { stroke:var(--dim); stroke-width:1.6; fill:none; opacity:.25; transition:opacity .3s, stroke .3s; }
+  .arrow.lit { opacity:1; stroke:var(--acc); stroke-dasharray:6 5; animation:flow .8s linear infinite; }
+  .arrow.bad { opacity:1; stroke:var(--del); stroke-dasharray:6 5; animation:flow .8s linear infinite; }
+  @keyframes flow { to { stroke-dashoffset:-22; } }
+  .entry { font-size:12px; } .entry.gone { fill:var(--del); text-decoration:line-through; }
+  .caption { min-height:3.4em; margin:10px 0 0; }
+  .caption b { color:var(--acc); }
+  .badge { display:inline-block; padding:0 8px; border-radius:10px; font-size:12px; border:1px solid var(--line); }
+  .badge.ok { color:var(--add); border-color:var(--add); } .badge.ng { color:var(--del); border-color:var(--del); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:10px; }
+  label { display:block; font-size:13px; color:var(--dim); }
+  input, select { width:100%; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:6px 8px; font:inherit; }
+  #verdict { margin-top:12px; }
+  @media (prefers-reduced-motion: reduce) { .arrow.lit, .arrow.bad { animation:none; } }
+</style>
+</head>
+<body>
+<main>
+<h1>#42 <code>just share</code> の CLI</h1>
+<p class="lead">変更前 → 変更後。公開レシピは <code>share</code> のままで、中身が「使い捨てを起動する」から「資格情報を足す・消す・引く」に変わる (<code>Closes #42</code>・<code>Closes #56</code>)。</p>
+
+<h2>1. 何が変わるか</h2>
+<div class="panel">
+<table>
+<tr><th></th><th>変更前</th><th>変更後</th></tr>
+<tr><td>レシピ</td><td class="del"><code>share what="grafana"</code> → <code>observe-share.sh</code> (ホストで caddy と cloudflared を起動、Ctrl-C まで)</td><td class="add"><code>share *args</code> → <code>just/share.sh</code> (<code>kubectl</code> で Secret <code>share-credentials</code> を読み書き)</td></tr>
+<tr><td>サブコマンド</td><td class="del">対象 (grafana / headroom / backstage)</td><td class="add"><code>add</code> <code>delete</code> <code>list</code> <code>get</code> <code>rotate</code> <code>prune</code></td></tr>
+<tr><td>パスワード</td><td class="del">起動のたびに使い捨て (Grafana は viewer を作り直す)</td><td class="add"><code>openssl rand -hex 16</code>。保存は PBKDF2 のハッシュだけ。表示は <code>add</code> と特権の <code>rotate</code> の 1 回だけ</td></tr>
+<tr><td>ハッシュ</td><td class="del">caddy の bcrypt (パスワードが引数に出る)</td><td class="add"><code>kubectl exec -i deploy/share -c auth</code> の標準入力 → <code>share_auth.hash_password</code></td></tr>
+<tr><td>書き込み</td><td class="del">(Secret に書かない)</td><td class="add">項目ごとの <code>kubectl patch --type merge --patch-file</code> (別の名前の項目を消さない)</td></tr>
+<tr><td>公開レシピの数</td><td colspan="2">7 つのまま (<code>just --list</code>)</td></tr>
+<tr><td>旧ファイル</td><td colspan="2"><code>observe-share.sh</code> と旧 Caddyfile は残る (呼ばれない。#44 で消す)</td></tr>
+</table>
+</div>
+
+<h2>2. add から失効まで (アニメーション)</h2>
+<div class="panel">
+<div class="ctrl">
+  <button id="play" class="on" type="button">▶ 再生</button>
+  <button id="prev" type="button">◀ 戻る</button>
+  <button id="next" type="button">次へ ▶</button>
+  <span class="dim" id="stepno" style="color:var(--dim)"></span>
+</div>
+<svg viewBox="0 0 980 330" role="img" aria-label="add から失効までの流れ">
+  <defs><marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker></defs>
+  <rect id="b-cli" class="box" x="20" y="40" width="190" height="86" rx="10"/>
+  <text x="115" y="70" text-anchor="middle">just share (CLI)</text><text class="dim" x="115" y="92" text-anchor="middle">just/share.sh</text><text class="dim" x="115" y="110" text-anchor="middle">kubectl だけ</text>
+  <rect id="b-sec" class="box" x="395" y="20" width="230" height="170" rx="10"/>
+  <text x="510" y="46" text-anchor="middle">Secret share-credentials</text>
+  <text id="e1" class="entry dim" x="412" y="76"></text><text id="e2" class="entry dim" x="412" y="98"></text>
+  <text id="e3" class="dim" x="412" y="124" style="font-size:11px"></text>
+  <rect id="b-auth" class="box" x="780" y="40" width="190" height="86" rx="10"/>
+  <text x="875" y="70" text-anchor="middle">auth (share Pod)</text><text class="dim" x="875" y="92" text-anchor="middle">share_auth.py</text><text class="dim" x="875" y="110" text-anchor="middle">要求ごとに判定</text>
+  <rect id="b-user" class="box" x="780" y="230" width="190" height="70" rx="10"/>
+  <text x="875" y="258" text-anchor="middle">相手 (ブラウザ)</text><text id="t-status" x="875" y="282" text-anchor="middle"></text>
+  <path id="a-patch" class="arrow" d="M212 70 L393 70" marker-end="url(#head)"/>
+  <path id="a-exec" class="arrow" d="M150 128 C150 250 600 250 790 128" marker-end="url(#head)"/>
+  <path id="a-read" class="arrow" d="M778 90 L627 90" marker-end="url(#head)"/>
+  <path id="a-req" class="arrow" d="M875 228 L875 128" marker-end="url(#head)"/>
+  <text class="dim" x="302" y="60" text-anchor="middle">patch</text>
+  <text class="dim" x="470" y="262" text-anchor="middle">exec -i (パスワードは標準入力)</text>
+  <text class="dim" x="702" y="80" text-anchor="middle">get (2 秒キャッシュ)</text>
+  <text class="dim" x="885" y="184" text-anchor="start">Basic</text>
+</svg>
+<p class="caption" id="caption"></p>
+</div>
+
+<h2>3. 拒否される指定 (クラスタに触れる前)</h2>
+<div class="panel">
+<p class="lead" style="margin-top:0">試験 (<code>just/test_share_cli.py</code>) と同じ規則を動かして確かめられる。「kubectl」は検査までに呼ばれた回数。</p>
+<div class="grid">
+  <label>名前<input id="in-name" value="alice" spellcheck="false" autocomplete="off"></label>
+  <label>--ttl (空なら既定 8h)<input id="in-ttl" value="8h" spellcheck="false" autocomplete="off"></label>
+  <label>オプション<select id="in-perm"><option value="no">なし</option><option value="yes">--permanent</option></select></label>
+  <label>今の Secret<select id="in-state"><option value="none">特権 viewer なし・alice なし</option><option value="boss">特権 viewer が既にある</option><option value="alice">alice が既にある</option></select></label>
+</div>
+<div id="verdict"></div>
+<table style="margin-top:10px">
+<tr><th>入力</th><th>結果</th></tr>
+<tr><td><code>--ttl 25h</code> / <code>1441m</code></td><td class="del">拒否 (上限 24h)。kubectl 0 回</td></tr>
+<tr><td><code>--ttl 0</code> / <code>0h</code></td><td class="del">拒否。kubectl 0 回</td></tr>
+<tr><td>不正な名前 (<code>Alice</code> <code>a_b</code> 33 文字)</td><td class="del">拒否。kubectl 0 回</td></tr>
+<tr><td><code>--permanent --ttl 1h</code></td><td class="del">拒否。kubectl 0 回</td></tr>
+<tr><td>2 つ目の <code>--permanent</code></td><td class="del">拒否 (Secret を読んだあと、書く前)</td></tr>
+<tr><td>期限付きへの <code>rotate</code></td><td class="del">拒否 (Secret を読んだあと、ハッシュも作らず書かない)</td></tr>
+</table>
+</div>
+
+<h2>4. #56: Backstage の Basic が引数に出ない</h2>
+<div class="panel">
+<table>
+<tr><th>変更前</th><th>変更後</th></tr>
+<tr><td class="del"><pre>kubectl ... create secret generic backstage-grafana \
+  --from-literal=GRAFANA_BASIC_AUTH="$(… | base64 -w0)"
+# → ps に base64 の値が出る</pre></td>
+<td class="add"><pre>printf 'backstage:%s' "$(cat "$backstage_file")" | base64 -w0 &gt;"$tmp/basic"
+kubectl ... create secret generic backstage-grafana \
+  --from-file=GRAFANA_BASIC_AUTH="$tmp/basic"
+# → 一時ファイル (077) を終了時に消す。引数にも注釈にも値が無い</pre></td></tr>
+</table>
+<p class="lead" style="margin:10px 0 0">試験: 引数に base64 の値が無いこと、<code>--from-literal</code> で渡してよいのは秘密でない値 (<code>admin-user</code>・<code>SHARE_RELAY_ADDR</code>) だけという静的な見張り。</p>
+</div>
+
+<h2>5. 試験</h2>
+<div class="panel">
+<table>
+<tr><th>追加・変更</th><th>確かめること</th></tr>
+<tr><td><code>just/test_share_cli.py</code> (新規 36 件)</td><td>上の拒否。パスワードが Secret・kubectl・curl の引数に出ない。<code>add</code> が作った項目を実物の <code>decide()</code> に通す往復 (正しいパスワード 200、誤り・期限後・<code>delete</code> 後・<code>rotate</code> 後の古い値 401)。<code>get</code> はパスワードも hash も出さない</td></tr>
+<tr><td><code>just/fake_kubectl.py</code></td><td><code>get -o go-template</code>・<code>patch --patch-file</code>・<code>exec</code> を足す (<code>exec</code> は実物の <code>share_auth</code> を手元で動かす)</td></tr>
+<tr><td><code>just/test_recipes.py</code></td><td>公開レシピ 7 つのまま。<code>share</code> の引数が <code>share.sh &lt;context&gt; ...</code> に渡る</td></tr>
+<tr><td><code>just/test_share_secrets.py</code></td><td>#56 の 2 つ</td></tr>
+</table>
+<p class="lead" style="margin:10px 0 0">稼働中のクラスタでの <code>add</code> → 200 → <code>delete</code> → 401 は #43 で確かめる。</p>
+</div>
+</main>
+
+<script>
+(function () {
+  var T = {
+    steps: [
+      { cap: "<b>1 引数を検査</b>: 名前・<code>--ttl</code>・<code>--permanent</code> の併用。ここでは <code>kubectl</code> を 1 回も呼ばない。", lit: ["b-cli"], arrows: [], e: [], sub: "" },
+      { cap: "<b>2 Secret を読む</b>: 期限切れを先に掃除し、同じ名前と 2 つ目の特権を断る。読めなければ止まる。", lit: ["b-cli", "b-sec"], arrows: [], e: [], sub: "get -o go-template" },
+      { cap: "<b>3 ハッシュ</b>: パスワード (<code>openssl rand -hex 16</code>) を <code>kubectl exec -i</code> の標準入力で Pod の <code>hash_password</code> に渡す。引数にも注釈にも出ない。", lit: ["b-cli", "b-auth"], arrows: ["a-exec"], e: [], sub: "" },
+      { cap: "<b>4 書き込み</b>: <code>kubectl patch --type merge --patch-file</code> で自分の項目だけを足す。", lit: ["b-cli", "b-sec"], arrows: ["a-patch"], e: ["alice  期限 8h  hash だけ"], sub: "パスワードは Secret に無い" },
+      { cap: "<b>5 表示</b>: 名前・パスワード・期限を先に出し、URL が出て DoH で引けるのを待って 3 つの URL を出す。", lit: ["b-cli"], arrows: [], e: ["alice  期限 8h  hash だけ"], sub: "" },
+      { cap: "<b>6 相手が使う</b>: Basic の名前で項目を引き (キャッシュ 2 秒)、期限内でハッシュが合えば 200。", lit: ["b-user", "b-auth", "b-sec"], arrows: ["a-req", "a-read"], e: ["alice  期限 8h  hash だけ"], sub: "", status: "200" },
+      { cap: "<b>7 期限後</b>: 要求ごとに現在時刻と比べるので、期限を過ぎた次の要求から 401 (遅れ 0 秒)。", lit: [], bad: ["b-user", "b-auth"], arrows: [], badArrows: ["a-req"], e: ["alice  期限切れ"], sub: "", status: "401" },
+      { cap: "<b>8 delete</b>: 項目を <code>null</code> で消す。最大 2 秒 (キャッシュ) で 401。<code>prune</code> は期限切れをまとめて消す。", lit: ["b-cli", "b-sec"], bad: ["b-user"], arrows: ["a-patch"], badArrows: [], e: [], goneEntry: "alice  (消した)", sub: "", status: "401" }
+    ]
+  };
+  var $ = function (id) { return document.getElementById(id); };
+  var ids = ["b-cli", "b-sec", "b-auth", "b-user"], arrows = ["a-patch", "a-exec", "a-read", "a-req"];
+  var cur = 0, timer = null;
+  function show(i) {
+    cur = (i + T.steps.length) % T.steps.length;
+    var s = T.steps[cur];
+    ids.forEach(function (id) { $(id).setAttribute("class", "box" + ((s.lit || []).indexOf(id) >= 0 ? " lit" : "") + ((s.bad || []).indexOf(id) >= 0 ? " bad" : "")); });
+    arrows.forEach(function (id) { $(id).setAttribute("class", "arrow" + ((s.arrows || []).indexOf(id) >= 0 ? " lit" : "") + ((s.badArrows || []).indexOf(id) >= 0 ? " bad" : "")); });
+    $("e1").textContent = s.e[0] || "";
+    $("e1").setAttribute("class", "entry" + (s.goneEntry ? " gone" : " dim"));
+    if (s.goneEntry) { $("e1").textContent = s.goneEntry; }
+    $("e2").textContent = "";
+    $("e3").textContent = s.sub || "";
+    $("t-status").textContent = s.status ? "→ " + s.status : "";
+    $("t-status").style.fill = s.status === "200" ? "var(--add)" : s.status === "401" ? "var(--del)" : "";
+    $("caption").innerHTML = s.cap;
+    $("stepno").textContent = (cur + 1) + " / " + T.steps.length;
+  }
+  function play(on) {
+    clearInterval(timer); timer = null;
+    $("play").className = on ? "on" : "";
+    $("play").textContent = on ? "⏸ 一時停止" : "▶ 再生";
+    if (on) timer = setInterval(function () { show(cur + 1); }, 2600);
+  }
+  $("play").onclick = function () { play(!timer); };
+  $("next").onclick = function () { play(false); show(cur + 1); };
+  $("prev").onclick = function () { play(false); show(cur - 1); };
+  show(0); play(!window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+  // 検査の規則 (just/share.sh と同じ)
+  function check() {
+    var name = $("in-name").value, ttl = $("in-ttl").value, perm = $("in-perm").value === "yes", state = $("in-state").value;
+    var reason = null, touched = 0;
+    if (!/^[a-z0-9][a-z0-9-]{0,31}$/.test(name)) reason = "名前は ^[a-z0-9][a-z0-9-]{0,31}$ に合う文字列";
+    else if (perm && ttl !== "") reason = "--permanent と --ttl は同時に指定できない";
+    else if (!perm) {
+      var m = /^([0-9]{1,4})([mh])$/.exec(ttl === "" ? "8h" : ttl);
+      if (!m) reason = "--ttl は 30m・8h の形で指定する";
+      else {
+        var min = parseInt(m[1], 10) * (m[2] === "h" ? 60 : 1);
+        if (min === 0) reason = "--ttl は 0 より長くする";
+        else if (min > 1440) reason = "--ttl の上限は 24h";
+      }
+    }
+    if (!reason) {
+      touched = 1;
+      if (state === "alice" && name === "alice") reason = "alice は既にある。作り直すなら先に delete";
+      else if (perm && state === "boss") reason = "特権 viewer は全体で 1 つだけで、既にある";
+    }
+    var v = $("verdict");
+    if (reason) v.innerHTML = '<span class="badge ng">拒否</span> ' + reason + ' <span class="dim" style="color:var(--dim)">(kubectl: ' + touched + ' 回' + (touched ? '、書き込みなし' : '') + ')</span>';
+    else v.innerHTML = '<span class="badge ok">受理</span> ' + (perm ? '期限なしの特権 viewer' : '期限付き') + ' として作る <span class="dim" style="color:var(--dim)">(get → exec → patch)</span>';
+  }
+  ["in-name", "in-ttl", "in-perm", "in-state"].forEach(function (id) { $(id).addEventListener("input", check); });
+  check();
+})();
+</script>
+</body>
+</html>

@@ -40,3 +40,7 @@
 /just/share-urls.sh        @yamakura-yuma
 /just/test_share_secrets.py @yamakura-yuma
 /just/fake_kubectl.py      @yamakura-yuma
+
+# 共有の資格情報を操作する CLI (just share add/delete/list/get/rotate/prune)。資格情報を作る・消す本体なので、試験も含めて人が見る
+/just/share.sh             @yamakura-yuma
+/just/test_share_cli.py    @yamakura-yuma

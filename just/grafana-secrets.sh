@@ -42,7 +42,11 @@ kubectl --context "$ctx" -n "$ns" create secret generic grafana-viewer \
 kubectl --context "$ctx" -n "$ns" create secret generic grafana-backstage \
     --from-file=password="$backstage_file" \
     --dry-run=client -o yaml | put_secret "$ctx" "$ns" grafana-backstage
-# Backstage のプロキシが Authorization: Basic に入れる値 (app-config.yaml の GRAFANA_BASIC_AUTH)
+# Backstage のプロキシが Authorization: Basic に入れる値 (app-config.yaml の GRAFANA_BASIC_AUTH)。
+# base64 にしても値なので、--from-literal ではなく --from-file で渡す (引数に出ると ps に残る。#56)。一時ファイルは本人だけが読めるようにして、終わったら消す
+tmp="$(umask 077; mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+printf 'backstage:%s' "$(cat "$backstage_file")" | base64 -w0 >"$tmp/basic"
 kubectl --context "$ctx" -n backstage create secret generic backstage-grafana \
-    --from-literal=GRAFANA_BASIC_AUTH="$(printf 'backstage:%s' "$(cat "$backstage_file")" | base64 -w0)" \
+    --from-file=GRAFANA_BASIC_AUTH="$tmp/basic" \
     --dry-run=client -o yaml | put_secret "$ctx" backstage backstage-grafana

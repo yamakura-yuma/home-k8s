@@ -10,10 +10,15 @@
   create namespace <名前> --dry-run=client -o yaml     Namespace の manifest を出す
   replace -f - / create -f - / apply -f -              標準入力を FAKE_KUBECTL_STDIN に書く
   logs deploy/share -c <コンテナ>                       FAKE_LOGS/<コンテナ> の中身を出す (無ければ 1)
+  get secret share-credentials -o go-template=...      FAKE_CREDENTIALS (JSON のファイル {名前: 項目の JSON 文字列}) を "名前<TAB>項目" の行で出す。ファイルが無ければ 1 (Secret が無い)
+  patch secret share-credentials --type merge --patch-file F
+                                                       {"data": {名前: base64 | null}} を FAKE_CREDENTIALS に反映し、FAKE_KUBECTL_STDIN に {"verb": "patch", "manifest": <patch>} で書く
+  exec -i deploy/share -c auth -- python -B -c <コード>  実物の share_auth を FAKE_AUTH_DIR から読んで、手元の python3 で同じコードを動かす (標準入力はそのまま渡る)
 """
 import base64
 import json
 import os
+import subprocess
 import sys
 
 argv = sys.argv[1:]
@@ -54,8 +59,39 @@ def build_manifest(name):
     return manifest
 
 
+def credentials_path():
+    return os.environ.get("FAKE_CREDENTIALS", "")
+
+
 dry_run = any(a.startswith("--dry-run") for a in args)
-if args[:2] == ["get", "secret"]:
+if args[:3] == ["get", "secret", "share-credentials"] and "-o" in args:
+    path = credentials_path()
+    if not path or not os.path.isfile(path):
+        print('Error from server (NotFound): secrets "share-credentials" not found', file=sys.stderr)
+        sys.exit(1)
+    with open(path, encoding="utf-8") as f:
+        for name, entry in sorted(json.load(f).items()):
+            print(f"{name}\t{entry}")
+elif args[:3] == ["patch", "secret", "share-credentials"]:
+    with open(args[args.index("--patch-file") + 1], encoding="utf-8") as f:
+        patch = json.load(f)
+    record({"verb": "patch", "manifest": patch})
+    path = credentials_path()
+    state = {}
+    if path and os.path.isfile(path):
+        with open(path, encoding="utf-8") as f:
+            state = json.load(f)
+    for name, value in patch["data"].items():
+        if value is None:
+            state.pop(name, None)
+        else:
+            state[name] = base64.b64decode(value).decode()
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(state, f)
+elif args[:1] == ["exec"] and "--" in args:
+    code = args[args.index("-c", args.index("--")) + 1]
+    sys.exit(subprocess.run([sys.executable, "-B", "-c", code], env={**os.environ, "PYTHONPATH": os.environ["FAKE_AUTH_DIR"]}).returncode)
+elif args[:2] == ["get", "secret"]:
     sys.exit(0 if args[2] in os.environ.get("FAKE_EXISTING", "").split() else 1)
 elif args[:3] == ["create", "secret", "generic"]:
     manifest = build_manifest(args[3])
