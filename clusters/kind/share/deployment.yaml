@@ -1,0 +1,130 @@
+# 公開の本体 (docs/cluster/share.md)。1 Pod に 5 コンテナ: caddy (許可リスト)・auth (認証サービス)・cloudflared ×3 (Quick Tunnel)。
+#   cloudflared-grafana ─▶ caddy :8081 ─▶ grafana.observability.svc
+#   cloudflared-headroom ─▶ caddy :8082 ─▶ ホストの中継 (Secret share-host) ─▶ headroom
+#   cloudflared-backstage ─▶ caddy :8083 ─▶ backstage.backstage.svc
+# 3 つとも caddy の中で auth (127.0.0.1:9000) を通る。待ち受けは 127.0.0.1 だけで、同じ Pod の cloudflared からだけ届く。
+# **Service は作らない** (入口は Cloudflare への外向き接続だけ。クラスタ内にも待ち受けを開けない。just ci が NodePort・LoadBalancer・Ingress の無いことを確かめる)。
+# Secret は git に置かず just up の _share-secrets・_share-relay-up が作る (Secret が無いと Pod は起動しない):
+#   share-host (SHARE_RELAY_ADDR・SHARE_RELAY_TOKEN)、share-grafana (viewer のパスワード)、share-credentials・share-session-key (auth が API で読む)
+# Pod を再起動すると Quick Tunnel の URL が変わり、配った URL が使えなくなる。replicas: 1・Recreate で、再起動の原因を作らない:
+# cloudflared には probe を付けず (probe の失敗で再起動しない)、caddy と auth の probe は readiness だけ (liveness で再起動しない)。
+# UDP 7844 (QUIC) が外に通らないときは、cloudflared の args に --protocol http2 を足す。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: share
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: share
+  template:
+    metadata:
+      labels:
+        app: share
+    spec:
+      serviceAccountName: share
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: caddy
+          image: caddy:2.11.6-alpine
+          # Caddyfile は base64 の関数を持たないので、Grafana に渡す Basic の値はここで組み立てる (viewer の鍵。人の資格情報は Grafana に渡さない)
+          command:
+            - sh
+            - -c
+            - |
+              SHARE_GRAFANA_BASIC="$(printf 'viewer:%s' "$GRAFANA_VIEWER_PASSWORD" | base64 | tr -d '\n')"
+              export SHARE_GRAFANA_BASIC
+              exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+          envFrom:
+            - secretRef:
+                name: share-host
+          env:
+            - name: GRAFANA_VIEWER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: share-grafana
+                  key: viewer-password
+            - name: XDG_CONFIG_HOME
+              value: /tmp/caddy-config
+            - name: XDG_DATA_HOME
+              value: /tmp/caddy-data
+          readinessProbe:
+            exec:
+              command: [sh, -c, "nc -z 127.0.0.1 8081 && nc -z 127.0.0.1 8082 && nc -z 127.0.0.1 8083"]
+            periodSeconds: 10
+          volumeMounts:
+            - name: caddyfile
+              mountPath: /etc/caddy
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 128Mi}
+          # 公式イメージの caddy には file capability (cap_net_bind_service) が付いていて、bounding set から落とすと exec が EPERM になる。
+          # 1024 未満のポートは使わないが、起動のために残す
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+              add: [NET_BIND_SERVICE]
+        - name: auth
+          image: python:3.13.16-alpine
+          command: [python, -B, /app/share_auth.py]
+          env:
+            - name: AUTH_LISTEN
+              value: 127.0.0.1:9000
+          readinessProbe:
+            exec:
+              command: [python, -c, "import socket; socket.create_connection(('127.0.0.1', 9000), 2).close()"]
+            periodSeconds: 10
+          volumeMounts:
+            - name: auth
+              mountPath: /app
+              readOnly: true
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 128Mi}
+          securityContext: &hardened
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+        # Quick Tunnel は 1 プロセスに 1 ホスト名なので、対象ごとに 1 本 (docs/cluster/share.md §3)。
+        # コンテナ名は URL の取得 (just/share-urls.sh が kubectl logs -c で引く) が使う。metrics は同じ Pod の中でぶつからないよう別ポートにする
+        - name: cloudflared-grafana
+          image: cloudflare/cloudflared:2026.9.3
+          args: [tunnel, --no-autoupdate, --metrics, "127.0.0.1:20241", --url, "http://127.0.0.1:8081"]
+          resources: &cloudflared-resources
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 128Mi}
+          securityContext: *hardened
+        - name: cloudflared-headroom
+          image: cloudflare/cloudflared:2026.9.3
+          args: [tunnel, --no-autoupdate, --metrics, "127.0.0.1:20242", --url, "http://127.0.0.1:8082"]
+          resources: *cloudflared-resources
+          securityContext: *hardened
+        - name: cloudflared-backstage
+          image: cloudflare/cloudflared:2026.9.3
+          args: [tunnel, --no-autoupdate, --metrics, "127.0.0.1:20243", --url, "http://127.0.0.1:8083"]
+          resources: *cloudflared-resources
+          securityContext: *hardened
+      volumes:
+        - name: caddyfile
+          configMap:
+            name: share-caddy
+        - name: auth
+          configMap:
+            name: share-auth
+        # caddy が書く場所 (autosave・証明書の置き場)。root の fs は読み取り専用
+        - name: tmp
+          emptyDir: {}

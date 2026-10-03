@@ -8,9 +8,11 @@
 #   3. kustomize build / 素の manifest  同じ Application の path (dashboards、storage、headlamp/manifests)
 #   4. kubeconform     3 までの出力を、kind の Kubernetes の版のスキーマに照らす
 #   5. kube-linter     3 までの出力 (.kube-linter.yaml)
-#   6. unittest        share の認証サービスと、share Pod の Caddyfile の経路 (clusters/kind/share)。caddy と認証サービスを空きポートで起動し、
-#                      偽の upstream に向けて、認証なし・許可リスト外・delete・期限切れの拒否を確かめる。クラスタにもネットワークにも出ない
-#   7. share 中継の試験  just/share-relay.Caddyfile を caddy で起動し、認証なし・許可リスト外の拒否を確かめる (稼働中のクラスタ・ホストには触れない)
+#   6. share の公開の入口  share namespace に同期する manifest に NodePort・LoadBalancer の Service と Ingress が無いこと (yq)
+#   7. unittest        share の認証サービスと、share Pod の Caddyfile の経路・manifest (clusters/kind/share)。caddy と認証サービスを空きポートで起動し、
+#                      偽の upstream に向けて、認証なし・許可リスト外・delete・期限切れ・認証サービスに届かないときの拒否を確かめる。クラスタにもネットワークにも出ない
+#   8. share のホスト側  中継 (just/share-relay.Caddyfile) を caddy で起動して認証なし・許可リスト外の拒否を確かめ、Secret を作るスクリプトと
+#                      URL を引く関数を偽の kubectl で確かめる (注釈に値が残らない作り方、#49)。稼働中のクラスタ・ホストには触れない
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -26,6 +28,7 @@ apps=clusters/kind/argocd/apps
 
 out=$(mktemp -d)
 trap 'rm -rf "$out"' EXIT
+share_renders=()  # destination が namespace share の Application が描画した manifest (6 で調べる)
 
 echo "== yamllint =="
 git ls-files -z '*.yaml' '*.yml' | xargs -0 yamllint --strict
@@ -48,6 +51,7 @@ for app in "$apps"/*.yaml; do
     while IFS= read -r dir; do
         [ -n "$dir" ] && [ "$dir" != "$apps" ] || continue
         out_file="$out/dir-$(echo "$dir" | tr / -).yaml"
+        [ "$ns" = share ] && share_renders+=("$out_file")
         [ -e "$out_file" ] && continue
         echo "manifest $name ($dir)"
         if [ -f "$dir/kustomization.yaml" ]; then
@@ -65,9 +69,17 @@ kubeconform -strict -summary -ignore-missing-schemas -kubernetes-version "$k8s_v
 echo "== kube-linter =="
 kube-linter lint --config .kube-linter.yaml "$out"
 
+echo "== share の公開の入口 (NodePort・LoadBalancer・Ingress が無いこと) =="
+# share の入口は Cloudflare への外向き接続だけ。クラスタの外に待ち受けを開ける種類を足したら落とす。描画した manifest が 1 つも無いのも落とす (Application が無いと検査にならない)
+[ "${#share_renders[@]}" -gt 0 ] || { echo "namespace share の Application が描画されていない (clusters/kind/argocd/apps/share.yaml)" >&2; exit 1; }
+exposed=$(yq 'select(.kind == "Ingress" or (.kind == "Service" and (.spec.type == "NodePort" or .spec.type == "LoadBalancer")))
+                       | .kind + "/" + .metadata.name' "${share_renders[@]}")
+[ -z "$exposed" ] || { echo "share に公開の入口が入っている: $exposed" >&2; exit 1; }
+echo "ok (${share_renders[*]##*/})"
+
 # caddy の試験は caddy が無いと飛ばされるので、CI では無いことを失敗にする
 command -v caddy >/dev/null || { echo "caddy が無い (devShells.ci に入っているはず)" >&2; exit 1; }
-echo "== share 認証の単体試験と Caddyfile の経路 (caddy + 認証サービス + 偽の upstream) =="
+echo "== share 認証の単体試験・Caddyfile の経路・manifest (caddy + 認証サービス + 偽の upstream) =="
 python3 -B -m unittest discover -s clusters/kind/share -v
-echo "== share 中継 (caddy + 偽の upstream、スクリプトの引数) =="
-python3 -B -m unittest discover -s just -p 'test_share_relay.py' -v
+echo "== share のホスト側 (中継の caddy、Secret を作るスクリプト、URL を引く関数) =="
+python3 -B -m unittest discover -s just -p 'test_share_*.py' -v

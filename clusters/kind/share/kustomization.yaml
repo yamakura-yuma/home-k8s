@@ -1,0 +1,16 @@
+# share Pod の manifest (ArgoCD の Application share が同期する。docs/cluster/share.md)。
+# Caddyfile と認証サービスは、この repo のファイルから ConfigMap を作る (ファイルを足したら files も直す。test_share_manifest.py が突き合わせる)。
+# 名前にハッシュを付ける: 中身を変えると Deployment の参照も変わり、ArgoCD が Pod を作り直す。
+# 固定名にすると、caddy も python も起動時にしか読まないので、Caddyfile の変更が Pod の再起動まで効かない。
+# 作り直しで Quick Tunnel の URL は変わる (設計の「受け入れる制約」)。
+namespace: share
+resources:
+  - rbac.yaml
+  - deployment.yaml
+configMapGenerator:
+  - name: share-caddy
+    files:
+      - Caddyfile
+  - name: share-auth
+    files:
+      - share_auth.py

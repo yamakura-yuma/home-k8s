@@ -27,8 +27,16 @@
 /just/headlamp-token.sh         @yamakura-yuma
 /just/share.just                @yamakura-yuma
 /just/share-relay.sh            @yamakura-yuma
+/just/share-secrets.sh          @yamakura-yuma
+/just/secret-lib.sh             @yamakura-yuma
 
 # 外部公開 (just share)
 /just/observe-share.sh     @yamakura-yuma
 /just/*.Caddyfile          @yamakura-yuma
 /just/test_share_relay.py  @yamakura-yuma
+
+# 公開の本体 (share Pod の Deployment・RBAC・Caddyfile・認証サービスと、その試験)。URL を引く関数 (share-urls.sh) とその試験もここ
+/clusters/kind/share/      @yamakura-yuma
+/just/share-urls.sh        @yamakura-yuma
+/just/test_share_secrets.py @yamakura-yuma
+/just/fake_kubectl.py      @yamakura-yuma

@@ -50,7 +50,7 @@ class Recipes(unittest.TestCase):
         steps = ["kind create cluster", "observability/{tempo,prometheus,loki,grafana}",
                  "docker build -t home-k8s-backstage:", "kind load docker-image home-k8s-backstage:",
                  "helm upgrade --install argocd", "grafana-secrets.sh",
-                 "share-relay.sh up", "argocd/root.yaml", "argocd-wait.sh", "headlamp-token.sh"]
+                 "share-relay.sh up", "share-secrets.sh", "argocd/root.yaml", "argocd-wait.sh", "headlamp-token.sh"]
         pos = [out.find(step) for step in steps]
         self.assertNotIn(-1, pos, out)
         self.assertEqual(pos, sorted(pos))
@@ -62,6 +62,14 @@ class Recipes(unittest.TestCase):
         down = just("--dry-run", "down").stderr
         self.assertLess(down.find("share-relay.sh down"), down.find("kind delete cluster"))
         self.assertNotIn("share-relay", " ".join(just("--list").stdout.split()), "内部用は公開しない")
+
+    def test_share_secrets_exist_before_argocd_syncs_the_pod(self):
+        # share Pod は Secret が無いと起動できない (optional: false)。root.yaml (ArgoCD の同期) より前に作り、viewer のパスワードのファイルが要るので _grafana-secrets の後
+        up = just("--dry-run", "up").stderr
+        self.assertRegex(up, r'share-secrets\.sh ".*/grafana-viewer-password" kind-study-kind\n')
+        self.assertLess(up.find("grafana-secrets.sh"), up.find("share-secrets.sh"))
+        self.assertLess(up.find("share-secrets.sh"), up.find("argocd/root.yaml"))
+        self.assertNotIn("share-secrets", " ".join(just("--list").stdout.split()), "内部用は公開しない")
 
     def test_backstage_image_tag_matches_values(self):
         # kind load するイメージのタグと、chart が使うタグ (pull しない) がずれると Pod が起動しない

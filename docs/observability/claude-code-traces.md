@@ -204,7 +204,7 @@ admin のパスワードは次のように決まる。
 1. `just up` の中の Secret の作成 (`just/grafana-secrets.sh`) が最初に `grafana-admin-password` を見る。無ければ `openssl rand` で
    32 文字の値を作って保存し、あればそれを使う。
 2. その値を Secret `observability/grafana-admin` (`admin-user` / `admin-password`) に
-   `kubectl apply` で入れる。
+   `just/secret-lib.sh` の `put_secret` (あれば `replace`、無ければ `create`) で入れる。`kubectl apply` は値を `last-applied-configuration` の注釈に残すので使わない。
 3. chart の `admin.existingSecret: grafana-admin` で、Grafana はこの Secret を環境変数として読む。
 
 chart に Secret を作らせると同期のたびに乱数で作り直されて Pod が再起動するが、
