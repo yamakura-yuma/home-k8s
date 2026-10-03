@@ -231,13 +231,15 @@ Backstage は読み続けられる。Backstage 側の設定は [docs/cluster/bac
 
 viewer のパスワードを変えるのは、ファイルを書き換えて `just up` を打つときだけ。`just up` は
 Secret `observability/grafana-viewer` と、公開の Pod (`share`) が持つ写し (Secret `share/share-grafana`) を一緒に入れ直す。
-Grafana 側の DB には、Pod の起動時にサイドカーがそろえる。人ごとの資格情報 (`just share add`) は
-Grafana のユーザーではないので、viewer のパスワードは配るたびには変わらない。
+ただし Grafana の DB へは Pod の起動時にサイドカーがそろえ、share の caddy は写しを Pod の起動時に 1 度だけ読むので、
+`just up` のあとに **`deploy/grafana` と `deploy/share` の両方を `rollout restart` する**。片方だけだと Grafana の経路が
+302 (ログイン画面) になる。`share` を作り直すと 3 つの公開 URL が変わる (`just share get` で引き直す)。
+人ごとの資格情報 (`just share add`) は Grafana のユーザーではないので、配るたびには viewer のパスワードは変わらない。
 
 パスワードのファイルの所有者はホストのユーザーにしてあるので、WSL2 のシェルから `cat` しても読める。
 admin のパスワードを変えたいときはファイルを消して (または書き換えて) `just up` を打ち、Secret が変わったあとで
 `kubectl --context kind-study-kind -n observability rollout restart deploy/grafana` とする
-(起動のたびに initContainer が DB の admin を Secret の値にそろえる)。viewer・backstage も同じ手順で変わる。
+(起動のたびに initContainer が DB の admin を Secret の値にそろえる)。viewer も同じ手順で変わる (上の `share` の再起動も要る)。backstage は `rollout restart` のあと Backstage の Pod を作り直す。
 
 開発用コンテナは `~/.local/share/home-k8s` をホストと同じパスでマウントしている。この
 マウントが無い古いコンテナで `just up` を打つと、パスワードがコンテナの中にだけ残らない

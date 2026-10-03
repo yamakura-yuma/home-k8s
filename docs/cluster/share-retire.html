@@ -56,7 +56,7 @@
 <tr><th></th><th>変更前</th><th>変更後</th></tr>
 <tr><td>旧スクリプト・Caddyfile</td><td class="del"><code>just/</code> に 6 ファイル (呼ばれないまま残っていた)</td><td class="add">なし</td></tr>
 <tr><td><code>just show grafana</code></td><td class="del">状態ファイルと cloudflared の pid を読んで、公開中なら公開 URL を出す</td><td class="add"><code>localhost:3000</code> と viewer のパスワードを出すだけ。公開 URL は <code>just share get</code></td></tr>
-<tr><td>viewer のパスワードを変える処理</td><td class="del">旧 <code>just share</code> が起動のたびに作り直す → Secret <code>share-grafana</code> の写しが古くなる</td><td class="add"><code>just up</code> だけ。<code>grafana-viewer</code> と <code>share-grafana</code> を同じファイルから同時に入れる</td></tr>
+<tr><td>viewer のパスワードを変える処理</td><td class="del">旧 <code>just share</code> が起動のたびに作り直す → Secret <code>share-grafana</code> の写しが古くなる</td><td class="add"><code>just up</code> だけ。<code>grafana-viewer</code> と <code>share-grafana</code> を同じファイルから同時に入れ、<code>deploy/grafana</code> と <code>deploy/share</code> を再起動して反映する</td></tr>
 <tr><td>README・docs</td><td class="del">「Ctrl-C で止める」「使い捨てのパスワード」「共有のたびに作り直す」</td><td class="add">常駐の <code>share</code> Pod、人ごとの資格情報、期限 (既定 8h・上限 24h)、特権 viewer は 1 つ、<code>get</code> はパスワードを出さない、Pod を作り直すと URL が変わる</td></tr>
 <tr><td>CODEOWNERS</td><td class="del">消したファイルのパス、<code>/just/*.Caddyfile</code></td><td class="add">残るファイルだけ。<code>/just/share-relay.Caddyfile</code> は明示して人の承認を保つ</td></tr>
 </table>
@@ -65,12 +65,12 @@
 <h2>2. 消すファイル (「消す」を押す)</h2>
 <div class="ctrl"><button id="rm" class="on">消す</button><button id="rmreset">戻す</button></div>
 <div class="files" id="files">
-  <div class="file removed"><code>just/observe-share.sh</code><small>ホストで caddy と cloudflared を起動する本体</small></div>
-  <div class="file removed"><code>just/observe-share.Caddyfile</code><small>Grafana 用</small></div>
-  <div class="file removed"><code>just/share-headroom.Caddyfile</code><small>headroom 用 (<code>clusters/kind/share/Caddyfile</code> の <code>:8082</code> が引き継いだ)</small></div>
-  <div class="file removed"><code>just/share-backstage.Caddyfile</code><small>Backstage 用 (同 <code>:8083</code>)</small></div>
-  <div class="file removed"><code>just/grafana-viewer-rotate.sh</code><small>viewer のパスワードを共有のたびに作り直す</small></div>
-  <div class="file removed"><code>just/observe-show-connection.sh</code><small><code>just show grafana</code> が読む旧 share の状態</small></div>
+  <div class="file removed"><code>just/</code> 旧 share のスクリプト<small>ホストで caddy と cloudflared を起動する本体</small></div>
+  <div class="file removed"><code>just/</code> 旧 Caddyfile (Grafana 用)<small>公開の経路は <code>clusters/kind/share/Caddyfile</code> の <code>:8081</code> へ</small></div>
+  <div class="file removed"><code>just/</code> 旧 Caddyfile (headroom 用)<small>同 <code>:8082</code> が引き継いだ</small></div>
+  <div class="file removed"><code>just/</code> 旧 Caddyfile (Backstage 用)<small>同 <code>:8083</code> が引き継いだ</small></div>
+  <div class="file removed"><code>just/</code> viewer の作り直しのスクリプト<small>共有のたびにパスワードを変える</small></div>
+  <div class="file removed"><code>just/</code> 旧 share の状態を読むスクリプト<small><code>just show grafana</code> が読んでいた</small></div>
   <div class="file"><code>just/observability.just</code><small>ログ・状態ファイルの変数 2 つを消す</small></div>
   <div class="file"><code>just/test_share_secrets.py</code><small>旧 rotate の試験を消す</small></div>
 </div>
@@ -106,7 +106,7 @@
 <tr><td><code>docs/observability/claude-code-traces.md</code></td><td>「別の PC から見る」を、常駐の <code>share</code> Pod と <code>just share add</code> の使い方・各対象で通す経路に。Grafana の <code>root_url</code> を変えない理由は残す</td></tr>
 <tr><td><code>docs/observability/playbook.md</code></td><td>人に見せる手順を、人ごとの資格情報 (期限・<code>delete</code>) に</td></tr>
 <tr><td><code>docs/cluster/backstage.md</code></td><td>「別の PC から見る」を、常駐の <code>share</code> の caddy <code>:8083</code> と署名つき cookie の説明に</td></tr>
-<tr><td><code>docs/cluster/persistence.md</code></td><td>viewer を変えるのは <code>just up</code> だけ。旧 share の rotate に触れた確認の行を削除</td></tr>
+<tr><td><code>docs/cluster/persistence.md</code></td><td>viewer を変えるのは <code>just up</code> と再起動だけ。旧 share の rotate に触れた確認の行を削除</td></tr>
 <tr><td><code>docs/cluster/argocd.md</code></td><td>Application <code>share</code> と、<code>share-*</code> の Secret を足す</td></tr>
 </table>
 </div>
@@ -127,9 +127,9 @@
     { lit: ['bD','bE','bF','a4','a5'], bad: ['a4','a5'], mark: '写しは古いまま', cap: '<b>2.</b> Secret <code>share-grafana</code> は別の namespace の写しで、更新されない。caddy は古い値の Basic を付け、Grafana は 302 (ログイン画面) を返す。<b>共有のたびに壊れる。</b>' }
   ];
   var afterSteps = [
-    { lit: [], cap: '<b>変更後</b> 旧 <code>just share</code> は無い。viewer のパスワードを変える処理は <code>just up</code> だけ。' },
+    { lit: [], cap: '<b>変更後</b> 旧 <code>just share</code> は無い。viewer のパスワードを変える処理は <code>just up</code> (と手での再起動) だけ。' },
     { lit: ['bB','bD'], cap: '<b>1.</b> ファイルを書き換えて <code>just up</code>。<code>grafana-secrets.sh</code> が <code>grafana-viewer</code> を、<code>share-secrets.sh</code> が <code>share-grafana</code> を、同じファイルから同時に入れる。' },
-    { lit: ['bC','bD','bE','bF','a4','a5'], mark: '', cap: '<b>2.</b> Grafana の DB へは、Pod の起動時にサイドカーが Secret の値にそろえる。<code>share-grafana</code> だけが古くなる経路は無い。' }
+    { lit: ['bC','bD','bE','bF','a4','a5'], mark: '', cap: '<b>2.</b> <code>deploy/grafana</code> (サイドカーが DB を Secret の値にそろえる) と <code>deploy/share</code> (caddy が写しを読み直す) を再起動する。共有のたびに壊れる経路は無くなり、変えるのは手で打つときだけ。<code>share</code> を作り直すと URL は変わる。' }
   ];
   function steps() { return mode === 'before' ? beforeSteps : afterSteps; }
   var ids = ['bA','bB','bC','bD','bE','bF','a1','a2','a4','a5'];

@@ -229,8 +229,10 @@ Cookie の属性は `Path=/; HttpOnly; Secure; SameSite=Lax` (期限は cookie �
   | `share-session-key` | 同上 | `key` (`openssl rand -hex 32`)。あれば何もしない (cookie を無効にしない) | auth (K8s API の `get`) |
 
 - 起動順: `just up` は `_grafana-secrets` (viewer のパスワードのファイル) → `_share-relay-up` (`share-host`) → `_share-secrets` を、ArgoCD の同期 (`root.yaml` の apply) より前に打つ。
-- `share-grafana` は写しだが、viewer のパスワードを変える処理は `just up` (`grafana-secrets.sh`・`share-secrets.sh` が同じファイルから `grafana-viewer` と `share-grafana` を入れる) だけなので、
-  写しが古くなる経路は無い (旧 `just share` が viewer を作り直していた間は古くなった。#44 で廃止)。Pod を作り直さないと Grafana の DB には反映されない (サイドカーが起動時にそろえる)。
+- `share-grafana` は写しで、caddy は起動時に 1 度だけ環境変数に読む。viewer のパスワードを変える処理は `just up` だけになった
+  (`grafana-secrets.sh`・`share-secrets.sh` が同じファイルから `grafana-viewer` と `share-grafana` を同時に入れる。共有のたびの作り直しは #44 で廃止) が、
+  `just up` は Pod を作り直さないので、**変えたあとは `deploy/grafana` と `deploy/share` の両方を `rollout restart` する**
+  (Grafana の DB はサイドカーが起動時にそろえる。片方だけだと Grafana の経路が 302 になる)。`share` を作り直すと URL が変わる。
 - **Secret の作り方 (#49)**: `kubectl apply` は Secret の中身を注釈 `kubectl.kubernetes.io/last-applied-configuration` に残す。Secret を作る処理は `just/secret-lib.sh` の
   `put_secret` (あれば `replace`、無ければ `create`) か `create_secret_if_missing` (`create` だけ) を使う。どちらも注釈を付けず、`replace` は metadata を置き換えるので以前の `apply` が残した注釈も消える。
   `replace --force` (消して作り直す) は動いている Pod の下で消えるので使わない。対象は `grafana-secrets.sh`・`share-relay.sh`・`share-secrets.sh`。
@@ -251,7 +253,6 @@ Cookie の属性は `Path=/; HttpOnly; Secure; SameSite=Lax` (期限は cookie �
 | Secret を作る処理 (`just/test_share_secrets.py`、#41・#49) | 偽の `kubectl` で `share-secrets.sh`・`grafana-secrets.sh` を実行 | `apply` に Secret を渡さない・注釈が無い・`share-secrets.sh` の値が引数に出ない・`grafana-secrets.sh` の Backstage の Basic が引数に出ない (`--from-file` と一時ファイル。#56)・Secret を作る処理に `--from-literal` で渡す秘密が無い (秘密でない値の鍵だけを許す静的な見張り)・あれば資格情報と鍵を置き換えない。URL を引く関数が `api.` を除く |
 | CLI (`just/test_share_cli.py`、#42) | 偽の `kubectl` (`exec` は実物の `share_auth` を手元の python3 で動かす) で `just/share.sh` を実行 | `--ttl 25h`・`1441m`・`0`・形の誤り、不正な名前、`--permanent` と `--ttl` の併用は **kubectl を 1 回も呼ばずに**拒否。特権の 2 つ目・期限付きへの `rotate`・既にある名前の `add` は何も書かずに拒否。パスワードが Secret・kubectl の引数・curl の引数に出ない。`add` が作った項目は実物の `decide()` で、正しいパスワードが 200・誤りと期限後が 401、`delete` 後が 401、`rotate` 後の古いパスワードが 401。`get` はパスワードも hash も出さない |
 
-`flake.nix` の `devShells.ci` に `caddy` を足す (今は `tools` 側にしかない)。
 
 クラスタを立てて通す確認 (#43 で行う。`just share smoke` のような入口を作るかは #43 で決める。CI には入れない): 期限が 5 秒の資格情報を Secret に直接書き、
 `kubectl port-forward` で caddy に当てて、200 → 期限後 401 → delete 後 401 を見る。トンネルは使わない。
