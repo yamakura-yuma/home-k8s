@@ -111,7 +111,7 @@
 <span class="a">+            if self.headers.get(TARGET_HEADER) == TARGET_GRAFANA:</span>
 <span class="a">+                status, headers = grant_grafana(status, headers, viewer.load() if viewer else "")</span>
 </pre>
-<p class="dim">viewer のパスワードは資格情報とは別の <code>CachedSource</code> で読む (<code>viewer_cache</code>)。<code>share-grafana</code> が無くても資格情報は読めるので、headroom・backstage の経路は止まらない。読めなかったときの警告は例外の型だけで、パスワードも Basic の値もログに出さない。</p>
+<p class="dim">viewer のパスワードは資格情報の <code>CachedSource</code> とは別のクラス で読む (<code>ViewerCache</code>)。<code>share-grafana</code> が無くても資格情報は読めるので、headroom・backstage の経路は止まらない。読めなかったときの警告は例外の型だけで、パスワードも Basic の値もログに出さない。</p>
 
 <h2>3. パスワードを変えたときの流れ (アニメーション)</h2>
 <div class="panel">

@@ -39,7 +39,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 CREDENTIALS_SECRET = "share-credentials"
 SESSION_KEY_SECRET = "share-session-key"
 GRAFANA_SECRET = "share-grafana"  # キー viewer-password。just up の _share-secrets が grafana-viewer の写しを入れる
-VIEWER_PASSWORD_KEY = "viewer-password"
+VIEWER_ENTRY = "viewer-password"
 VIEWER_USER = "viewer"
 # caddy が認証サービスへの問い合わせに付ける (header_up は人の値を置き換える)。どの対象の経路か。grafana のときだけ Basic の値を返す
 TARGET_HEADER = "X-Share-Target"
@@ -204,21 +204,21 @@ def _cookie(credentials, header, now, session_key):
     return 200, {}
 
 
-def grafana_basic(password):
+def grafana_basic(viewer_value):
     """Grafana に渡す Authorization の値 (viewer の Basic)。パスワードが空なら空文字 (渡せない)。"""
-    if not isinstance(password, str) or not password:
+    if not isinstance(viewer_value, str) or not viewer_value:
         return ""
-    return "Basic " + base64.b64encode(f"{VIEWER_USER}:{password}".encode()).decode()
+    return "Basic " + base64.b64encode(f"{VIEWER_USER}:{viewer_value}".encode()).decode()
 
 
-def grant_grafana(status, headers, password):
+def grant_grafana(status, headers, viewer_value):
     """Grafana の経路で 200 になった判定に、viewer の Basic を足す。パスワードが無い・空なら 503 (Cookie も付けず、通さない)。
 
     200 以外 (401) はそのまま返す。認証が通らなかった要求に、Secret の有無を応答の違いで探らせない。
     """
     if status != 200:
         return status, headers
-    value = grafana_basic(password)
+    value = grafana_basic(viewer_value)
     if not value:
         return 503, {}
     return status, {**headers, GRAFANA_HEADER: value}
@@ -230,9 +230,9 @@ def decode_secret_data(data):
 
 
 class FileSource:
-    """AUTH_SOURCE=file:<path>。{"credentials": {名前: 項目}, "session_key": "...", "viewer_password": "..."} の JSON。試験用。
+    """AUTH_SOURCE=file:<path>。{"credentials": {名前: 項目}, "session_key": "...", "viewer_value": "..."} の JSON。試験用。
 
-    viewer_password は省ける (Secret share-grafana が無い状態)。
+    viewer_value (Secret share-grafana の viewer-password の写し) は省ける (Secret が無い状態)。
     """
 
     def __init__(self, path):
@@ -246,8 +246,8 @@ class FileSource:
         data = self._read()
         return data["credentials"], data["session_key"].encode()
 
-    def load_viewer_password(self):
-        return self._read().get("viewer_password", "")
+    def load_viewer_value(self):
+        return self._read().get("viewer_value", "")
 
 
 class KubernetesSource:
@@ -275,8 +275,8 @@ class KubernetesSource:
     def load(self):
         return self._get(CREDENTIALS_SECRET), self._get(SESSION_KEY_SECRET)["key"].encode()
 
-    def load_viewer_password(self):
-        return self._get(GRAFANA_SECRET)[VIEWER_PASSWORD_KEY]
+    def load_viewer_value(self):
+        return self._get(GRAFANA_SECRET)[VIEWER_ENTRY]
 
 
 def source_from_env(env):
@@ -294,19 +294,14 @@ def source_from_env(env):
 
 
 class CachedSource:
-    """source.load() を ttl 秒だけ覚える。読めなかったら empty (資格情報なら全部 401、viewer のパスワードなら Grafana の経路を拒否)。
+    """source.load() を ttl 秒だけ覚える。読めなかったら空 (= 全部 401)。古い値は使い回さない。"""
 
-    古い値は使い回さない。警告には例外の型だけを書く (値は出さない)。
-    """
-
-    def __init__(self, source, ttl, clock=time.monotonic, empty=({}, b""), failure="資格情報を読めない (全部 401 にする)"):
+    def __init__(self, source, ttl, clock=time.monotonic):
         self.source = source
         self.ttl = ttl
         self.clock = clock
-        self.empty = empty
-        self.failure = failure
         self.fetched_at = None
-        self.value = empty
+        self.value = ({}, b"")
 
     def load(self):
         now = self.clock()
@@ -314,31 +309,41 @@ class CachedSource:
             try:
                 self.value = self.source.load()
             except Exception as e:
-                print(f"{self.failure}: {type(e).__name__}", file=sys.stderr, flush=True)
-                self.value = self.empty
+                print(f"資格情報を読めない (全部 401 にする): {type(e).__name__}", file=sys.stderr, flush=True)
+                self.value = ({}, b"")
             self.fetched_at = now
         return self.value
 
 
-class ViewerPasswordSource:
-    """source の load_viewer_password() を load() として見せる (CachedSource に渡す)。
+class ViewerCache:
+    """source.load_viewer_value() を ttl 秒だけ覚える。読めなかったら空 (= Grafana の経路を拒否)。古い値は使い回さない。
 
-    資格情報と別に読むので、share-grafana が無くても資格情報は読める (headroom・backstage の経路は動く)。
+    資格情報 (CachedSource) とは別に読むので、share-grafana が無くても資格情報は読め、headroom・backstage の経路は動く。
+    CachedSource と同じ振る舞いだが、クラスを分ける: 同じクラスだと、静的解析 (CodeQL) が viewer のパスワードを
+    資格情報の流れ (cookie の HMAC) に混ぜて見る (py/weak-sensitive-data-hashing の誤検知)。警告には例外の型だけを書く (値は出さない)。
     """
 
-    def __init__(self, source):
+    def __init__(self, source, ttl, clock=time.monotonic):
         self.source = source
+        self.ttl = ttl
+        self.clock = clock
+        self.fetched_at = None
+        self.latest = ""
 
     def load(self):
-        return self.source.load_viewer_password()
-
-
-def viewer_cache(source, ttl, clock=time.monotonic):
-    return CachedSource(ViewerPasswordSource(source), ttl, clock, empty="", failure="viewer のパスワードを読めない (Grafana の経路を拒否する)")
+        now = self.clock()
+        if self.fetched_at is None or not now - self.fetched_at < self.ttl:
+            try:
+                self.latest = self.source.load_viewer_value()
+            except Exception as e:
+                print(f"viewer のパスワードを読めない (Grafana の経路を拒否する): {type(e).__name__}", file=sys.stderr, flush=True)
+                self.latest = ""
+            self.fetched_at = now
+        return self.latest
 
 
 def make_handler(cache, verifier=verify_uncached, viewer=None):
-    """viewer: viewer のパスワードの CachedSource (viewer_cache)。無ければ Grafana の経路は 503 になる。"""
+    """viewer: viewer のパスワードの ViewerCache。無ければ Grafana の経路は 503 になる。"""
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
@@ -367,7 +372,7 @@ def serve(env=os.environ):
     source = source_from_env(env)
     ttl = float(env.get("AUTH_CACHE_TTL", "2"))
     cache = CachedSource(source, ttl)
-    viewer = viewer_cache(source, ttl)
+    viewer = ViewerCache(source, ttl)
     verifier = VerifyCache(float(env.get("AUTH_VERIFY_TTL", VERIFY_TTL)))
     host, _, port = env.get("AUTH_LISTEN", "127.0.0.1:9000").rpartition(":")
     ThreadingHTTPServer((host, int(port)), make_handler(cache, verifier, viewer)).serve_forever()

@@ -468,16 +468,16 @@ class KubernetesSource(unittest.TestCase):
 
     def test_reads_the_viewer_password_from_share_grafana(self):
         # #58: Grafana に渡す viewer のパスワードは Secret share-grafana (キー viewer-password) を API で読む
-        FakeKubernetesAPI.secrets[sa.GRAFANA_SECRET] = {sa.VIEWER_PASSWORD_KEY: "viewer pw"}
-        self.assertEqual(self.source().load_viewer_password(), "viewer pw")
+        FakeKubernetesAPI.secrets[sa.GRAFANA_SECRET] = {sa.VIEWER_ENTRY: "viewer pw"}
+        self.assertEqual(self.source().load_viewer_value(), "viewer pw")
 
     def test_missing_share_grafana_leaves_the_credentials_readable(self):
         # share-grafana が無い・キーが違う・空: viewer のパスワードは空 (Grafana の経路だけ拒否)。資格情報は読める (headroom・backstage は動く)
-        viewer = sa.viewer_cache(self.source(), ttl=0)
+        viewer = sa.ViewerCache(self.source(), ttl=0)
         self.assertEqual(viewer.load(), "")
         FakeKubernetesAPI.secrets[sa.GRAFANA_SECRET] = {"other-key": "x"}
         self.assertEqual(viewer.load(), "")
-        FakeKubernetesAPI.secrets[sa.GRAFANA_SECRET] = {sa.VIEWER_PASSWORD_KEY: ""}
+        FakeKubernetesAPI.secrets[sa.GRAFANA_SECRET] = {sa.VIEWER_ENTRY: ""}
         self.assertEqual(viewer.load(), "")
         credentials, key = sa.CachedSource(self.source(), ttl=0).load()
         self.assertEqual(sa.decide(credentials, with_basic("alice", "pw"), T0, key)[0], 200)
@@ -485,10 +485,10 @@ class KubernetesSource(unittest.TestCase):
     def test_viewer_password_change_is_picked_up_without_restart(self):
         # #58: 読み直しは AUTH_CACHE_TTL ごと。変えたら ttl の後の次の要求から新しい値で、プロセスは作り直さない。消したら古い値を使い回さない
         now = [0.0]
-        FakeKubernetesAPI.secrets[sa.GRAFANA_SECRET] = {sa.VIEWER_PASSWORD_KEY: "old"}
-        viewer = sa.viewer_cache(self.source(), ttl=2, clock=lambda: now[0])
+        FakeKubernetesAPI.secrets[sa.GRAFANA_SECRET] = {sa.VIEWER_ENTRY: "old"}
+        viewer = sa.ViewerCache(self.source(), ttl=2, clock=lambda: now[0])
         self.assertEqual(viewer.load(), "old")
-        FakeKubernetesAPI.secrets[sa.GRAFANA_SECRET] = {sa.VIEWER_PASSWORD_KEY: "new"}
+        FakeKubernetesAPI.secrets[sa.GRAFANA_SECRET] = {sa.VIEWER_ENTRY: "new"}
         now[0] = 1.9
         self.assertEqual(viewer.load(), "old", "ttl の間は読み直さない")
         now[0] = 2.0
@@ -502,10 +502,10 @@ class KubernetesSource(unittest.TestCase):
         bad.write("wrong")
         bad.close()
         self.addCleanup(Path(bad.name).unlink)
-        FakeKubernetesAPI.secrets[sa.GRAFANA_SECRET] = {sa.VIEWER_PASSWORD_KEY: "viewer-secret-value"}
+        FakeKubernetesAPI.secrets[sa.GRAFANA_SECRET] = {sa.VIEWER_ENTRY: "viewer-secret-value"}
         log = io.StringIO()
         with contextlib.redirect_stderr(log):
-            self.assertEqual(sa.viewer_cache(self.source(bad.name), ttl=0).load(), "")
+            self.assertEqual(sa.ViewerCache(self.source(bad.name), ttl=0).load(), "")
         self.assertIn("HTTPError", log.getvalue())
         self.assertNotIn("viewer-secret-value", log.getvalue())
 
@@ -677,10 +677,10 @@ class GrafanaServer(unittest.TestCase):
         f.close()
         self.addCleanup(Path(f.name).unlink)
         self.path = f.name
-        self.state = {"credentials": {"alice": entry("pw")}, "session_key": KEY.decode(), "viewer_password": "viewer-pw"}
+        self.state = {"credentials": {"alice": entry("pw")}, "session_key": KEY.decode(), "viewer_value": "viewer-pw"}
         self.write()
         source = sa.FileSource(self.path)
-        handler = sa.make_handler(sa.CachedSource(source, ttl=0), sa.VerifyCache(ttl=30), sa.viewer_cache(source, ttl=0))
+        handler = sa.make_handler(sa.CachedSource(source, ttl=0), sa.VerifyCache(ttl=30), sa.ViewerCache(source, ttl=0))
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
         self.addCleanup(self.httpd.server_close)
@@ -722,16 +722,16 @@ class GrafanaServer(unittest.TestCase):
 
     def test_a_changed_password_is_returned_from_the_next_request(self):
         self.assertEqual(self.get()[1][sa.GRAFANA_HEADER], sa.grafana_basic("viewer-pw"))
-        self.state["viewer_password"] = "viewer-pw-2"
+        self.state["viewer_value"] = "viewer-pw-2"
         self.write()
         self.assertEqual(self.get()[1][sa.GRAFANA_HEADER], sa.grafana_basic("viewer-pw-2"))
 
     def test_no_password_is_503_for_grafana_only(self):
         for how in ("missing", "empty"):
             if how == "missing":
-                del self.state["viewer_password"]
+                del self.state["viewer_value"]
             else:
-                self.state["viewer_password"] = ""
+                self.state["viewer_value"] = ""
             self.write()
             status, headers = self.get()
             self.assertEqual(status, 503, how)
@@ -741,7 +741,7 @@ class GrafanaServer(unittest.TestCase):
             # 認証が通らない要求は 401 のまま (Secret の有無を探らせない)
             self.assertEqual(self.get({"Authorization": basic("alice", "wrong")})[0], 401, how)
             self.assertEqual(self.get({})[0], 401, how)
-        self.state["viewer_password"] = "back"
+        self.state["viewer_value"] = "back"
         self.write()
         self.assertEqual(self.get()[0], 200)
 
@@ -749,7 +749,7 @@ class GrafanaServer(unittest.TestCase):
         self.assertEqual(self.get()[0], 200)
         Path(self.path).write_text("{broken", encoding="utf-8")
         self.assertEqual(self.get()[0], 401)
-        self.state["viewer_password"] = "viewer-pw"
+        self.state["viewer_value"] = "viewer-pw"
         self.write()
         self.assertEqual(self.get()[0], 200)
         log = self.stderr.getvalue()

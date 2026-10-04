@@ -6,7 +6,7 @@
 起動し、upstream (grafana・headroom の中継・backstage) は偽の HTTP サーバー (標準ライブラリ)。
 確かめるのは拒否: 認証なしは全経路 401、認証があっても許可リストの外は 404 で upstream に届かない、
 delete・期限切れは次の要求から 401 (Backstage の cookie 経路でも)、特権 viewer に追加の経路が通らない。
-#58: Grafana に渡す viewer の鍵は、認証サービスが Secret share-grafana (試験では JSON の viewer_password) を実行時に読んで渡す。
+#58: Grafana に渡す viewer の鍵は、認証サービスが Secret share-grafana (試験では JSON の viewer_value) を実行時に読んで渡す。
 パスワードを変えると caddy・認証サービスを立てたまま次の要求から新しい鍵になり、無い・空のあいだは Grafana の経路だけ 503、人の Authorization は Grafana に届かない。
 #64: Secret が揃っていない Pod (起動スクリプト entrypoint.sh が全拒否の Caddyfile.closed を選ぶ) は、3 つの経路がすべて 503 で、
 資格情報が正しくても upstream に届かない。Secret ができて Pod が作り直されたあと (環境変数が揃う) は、同じポートで通常どおり動く。
@@ -38,8 +38,8 @@ CADDYFILE = HERE / "Caddyfile"
 ENTRYPOINT = HERE / "entrypoint.sh"
 AUTH_SERVICE = HERE / "share_auth.py"
 RELAY_TOKEN = "0123456789abcdef0123456789abcdef"
-VIEWER_PASSWORD = "viewer-secret"
-GRAFANA_BASIC = base64.b64encode(f"viewer:{VIEWER_PASSWORD}".encode()).decode()
+VIEWER_VALUE = "viewer-secret"
+GRAFANA_BASIC = base64.b64encode(f"viewer:{VIEWER_VALUE}".encode()).decode()
 SESSION_KEY = "test-session-key"
 ITERATIONS = 100_000  # share_auth.MIN_ITERATIONS。試験を速くする
 PASSWORDS = {"alice": "alice-password", "root": "root-password"}
@@ -259,8 +259,8 @@ class ShareCaddy(unittest.TestCase):
         shutil.rmtree(cls.tmp, ignore_errors=True)
 
     @classmethod
-    def write_credentials(cls, viewer_password=VIEWER_PASSWORD, **overrides):
-        """viewer_password は Secret share-grafana の写し。None なら Secret が無い状態 (キーを書かない)。"""
+    def write_credentials(cls, viewer_value=VIEWER_VALUE, **overrides):
+        """viewer_value は Secret share-grafana の写し。None なら Secret が無い状態 (キーを書かない)。"""
         entries = {
             "alice": credential(PASSWORDS["alice"], expires_at=time.time() + 3600),
             "root": credential(PASSWORDS["root"], privileged=True),
@@ -268,8 +268,8 @@ class ShareCaddy(unittest.TestCase):
         entries.update(overrides)
         entries = {name: entry for name, entry in entries.items() if entry is not None}
         data = {"credentials": entries, "session_key": SESSION_KEY}
-        if viewer_password is not None:
-            data["viewer_password"] = viewer_password
+        if viewer_value is not None:
+            data["viewer_value"] = viewer_value
         cls.source.write_text(json.dumps(data), encoding="utf-8")
 
     def setUp(self):
@@ -459,26 +459,26 @@ class ShareCaddy(unittest.TestCase):
     def grafana_authorizations(self):
         return [headers.get("Authorization") for _, _, headers in self.seen(GRAFANA)]
 
-    def test_viewer_password_change_reaches_grafana_from_the_next_request(self):
-        # #58: caddy も認証サービスも立てたまま、Secret share-grafana の写し (試験では JSON の viewer_password) を書き換えると、
+    def test_viewer_value_change_reaches_grafana_from_the_next_request(self):
+        # #58: caddy も認証サービスも立てたまま、Secret share-grafana の写し (試験では JSON の viewer_value) を書き換えると、
         # 次の要求から新しい鍵が Grafana に渡る (Pod の作り直し = Quick Tunnel の URL の変更は要らない)。cookie で通った要求にも同じ鍵が付く
         alice = basic("alice", PASSWORDS["alice"])
-        for password in (VIEWER_PASSWORD, "rotated-1", "rotated 2:with colon", VIEWER_PASSWORD):
-            self.write_credentials(viewer_password=password)
+        for value in (VIEWER_VALUE, "rotated-1", "rotated 2:with colon", VIEWER_VALUE):
+            self.write_credentials(viewer_value=value)
             cookie = self.session_cookie()  # write_credentials は salt を作り直す (古い cookie は効かない) ので、書いたあとに取る
             self.seen(GRAFANA).clear()
             for headers in (alice, {"Cookie": cookie}):
-                self.assertEqual(self.call(GRAFANA, "GET", "/dashboards", headers)[0], 200, (password, headers))
-            key = base64.b64encode(f"viewer:{password}".encode()).decode()
-            self.assertEqual(self.grafana_authorizations(), [f"Basic {key}"] * 2, password)
+                self.assertEqual(self.call(GRAFANA, "GET", "/dashboards", headers)[0], 200, (value, headers))
+            key = base64.b64encode(f"viewer:{value}".encode()).decode()
+            self.assertEqual(self.grafana_authorizations(), [f"Basic {key}"] * 2, value)
         self.assertIsNone(self.caddy.poll(), "caddy が立て直された")
         self.assertIsNone(self.auth.poll(), "認証サービスが立て直された")
 
-    def test_grafana_is_denied_while_the_viewer_password_is_missing_or_empty(self):
+    def test_grafana_is_denied_while_the_viewer_value_is_missing_or_empty(self):
         # #58: Secret share-grafana が無い・空のあいだ、Grafana の経路は認証が通った要求にも 503 (許可リストの内も外も)。通さず、鍵なしで渡すこともしない。
         # 認証が通らない要求は Secret の有無によらず 401 (有無を探らせない)。headroom・backstage の経路には関わらない
-        for viewer_password, what in ((None, "Secret が無い"), ("", "値が空")):
-            self.write_credentials(viewer_password=viewer_password)
+        for viewer_value, what in ((None, "Secret が無い"), ("", "値が空")):
+            self.write_credentials(viewer_value=viewer_value)
             authenticated = [basic("alice", PASSWORDS["alice"]), basic("root", PASSWORDS["root"]), {"Cookie": self.session_cookie()}]
             self.seen(GRAFANA).clear()
             for method, path in GRAFANA_ALLOWED + GRAFANA_DENIED:
@@ -542,10 +542,10 @@ class ShareCaddy(unittest.TestCase):
             self.assertEqual(self.call(GRAFANA, "GET", "/dashboards", headers)[0], 401, headers)
         self.assertEqual(self.seen(GRAFANA), [])
 
-    def test_a_forged_key_header_does_not_open_grafana_while_the_viewer_password_is_missing(self):
+    def test_a_forged_key_header_does_not_open_grafana_while_the_viewer_value_is_missing(self):
         # #58: 認証サービスが鍵を付けられないとき、人が X-Share-Grafana-Authorization を付けても、caddy はそれを鍵として通さない (人の値を先に消す)
         evil = "Basic " + base64.b64encode(b"admin:admin").decode()
-        self.write_credentials(viewer_password=None)
+        self.write_credentials(viewer_value=None)
         for headers in ({**basic("alice", PASSWORDS["alice"]), "X-Share-Grafana-Authorization": evil},
                         {"Cookie": self.session_cookie(), "Authorization": "Bearer attacker", "X-Share-Grafana-Authorization": evil}):
             self.assertEqual(self.call(GRAFANA, "GET", "/dashboards", headers)[0], 503, headers)
@@ -635,7 +635,7 @@ class ShareCaddyEntrypoint(unittest.TestCase):
         cls.tmp = Path(tempfile.mkdtemp())
         cls.source = cls.tmp / "credentials.json"
         cls.source.write_text(json.dumps({"credentials": {"alice": credential(PASSWORDS["alice"])}, "session_key": SESSION_KEY,
-                                          "viewer_password": VIEWER_PASSWORD}), encoding="utf-8")
+                                          "viewer_value": VIEWER_VALUE}), encoding="utf-8")
         cls.auth_port = free_port()
         cls.auth = subprocess.Popen(
             [sys.executable, "-B", str(AUTH_SERVICE)], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
