@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # `just ci` の本体。PR のゲート (dotfiles の docs/gates.md) で、ローカルと Actions が同じに走らせる 1 本。
-# 静的チェックだけ (クラスタは立てない・触らない)。ツールは flake の devShells.ci から入る
+# 静的チェックと単体試験・型検査だけ (クラスタは立てない・触らない)。ツールは flake の devShells.ci から入る
 # (nix が無ければ落ちる)。作業ツリーは変えず、描画した manifest は一時ディレクトリに出す。
 #
 #   1. yamllint        リポジトリの YAML (.yamllint.yaml)
@@ -15,6 +15,8 @@
 #                      URL を引く関数と CLI (just share add/delete/...、just/share.sh) を偽の kubectl で確かめる (注釈・引数に値が残らない作り方、#49・#56。
 #                      CLI は上限超えの --ttl・不正な名前・2 つ目の特権・期限付きへの rotate の拒否と、作った項目を実物の認証サービスに通す往復)。
 #                      稼働中のクラスタ・ホストには触れない
+#   9. backstage       yarn install --immutable (yarn.lock のとおりに入れ、ずれていたら落とす) のあと、backend の jest (yarn workspace backend test) と
+#                      型検査 (yarn tsc)。node_modules は backstage/ に入る (git の管理外・.dockerignore 済み)
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -85,3 +87,13 @@ echo "== share 認証の単体試験・Caddyfile の経路・manifest (caddy + �
 python3 -B -m unittest discover -s clusters/kind/share -v
 echo "== share のホスト側 (中継の caddy、Secret を作るスクリプト、URL を引く関数、CLI) =="
 python3 -B -m unittest discover -s just -p 'test_share_*.py' -v
+
+# backstage の試験と型検査。node と yarn が無いと飛ばされるのではなく失敗にする
+command -v node >/dev/null && command -v yarn >/dev/null || { echo "node か yarn が無い (devShells.ci に入っているはず)" >&2; exit 1; }
+echo "== backstage の依存 (yarn install --immutable) =="
+# 版は backstage/.yarnrc.yml の yarnPath (.yarn/releases) が決める。CI=1 は backstage-cli の jest を watch にしないため
+(cd backstage && yarn install --immutable)
+echo "== backstage backend の jest (yarn workspace backend test) =="
+(cd backstage && CI=1 yarn workspace backend test)
+echo "== backstage の型検査 (yarn tsc) =="
+(cd backstage && yarn tsc)
