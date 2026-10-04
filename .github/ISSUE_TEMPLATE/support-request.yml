@@ -1,0 +1,45 @@
+name: 困りごとの相談
+description: 動かない・分からないなど困っていて、助けが要るとき。不具合かどうか分からないときもここに書く。
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 困っていること
+      description: やろうとしたことと、うまくいかなかったことを書く。
+      placeholder: 例) 別の worktree で `just up` を打ったら、マウントされていないと言われて止まる。
+    validations:
+      required: true
+  - type: textarea
+    id: tried
+    attributes:
+      label: 試したこと
+      description: 打ったコマンドと、その出力。パスワードやトークンは伏せる。
+      render: console
+    validations:
+      required: false
+  - type: textarea
+    id: environment
+    attributes:
+      label: 環境
+      description: |
+        分かる範囲で貼る。
+        - 動かした場所: ホスト (WSL2) か、開発用コンテナ `home-k8s-dev` の中か。別の worktree から打ったか
+        - どの checkout か (`git rev-parse --short HEAD`)
+        - クラスタに関わるなら、クラスタとアプリの状態
+      placeholder: |
+        $ git rev-parse --short HEAD
+        $ docker version --format '{{.Server.Version}}'
+        $ just --version
+        $ kind version
+        $ kubectl --context kind-study-kind get nodes -o wide
+        $ kubectl --context kind-study-kind -n argocd get applications
+      render: console
+    validations:
+      required: false
+  - type: textarea
+    id: note
+    attributes:
+      label: 補足
+      description: 気づいたこと、関連する Issue や PR など。
+    validations:
+      required: false
