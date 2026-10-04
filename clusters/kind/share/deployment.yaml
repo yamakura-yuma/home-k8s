@@ -5,10 +5,12 @@
 # 3 つとも caddy の中で auth (127.0.0.1:9000) を通る。待ち受けは 127.0.0.1 だけで、同じ Pod の cloudflared からだけ届く。
 # **Service は作らない** (入口は Cloudflare への外向き接続だけ。クラスタ内にも待ち受けを開けない。just ci が NodePort・LoadBalancer・Ingress の無いことを確かめる)。
 # Secret は git に置かず just up の _share-secrets・_share-relay-up が作る:
-#   share-host (SHARE_RELAY_ADDR・SHARE_RELAY_TOKEN)、share-grafana (viewer のパスワード)、share-credentials・share-session-key (auth が API で読む)
+#   share-host (SHARE_RELAY_ADDR・SHARE_RELAY_TOKEN。caddy が環境変数で読む)、
+#   share-credentials・share-session-key・share-grafana (viewer のパスワード) (auth が API で実行時に読む。#58)
 # Pod は Secret が無くても起動する (参照は optional。ArgoCD の同期が just up より先でも CreateContainerConfigError で止まらない)。
-# caddy は share-host・share-grafana の環境変数が揃わないと全経路 503 (entrypoint.sh、Caddyfile.closed)、auth は Secret が読めないと全部 401 (share_auth.py)。
-# 環境変数は起動時にしか読まれないので、閉じて起動した Pod は just up が (Secret が揃ってから) 作り直す (just/secret-lib.sh)。開いている Pod には触れない (URL が変わる)。
+# caddy は share-host の環境変数が揃わないと全経路 503 (entrypoint.sh、Caddyfile.closed)、auth は Secret が読めないと全部 401 (share_auth.py)。
+# auth は share-grafana が読めないと Grafana の経路だけ 503 (viewer のパスワードを変えても Pod は作り直さない。URL が変わらない)。
+# share-host の環境変数は起動時にしか読まれないので、閉じて起動した Pod は just up が (Secret が揃ってから) 作り直す (just/secret-lib.sh)。開いている Pod には触れない (URL が変わる)。
 # Pod を再起動すると Quick Tunnel の URL が変わり、配った URL が使えなくなる。replicas: 1・Recreate で、再起動の原因を作らない:
 # cloudflared には probe を付けず (probe の失敗で再起動しない)、caddy と auth の probe は readiness だけ (liveness で再起動しない)。
 # UDP 7844 (QUIC) が外に通らないときは、cloudflared の args に --protocol http2 を足す。
@@ -38,19 +40,13 @@ spec:
       containers:
         - name: caddy
           image: caddy:2.11.6-alpine
-          # 起動は entrypoint.sh: Secret が揃っていれば Caddyfile (Grafana の Basic の組み立てもここ)、揃っていなければ全拒否の Caddyfile.closed
+          # 起動は entrypoint.sh: share-host が揃っていれば Caddyfile、揃っていなければ全拒否の Caddyfile.closed
           command: [sh, /etc/caddy/entrypoint.sh]
           envFrom:
             - secretRef:
                 name: share-host
                 optional: true
           env:
-            - name: GRAFANA_VIEWER_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: share-grafana
-                  key: viewer-password
-                  optional: true
             - name: XDG_CONFIG_HOME
               value: /tmp/caddy-config
             - name: XDG_DATA_HOME

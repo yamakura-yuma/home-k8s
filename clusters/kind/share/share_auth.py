@@ -1,15 +1,21 @@
-"""share の認証サービス。caddy の forward_auth から要求ごとに呼ばれ、200 か 401 だけを返す。
+"""share の認証サービス。caddy の forward_auth から要求ごとに呼ばれ、200 か 401 を返す (Grafana の経路で viewer のパスワードを読めなければ 503)。
 
 標準ライブラリだけ (ConfigMap に置いて python:3.13-alpine で動かす)。判定は純関数 decide()。
 資格情報は Secret share-credentials (キー=名前、値=JSON
 {"hash": "pbkdf2_sha256$<反復回数>$<salt の hex>$<鍵の hex>", "expires_at": epoch 秒|null, "privileged": bool,
 "created_at": epoch 秒})、cookie の署名鍵は Secret share-session-key (キー key)。設計は docs/cluster/share.md。
 
+Grafana の経路 (caddy が X-Share-Target: grafana を付けて聞く) は、認証が通ったとき、Secret share-grafana (キー viewer-password) を
+実行時に読んで Basic の値 (viewer:<パスワード>) を組み、応答の X-Share-Grafana-Authorization に載せる (#58)。caddy がそれを Grafana への要求の
+Authorization にする (人の Authorization は渡さない)。パスワードを変えても share を作り直さず、次に読み直した要求から新しい値になる。
+
 閉じる側に倒す: Secret が無い・K8s API に届かない・JSON が壊れている・名前が無い・期限切れは、すべて 401。
+認証が通っても、Grafana の経路で share-grafana が読めない・空なら 503 (Basic を渡せないので通さない)。headroom・backstage の経路には関わらない。
+Basic の値もパスワードも、ログには出さない。
 
 環境変数:
   AUTH_SOURCE      既定は K8s API から Secret を読む。file:<path> なら JSON ファイルを読む (試験用)
-  AUTH_CACHE_TTL   Secret を読み直す間隔 (秒、既定 2。0 なら毎回読む)。delete・rotate の反映の遅れの上限
+  AUTH_CACHE_TTL   Secret を読み直す間隔 (秒、既定 2。0 なら毎回読む)。delete・rotate・viewer のパスワードの変更の反映の遅れの上限
   AUTH_VERIFY_TTL  Basic の照合に成功した結果を覚える秒数 (既定 30。0 なら毎回 PBKDF2 を計算する)
   AUTH_LISTEN      待ち受け (既定 127.0.0.1:9000)
   AUTH_NAMESPACE   Secret の namespace (既定は ServiceAccount の namespace)
@@ -32,6 +38,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 CREDENTIALS_SECRET = "share-credentials"
 SESSION_KEY_SECRET = "share-session-key"
+GRAFANA_SECRET = "share-grafana"  # キー viewer-password。just up の _share-secrets が grafana-viewer の写しを入れる
+VIEWER_PASSWORD_KEY = "viewer-password"
+VIEWER_USER = "viewer"
+# caddy が認証サービスへの問い合わせに付ける (header_up は人の値を置き換える)。どの対象の経路か。grafana のときだけ Basic の値を返す
+TARGET_HEADER = "X-Share-Target"
+TARGET_GRAFANA = "grafana"
+# 認証サービスが 200 の応答に載せる、Grafana への Authorization の値。caddy が要求に写し、Grafana に渡す
+GRAFANA_HEADER = "X-Share-Grafana-Authorization"
 COOKIE = "share_session"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,31}$")
 # pbkdf2_sha256$<反復回数>$<salt (16 byte) の hex>$<鍵 (32 byte) の hex>
@@ -190,25 +204,54 @@ def _cookie(credentials, header, now, session_key):
     return 200, {}
 
 
+def grafana_basic(password):
+    """Grafana に渡す Authorization の値 (viewer の Basic)。パスワードが空なら空文字 (渡せない)。"""
+    if not isinstance(password, str) or not password:
+        return ""
+    return "Basic " + base64.b64encode(f"{VIEWER_USER}:{password}".encode()).decode()
+
+
+def grant_grafana(status, headers, password):
+    """Grafana の経路で 200 になった判定に、viewer の Basic を足す。パスワードが無い・空なら 503 (Cookie も付けず、通さない)。
+
+    200 以外 (401) はそのまま返す。認証が通らなかった要求に、Secret の有無を応答の違いで探らせない。
+    """
+    if status != 200:
+        return status, headers
+    value = grafana_basic(password)
+    if not value:
+        return 503, {}
+    return status, {**headers, GRAFANA_HEADER: value}
+
+
 def decode_secret_data(data):
     """Secret の .data (値は base64) を、値が文字列の dict にする。"""
     return {key: base64.b64decode(value, validate=True).decode() for key, value in (data or {}).items()}
 
 
 class FileSource:
-    """AUTH_SOURCE=file:<path>。{"credentials": {名前: 項目}, "session_key": "..."} の JSON。試験用。"""
+    """AUTH_SOURCE=file:<path>。{"credentials": {名前: 項目}, "session_key": "...", "viewer_password": "..."} の JSON。試験用。
+
+    viewer_password は省ける (Secret share-grafana が無い状態)。
+    """
 
     def __init__(self, path):
         self.path = path
 
-    def load(self):
+    def _read(self):
         with open(self.path, encoding="utf-8") as f:
-            data = json.load(f)
+            return json.load(f)
+
+    def load(self):
+        data = self._read()
         return data["credentials"], data["session_key"].encode()
+
+    def load_viewer_password(self):
+        return self._read().get("viewer_password", "")
 
 
 class KubernetesSource:
-    """K8s API から Secret を読む。ServiceAccount のトークンで認証する (RBAC は resourceNames で 2 つの get だけ)。"""
+    """K8s API から Secret を読む。ServiceAccount のトークンで認証する (RBAC は resourceNames で 3 つの get だけ)。"""
 
     def __init__(self, base_url, token_path, ca_path, namespace):
         self.base_url = base_url
@@ -232,6 +275,9 @@ class KubernetesSource:
     def load(self):
         return self._get(CREDENTIALS_SECRET), self._get(SESSION_KEY_SECRET)["key"].encode()
 
+    def load_viewer_password(self):
+        return self._get(GRAFANA_SECRET)[VIEWER_PASSWORD_KEY]
+
 
 def source_from_env(env):
     spec = env.get("AUTH_SOURCE", "")
@@ -248,14 +294,19 @@ def source_from_env(env):
 
 
 class CachedSource:
-    """source.load() を ttl 秒だけ覚える。読めなかったら空 (= 全部 401)。古い値は使い回さない。"""
+    """source.load() を ttl 秒だけ覚える。読めなかったら empty (資格情報なら全部 401、viewer のパスワードなら Grafana の経路を拒否)。
 
-    def __init__(self, source, ttl, clock=time.monotonic):
+    古い値は使い回さない。警告には例外の型だけを書く (値は出さない)。
+    """
+
+    def __init__(self, source, ttl, clock=time.monotonic, empty=({}, b""), failure="資格情報を読めない (全部 401 にする)"):
         self.source = source
         self.ttl = ttl
         self.clock = clock
+        self.empty = empty
+        self.failure = failure
         self.fetched_at = None
-        self.value = ({}, b"")
+        self.value = empty
 
     def load(self):
         now = self.clock()
@@ -263,18 +314,39 @@ class CachedSource:
             try:
                 self.value = self.source.load()
             except Exception as e:
-                print(f"資格情報を読めない (全部 401 にする): {type(e).__name__}", file=sys.stderr, flush=True)
-                self.value = ({}, b"")
+                print(f"{self.failure}: {type(e).__name__}", file=sys.stderr, flush=True)
+                self.value = self.empty
             self.fetched_at = now
         return self.value
 
 
-def make_handler(cache, verifier=verify_uncached):
+class ViewerPasswordSource:
+    """source の load_viewer_password() を load() として見せる (CachedSource に渡す)。
+
+    資格情報と別に読むので、share-grafana が無くても資格情報は読める (headroom・backstage の経路は動く)。
+    """
+
+    def __init__(self, source):
+        self.source = source
+
+    def load(self):
+        return self.source.load_viewer_password()
+
+
+def viewer_cache(source, ttl, clock=time.monotonic):
+    return CachedSource(ViewerPasswordSource(source), ttl, clock, empty="", failure="viewer のパスワードを読めない (Grafana の経路を拒否する)")
+
+
+def make_handler(cache, verifier=verify_uncached, viewer=None):
+    """viewer: viewer のパスワードの CachedSource (viewer_cache)。無ければ Grafana の経路は 503 になる。"""
+
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             credentials, session_key = cache.load()
             request = {"authorization": self.headers.get("Authorization"), "cookie": self.headers.get("Cookie")}
             status, headers = decide(credentials, request, time.time(), session_key, verifier)
+            if self.headers.get(TARGET_HEADER) == TARGET_GRAFANA:
+                status, headers = grant_grafana(status, headers, viewer.load() if viewer else "")
             self.send_response(status)
             if status == 401:
                 headers = {**headers, "WWW-Authenticate": 'Basic realm="share", charset="UTF-8"'}
@@ -292,10 +364,13 @@ def make_handler(cache, verifier=verify_uncached):
 
 
 def serve(env=os.environ):
-    cache = CachedSource(source_from_env(env), float(env.get("AUTH_CACHE_TTL", "2")))
+    source = source_from_env(env)
+    ttl = float(env.get("AUTH_CACHE_TTL", "2"))
+    cache = CachedSource(source, ttl)
+    viewer = viewer_cache(source, ttl)
     verifier = VerifyCache(float(env.get("AUTH_VERIFY_TTL", VERIFY_TTL)))
     host, _, port = env.get("AUTH_LISTEN", "127.0.0.1:9000").rpartition(":")
-    ThreadingHTTPServer((host, int(port)), make_handler(cache, verifier)).serve_forever()
+    ThreadingHTTPServer((host, int(port)), make_handler(cache, verifier, viewer)).serve_forever()
 
 
 if __name__ == "__main__":

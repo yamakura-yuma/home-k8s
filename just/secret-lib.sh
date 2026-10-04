@@ -35,7 +35,7 @@ secret_exists() {
 }
 
 # restart_share_pod_if_closed <kube context>
-# share Pod の caddy は Secret share-host・share-grafana を環境変数で起動時にしか読まない。Secret が無いまま起動した Pod (全経路 503、
+# share Pod の caddy は Secret share-host を環境変数で起動時にしか読まない (share-grafana は認証サービスが実行時に読む。#58)。share-host が無いまま起動した Pod (全経路 503、
 # clusters/kind/share/entrypoint.sh) に読ませるには作り直すしかないので、**いま動いている caddy が閉じて起動した**ときだけ Pod を消す (#64)。
 # 判定は caddy のログ (entrypoint.sh が閉じて起動するときに書く行)。Secret が初めてできたかではなく Pod の状態で決めるので、途中で失敗しても
 # 打ち直せば直り、既に開いている Pod には触れない (作り直すと Quick Tunnel の URL が変わり、配った URL が使えなくなる)。

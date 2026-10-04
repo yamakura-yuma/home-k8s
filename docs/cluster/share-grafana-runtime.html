@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>#58 viewer のパスワードの変更が share に自動で反映される (変更前→変更後)</title>
+<style>
+  :root { --bg:#0f1419; --panel:#171e26; --line:#2c3846; --text:#e6edf3; --dim:#8b98a5; --add:#3fb950; --del:#f85149; --acc:#58a6ff; --warn:#d29922; --addbg:#12261a; --delbg:#2d1517; }
+  @media (prefers-color-scheme: light) { :root { --bg:#f6f8fa; --panel:#ffffff; --line:#d0d7de; --text:#1f2328; --dim:#59636e; --add:#1a7f37; --del:#cf222e; --acc:#0969da; --warn:#9a6700; --addbg:#dafbe1; --delbg:#ffebe9; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.65 system-ui,"Hiragino Sans","Noto Sans JP",sans-serif; }
+  main { max-width:1040px; margin:0 auto; padding:24px 18px 64px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  h2 { font-size:17px; margin:34px 0 10px; border-left:4px solid var(--acc); padding-left:10px; }
+  p.lead { color:var(--dim); margin:0 0 18px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--dim); font-weight:600; }
+  .del { color:var(--del); } .add { color:var(--add); } .dim { color:var(--dim); }
+  code, pre { font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace; font-size:13px; }
+  pre { margin:0; padding:10px 0; background:var(--bg); border:1px solid var(--line); border-radius:8px; overflow:auto; }
+  pre span { display:block; padding:0 12px; white-space:pre; }
+  pre .a { background:var(--addbg); color:var(--add); } pre .d { background:var(--delbg); color:var(--del); } pre .h { color:var(--dim); }
+  .ctrl { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 10px; }
+  button { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 14px; font:inherit; cursor:pointer; }
+  button.on { border-color:var(--acc); color:var(--acc); }
+  button:focus-visible { outline:2px solid var(--acc); outline-offset:2px; }
+  svg { width:100%; height:auto; display:block; font-family:system-ui,"Noto Sans JP",sans-serif; }
+  svg text { fill:var(--text); font-size:13px; } svg .dim { fill:var(--dim); font-size:11.5px; }
+  .box { fill:var(--panel); stroke:var(--line); stroke-width:1.4; transition:stroke .3s, stroke-width .3s, opacity .3s; }
+  .box.lit { stroke:var(--acc); stroke-width:2.6; }
+  .box.bad { stroke:var(--del); stroke-width:2.6; }
+  .box.new { stroke:var(--add); stroke-width:2.6; }
+  .arrow { stroke:var(--dim); stroke-width:1.6; fill:none; opacity:.25; transition:opacity .3s, stroke .3s; }
+  .arrow.lit { opacity:1; stroke:var(--acc); stroke-dasharray:6 5; animation:flow .8s linear infinite; }
+  .arrow.bad { opacity:1; stroke:var(--del); stroke-dasharray:6 5; animation:flow .8s linear infinite; }
+  @keyframes flow { to { stroke-dashoffset:-22; } }
+  .code { font-weight:700; font-size:14px; } .code.ok { fill:var(--add); } .code.ng { fill:var(--del); } .code.nf { fill:var(--warn); }
+  .caption { min-height:3.6em; margin:10px 0 0; }
+  .caption b { color:var(--acc); }
+  @media (prefers-reduced-motion: reduce) { .arrow.lit, .arrow.bad { animation:none; } }
+</style>
+</head>
+<body>
+<main>
+<h1>#58 viewer のパスワードの変更が share に自動で反映される</h1>
+<p class="lead">変更前 → 変更後。caddy は Secret <code>share-grafana</code> を<strong>起動時に 1 度だけ</strong>環境変数で読んでいたので、viewer のパスワードを変えると <code>deploy/grafana</code> と <code>deploy/share</code> の両方を <code>rollout restart</code> するまで Grafana の経路が 302 になり、share を作り直すと Quick Tunnel の URL も変わった。auth が<strong>実行時に</strong> Secret を読んで Basic を組み、caddy はそれを Grafana への <code>Authorization</code> にする。再起動は要らず、URL は変わらない (<code>Closes #58</code>)。</p>
+
+<h2>1. 何が変わるか</h2>
+<div class="panel">
+<table>
+<tr><th>項目</th><th>変更前</th><th>変更後</th></tr>
+<tr><td>根本原因</td><td colspan="2">Basic の値 (<code>base64("viewer:&lt;パスワード&gt;")</code>) を caddy の起動スクリプトが 1 度だけ組み、環境変数 <code>SHARE_GRAFANA_BASIC</code> として持つ。環境変数は起動時にしか読まれず、<code>just up</code> は開いている Pod を作り直さないので、Secret を書き換えても caddy の値は古いまま</td></tr>
+<tr><td>Basic を組む場所</td><td class="del">caddy の起動スクリプト (<code>entrypoint.sh</code>)。起動時に 1 度</td><td class="add">auth (<code>share_auth.py</code>)。Secret <code>share-grafana</code> を API で読み (最大 2 秒の覚え)、<code>X-Share-Grafana-Authorization</code> として応答に載せる</td></tr>
+<tr><td>パスワードを変えたあと</td><td class="del"><code>deploy/grafana</code> と <code>deploy/share</code> の両方を <code>rollout restart</code>。片方だけだと Grafana の経路が 302</td><td class="add"><code>deploy/grafana</code> だけ (DB へそろえる)。share は<strong>再起動しない</strong>。次に読み直した要求から新しい値が渡る</td></tr>
+<tr><td>Quick Tunnel の URL</td><td class="del">share を作り直すので<strong>変わる</strong> (配った URL が使えなくなる)</td><td class="add"><strong>変わらない</strong> (Pod を作り直さない)</td></tr>
+<tr><td><code>share-grafana</code> が無い・空</td><td>caddy が <code>Caddyfile.closed</code> で起動し、<strong>3 経路すべて</strong> 503</td><td class="add"><strong>Grafana の経路だけ</strong> 503 (認証が通らなければ 401 のまま)。headroom・backstage は動く。鍵が付かない応答は caddy も 503</td></tr>
+<tr><td>人の <code>Authorization</code></td><td>caddy が <code>header_up</code> で差し替え</td><td class="add">同じく差し替え。複数本付けても全部置き換わり、偽の <code>X-Share-Grafana-Authorization</code> は先に消す。試験で固定</td></tr>
+<tr><td>RBAC</td><td><code>share-credentials</code>・<code>share-session-key</code> の <code>get</code></td><td class="add">+ <code>share-grafana</code> の <code>get</code> だけ。list・watch は足さない</td></tr>
+<tr><td>caddy の Secret 参照</td><td><code>share-host</code> と <code>share-grafana</code></td><td class="add"><code>share-host</code> だけ。<code>require_env</code> と <code>Caddyfile.closed</code> の選び方 (<code>SHARE_RELAY_*</code> が揃うか) は残す</td></tr>
+</table>
+</div>
+
+<h2>2. diff の図 (抜粋)</h2>
+<pre aria-label="Caddyfile の差分">
+<span class="h">@@ clusters/kind/share/Caddyfile  (share_auth: 認証サービスへの問い合わせ) @@</span>
+<span class="a">+	request_header -X-Share-Grafana-Authorization</span>
+<span>	reverse_proxy {$SHARE_AUTH_ADDR:127.0.0.1:9000} {</span>
+<span>		header_up X-Forwarded-Uri {uri}</span>
+<span class="a">+		header_up X-Share-Target {args[0]}</span>
+<span>		handle_response @authenticated {</span>
+<span>			header @cookie +Set-Cookie {rp.header.Set-Cookie}</span>
+<span class="a">+			@viewer not vars {rp.header.X-Share-Grafana-Authorization} ""</span>
+<span class="a">+			request_header @viewer X-Share-Grafana-Authorization {rp.header.X-Share-Grafana-Authorization}</span>
+<span>		}</span>
+<span class="h">@@ :8081 grafana @@</span>
+<span class="d">-		import share_auth</span>
+<span class="a">+		import share_auth grafana</span>
+<span class="a">+		@no_viewer vars {http.request.header.X-Share-Grafana-Authorization} ""</span>
+<span class="a">+		respond @no_viewer 503</span>
+<span>		reverse_proxy {$SHARE_GRAFANA_UPSTREAM:grafana.observability.svc:80} {</span>
+<span class="d">-			header_up Authorization "Basic {$SHARE_GRAFANA_BASIC}"</span>
+<span class="a">+			header_up Authorization {http.request.header.X-Share-Grafana-Authorization}</span>
+<span class="a">+			header_up -X-Share-Grafana-Authorization</span>
+<span>			header_up -Cookie</span>
+</pre>
+<pre aria-label="entrypoint.sh・deployment.yaml・rbac.yaml の差分" style="margin-top:12px">
+<span class="h">@@ clusters/kind/share/entrypoint.sh @@</span>
+<span class="d">-if [ -n "$GRAFANA_VIEWER_PASSWORD" ] &amp;&amp; [ -n "$SHARE_RELAY_TOKEN" ] &amp;&amp; [ -n "$SHARE_RELAY_ADDR" ]; then</span>
+<span class="d">-    SHARE_GRAFANA_BASIC="$(printf 'viewer:%s' "$GRAFANA_VIEWER_PASSWORD" | base64 | tr -d '\n')"</span>
+<span class="d">-    export SHARE_GRAFANA_BASIC</span>
+<span class="a">+if [ -n "$SHARE_RELAY_TOKEN" ] &amp;&amp; [ -n "$SHARE_RELAY_ADDR" ]; then</span>
+<span>     config="$dir/Caddyfile"</span>
+<span class="h">@@ clusters/kind/share/deployment.yaml (caddy) @@</span>
+<span class="d">-            - name: GRAFANA_VIEWER_PASSWORD</span>
+<span class="d">-              valueFrom:</span>
+<span class="d">-                secretKeyRef:</span>
+<span class="d">-                  name: share-grafana</span>
+<span class="d">-                  key: viewer-password</span>
+<span class="d">-                  optional: true</span>
+<span class="h">@@ clusters/kind/share/rbac.yaml @@</span>
+<span class="d">-    resourceNames: [share-credentials, share-session-key]</span>
+<span class="a">+    resourceNames: [share-credentials, share-session-key, share-grafana]</span>
+<span>     verbs: [get]</span>
+<span class="h">@@ clusters/kind/share/share_auth.py @@</span>
+<span class="a">+def grant_grafana(status, headers, password):</span>
+<span class="a">+    """Grafana の経路で 200 になった判定に、viewer の Basic を足す。パスワードが無い・空なら 503。"""</span>
+<span class="a">+    ...</span>
+<span>             status, headers = decide(credentials, request, time.time(), session_key, verifier)</span>
+<span class="a">+            if self.headers.get(TARGET_HEADER) == TARGET_GRAFANA:</span>
+<span class="a">+                status, headers = grant_grafana(status, headers, viewer.load() if viewer else "")</span>
+</pre>
+<p class="dim">viewer のパスワードは資格情報とは別の <code>CachedSource</code> で読む (<code>viewer_cache</code>)。<code>share-grafana</code> が無くても資格情報は読めるので、headroom・backstage の経路は止まらない。読めなかったときの警告は例外の型だけで、パスワードも Basic の値もログに出さない。</p>
+
+<h2>3. パスワードを変えたときの流れ (アニメーション)</h2>
+<div class="panel">
+<div class="ctrl">
+  <button id="play" class="on" aria-pressed="true">自動で進める</button>
+  <button id="prev">← 前</button>
+  <button id="next">次 →</button>
+  <span id="stepno" class="dim"></span>
+</div>
+<svg viewBox="0 0 960 380" role="img" aria-label="viewer のパスワードを変えたとき、変更前は caddy が古い値を渡し続け、変更後は auth が読み直して次の要求から新しい値を渡す流れ">
+  <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+  <rect id="b-just" class="box" x="20" y="300" width="200" height="55" rx="8"/><text x="38" y="324">just up</text><text class="dim" x="38" y="342">_share-secrets が写し直す</text>
+  <rect id="b-secret" class="box" x="20" y="135" width="200" height="90" rx="8"/><text x="38" y="160">Secret share-grafana</text><text class="dim" x="38" y="180">viewer-password</text><text id="t-secret" class="dim" x="38" y="200"></text>
+  <rect id="b-caddy" class="box" x="320" y="40" width="250" height="100" rx="8"/><text x="338" y="65">caddy (Pod share)</text><text id="t-caddy" class="dim" x="338" y="86"></text><text id="t-caddy2" class="dim" x="338" y="104"></text>
+  <rect id="b-auth" class="box" x="320" y="205" width="250" height="90" rx="8"/><text x="338" y="230">auth (Pod share)</text><text id="t-auth" class="dim" x="338" y="251"></text><text id="t-auth2" class="dim" x="338" y="269"></text>
+  <rect id="b-cf" class="box" x="660" y="40" width="130" height="255" rx="8"/><text x="674" y="65">cloudflared ×3</text><text class="dim" x="674" y="86">grafana</text><text class="dim" x="674" y="161">headroom</text><text class="dim" x="674" y="236">backstage</text>
+  <path id="a-env" class="arrow" d="M220,150 L318,95" marker-end="url(#ah)"/>
+  <path id="a-api" class="arrow" d="M220,205 L318,245" marker-end="url(#ah)"/>
+  <path id="a-ask" class="arrow" d="M445,140 L445,203" marker-end="url(#ah)"/>
+  <path id="a-cf" class="arrow" d="M660,75 L572,75" marker-end="url(#ah)"/>
+  <path id="a-mk" class="arrow" d="M120,300 L120,227" marker-end="url(#ah)"/>
+  <path id="a-rr" class="arrow" d="M220,335 L615,335 L615,118 L572,118" marker-end="url(#ah)"/>
+  <text x="808" y="62" class="dim">応答</text>
+  <text id="c-1" class="code" x="808" y="88"></text>
+  <text id="c-2" class="code" x="808" y="163"></text>
+  <text id="c-3" class="code" x="808" y="238"></text>
+  <text id="t-url" class="dim" x="808" y="290"></text>
+</svg>
+<p id="cap" class="caption" aria-live="polite"></p>
+</div>
+
+<h2>4. 試験で固定すること (実クラスタは使わない)</h2>
+<div class="panel">
+<table>
+<tr><th>完了条件</th><th>試験</th></tr>
+<tr><td>パスワードを変えると、再起動せずに新しい値が渡る</td><td><code>test_share_caddy.py</code> <code>test_viewer_password_change_reaches_grafana_from_the_next_request</code>: 実物の caddy と認証サービスを<strong>立てたまま</strong>、<code>share-grafana</code> の写しを書き換え、Basic でも cookie でも次の要求から新しい鍵が Grafana の upstream に届く。API 版は <code>test_share_auth.py</code> の <code>KubernetesSource</code> (ttl の後に新しい値・消したら古い値を使い回さない)</td></tr>
+<tr><td><code>share-grafana</code> が無い・空のとき Grafana の経路は拒否</td><td><code>test_grafana_is_denied_while_the_viewer_password_is_missing_or_empty</code>: 許可リストの内も外も 503・upstream に届かない・認証なしは 401・headroom と backstage は 200。揃えると次の要求から通る。<code>test_caddy_denies_grafana_when_the_auth_answer_has_no_key</code>: 認証サービスが鍵を付けない代役でも caddy が 503</td></tr>
+<tr><td>人が送った <code>Authorization</code> が Grafana に届かない</td><td><code>test_a_persons_credentials_never_reach_grafana</code>: Basic・Bearer・小文字の名前・同名を複数本・<code>Cookie</code>・<code>Proxy-Authorization</code>・偽の <code>X-Share-Grafana-Authorization</code> を付けても、upstream が受けた資格情報のヘッダは viewer の Basic の 1 本だけ。<code>test_a_forged_key_header_does_not_open_grafana_while_the_viewer_password_is_missing</code>: 鍵が付けられないとき、偽の鍵のヘッダは通らない</td></tr>
+<tr><td>viewer の鍵が Grafana 以外に漏れない</td><td><code>test_the_viewer_key_goes_only_to_grafana</code>: headroom の中継・backstage の upstream に鍵のヘッダも viewer の Basic も届かない</td></tr>
+<tr><td>RBAC は <code>get</code> だけ・caddy は <code>share-grafana</code> を参照しない</td><td><code>test_share_manifest.py</code>: Role の rules を完全一致 (3 つの <code>resourceNames</code>・<code>verbs: [get]</code>)。caddy の環境・Caddyfile・起動スクリプトに <code>GRAFANA_VIEWER_PASSWORD</code>・<code>SHARE_GRAFANA_BASIC</code> が無い</td></tr>
+</table>
+</div>
+
+<h2>5. 変わるファイル</h2>
+<div class="panel">
+<table>
+<tr><th>ファイル</th><th>変更</th></tr>
+<tr><td><code>clusters/kind/share/share_auth.py</code></td><td>Secret <code>share-grafana</code> を実行時に読み、Grafana の経路 (<code>X-Share-Target: grafana</code>) の 200 に Basic を載せる。無い・空は 503</td></tr>
+<tr><td><code>clusters/kind/share/Caddyfile</code>・<code>entrypoint.sh</code>・<code>deployment.yaml</code>・<code>rbac.yaml</code></td><td>環境変数の Basic をやめ、応答のヘッダを Grafana への <code>Authorization</code> に。RBAC に <code>share-grafana</code> の <code>get</code></td></tr>
+<tr><td>試験 3 ファイル</td><td><code>test_share_auth.py</code>・<code>test_share_caddy.py</code>・<code>test_share_manifest.py</code></td></tr>
+<tr><td><code>just/secret-lib.sh</code>・<code>just/share-secrets.sh</code>・<code>just/share.just</code></td><td>コメントだけ (挙動は変えない)。caddy が読む Secret は <code>share-host</code> だけになった</td></tr>
+<tr><td><code>docs/cluster/share.md</code>・<code>docs/observability/claude-code-traces.md</code></td><td>パスワード変更時の <code>deploy/share</code> の <code>rollout restart</code> を外し、「#58 との関係」を実装済みの形に。URL が変わらないことを書く</td></tr>
+</table>
+</div>
+</main>
+<script>
+const steps = [
+  { cap:'<b>0. 変更前の平常時</b>: caddy は Pod の起動時に <code>share-grafana</code> を環境変数 <code>GRAFANA_VIEWER_PASSWORD</code> として 1 度だけ読み、起動スクリプトが <code>SHARE_GRAFANA_BASIC</code> を組んで持ち続ける。Grafana の経路は 200。',
+    lit:['b-secret','a-env','b-caddy','a-cf','b-cf'], bad:[], newb:[], c:['SHARE_GRAFANA_BASIC (起動時の値)','環境変数は読み直さない'], a:['資格情報を判定するだけ',''], codes:['200','200','200'], cls:['ok','ok','ok'], sec:'パスワード P1', url:'URL: A' },
+  { cap:'<b>1. 変更前: パスワードを変える</b>: <code>just up</code> が Secret を P2 に写し直す。caddy の環境変数は P1 のまま (<code>just up</code> は開いている Pod を作り直さない)。Grafana の DB は P2 にそろうので、caddy が渡す P1 の Basic は通らず、<span class="del">Grafana の経路が 302</span>。',
+    lit:['b-just','a-mk','b-secret'], bad:['a-cf'], newb:[], c:['SHARE_GRAFANA_BASIC = P1 のまま','(Secret は P2)'], a:['',''], codes:['302','200','200'], cls:['ng','ok','ok'], sec:'パスワード P2', url:'URL: A' },
+  { cap:'<b>2. 変更前: 直す手順</b>: <code>deploy/grafana</code> と <code>deploy/share</code> の両方を <code>rollout restart</code>。caddy が P2 を読み直すには Pod を作り直すしかなく、<span class="del">Quick Tunnel の URL が A → B に変わる</span> (配った URL が使えなくなる)。',
+    lit:['a-rr','b-caddy'], bad:['a-rr'], newb:[], c:['Pod を作り直す','P2 を読んで起動'], a:['',''], codes:['200','200','200'], cls:['ok','ok','ok'], sec:'パスワード P2', url:'URL: B (変わった)' },
+  { cap:'<b>3. 変更後の平常時</b>: caddy は viewer のパスワードを持たない。Grafana の経路 (:8081) は認証サービスへの問い合わせに <code>X-Share-Target: grafana</code> を付ける。auth は認証が通ると Secret を API で読み (最大 2 秒の覚え)、<code>X-Share-Grafana-Authorization</code> に Basic を載せて返す。caddy はそれを upstream への <code>Authorization</code> にする。',
+    lit:['b-cf','a-cf','b-caddy','a-ask','b-auth','a-api','b-secret'], bad:[], newb:['b-auth'], c:['Authorization = auth の応答','人の Authorization は捨てる'], a:['share-grafana を実行時に読む','Basic(viewer:P1)'], codes:['200','200','200'], cls:['ok','ok','ok'], sec:'パスワード P1', url:'URL: A' },
+  { cap:'<b>4. 変更後: パスワードを変える</b>: <code>just up</code> が Secret を P2 に写し直す。auth は覚えが切れた次の要求 (最大 2 秒) で P2 を読み、<span class="add">新しい Basic が Grafana に渡る</span>。share の Pod は作り直さない (<code>deploy/grafana</code> の <code>rollout restart</code> は DB へそろえるために別に要る)。',
+    lit:['b-just','a-mk','b-secret','a-api','b-auth','a-ask','b-caddy','a-cf','b-cf'], bad:[], newb:['b-auth','b-caddy'], c:['再起動なし','Authorization = Basic(viewer:P2)'], a:['次の要求から P2','Basic(viewer:P2)'], codes:['200','200','200'], cls:['ok','ok','ok'], sec:'パスワード P2', url:'URL: A (変わらない)' },
+  { cap:'<b>5. 変更後: Secret が無い・空</b>: auth は認証が通っても Basic を組めないので 503 を返し、<span class="del">Grafana の経路だけ拒否</span>する (鍵なしで人の <code>Authorization</code> を渡すこともしない)。認証が通らない要求は 401 のまま。headroom・backstage は動く。揃えば次の要求から通る。',
+    lit:['b-cf','a-cf','b-caddy','a-ask','b-auth','a-api'], bad:['a-cf'], newb:[], c:['Grafana の経路は 503','headroom・backstage は影響なし'], a:['Secret を読めない・空','Grafana の経路だけ 503'], codes:['503','200','200'], cls:['ng','ok','ok'], sec:'Secret が無い・空', url:'URL: A (変わらない)' },
+];
+const all = [...document.querySelectorAll('.box,.arrow')];
+let i = 0, timer = null;
+const $ = id => document.getElementById(id);
+function show(n) {
+  i = (n + steps.length) % steps.length;
+  const s = steps[i];
+  all.forEach(e => e.classList.remove('lit','bad','new'));
+  (s.lit||[]).forEach(id => $(id).classList.add('lit'));
+  (s.bad||[]).forEach(id => $(id).classList.add('bad'));
+  (s.newb||[]).forEach(id => { $(id).classList.remove('lit'); $(id).classList.add('new'); });
+  $('t-caddy').textContent = s.c[0] || ''; $('t-caddy2').textContent = s.c[1] || ''; $('t-auth').textContent = s.a[0] || ''; $('t-auth2').textContent = s.a[1] || '';
+  $('t-secret').textContent = s.sec || ''; $('t-url').textContent = s.url || '';
+  ['c-1','c-2','c-3'].forEach((id,k) => { const t = $(id); t.textContent = s.codes[k]; t.setAttribute('class','code ' + (s.cls[k]||'')); });
+  $('cap').innerHTML = s.cap;
+  $('stepno').textContent = (i+1) + ' / ' + steps.length;
+}
+function play(on) {
+  const b = $('play');
+  b.classList.toggle('on', on); b.setAttribute('aria-pressed', on);
+  clearInterval(timer); timer = on ? setInterval(() => show(i+1), 3600) : null;
+}
+$('play').onclick = () => play(!timer);
+$('prev').onclick = () => { play(false); show(i-1); };
+$('next').onclick = () => { play(false); show(i+1); };
+show(0);
+play(!matchMedia('(prefers-reduced-motion: reduce)').matches);
+</script>
+</body>
+</html>
