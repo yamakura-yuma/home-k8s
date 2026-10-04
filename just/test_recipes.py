@@ -65,7 +65,7 @@ class Recipes(unittest.TestCase):
         self.assertNotIn("share-relay", " ".join(just("--list").stdout.split()), "内部用は公開しない")
 
     def test_share_secrets_exist_before_argocd_syncs_the_pod(self):
-        # share Pod は Secret が無いと起動できない (optional: false)。root.yaml (ArgoCD の同期) より前に作り、viewer のパスワードのファイルが要るので _grafana-secrets の後
+        # share Pod は Secret が無くても起動する (optional) が、新しいクラスタで Pod を作り直さずに済むよう root.yaml (ArgoCD の同期) より前に作る。viewer のパスワードのファイルが要るので _grafana-secrets の後
         up = just("--dry-run", "up").stderr
         self.assertRegex(up, r'share-secrets\.sh ".*/grafana-viewer-password" kind-study-kind\n')
         self.assertLess(up.find("grafana-secrets.sh"), up.find("share-secrets.sh"))

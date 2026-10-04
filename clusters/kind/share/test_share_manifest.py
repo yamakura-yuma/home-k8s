@@ -4,12 +4,17 @@
 `kustomize build` した結果を yq で JSON にして読む。クラスタにもネットワークにも出ない。kustomize・yq が無い環境では飛ばす
 (`just ci` は devShells.ci に入れて必ず走らせる)。確かめるのは、公開の入口を足していないこと (Service・Ingress が無い)、
 Caddyfile が読む環境変数と Secret・ポートの食い違い、cloudflared が caddy の 3 つのポートに 1 本ずつ向くこと。
+#64: Pod の Secret の参照がすべて optional で (Secret が無くても CreateContainerConfigError で止まらない)、caddy の起動スクリプト
+(entrypoint.sh) が、Secret の値が揃わないときに全拒否の Caddyfile.closed を選ぶこと (偽の caddy で実行する)。
 """
+import base64
 import json
+import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -18,6 +23,9 @@ sys.dont_write_bytecode = True  # __pycache__ をリポジトリに作らない
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent.parent
 CADDYFILE = (HERE / "Caddyfile").read_text(encoding="utf-8")
+CLOSED_CADDYFILE = (HERE / "Caddyfile.closed").read_text(encoding="utf-8")
+ENTRYPOINT = HERE / "entrypoint.sh"
+ENTRYPOINT_TEXT = ENTRYPOINT.read_text(encoding="utf-8")
 AUTH_PY = (HERE / "share_auth.py").read_text(encoding="utf-8")
 NEEDS = unittest.skipUnless(shutil.which("kustomize") and shutil.which("yq"), "kustomize か yq が無い")
 
@@ -93,10 +101,12 @@ class ShareManifest(unittest.TestCase):
         self.assertEqual(required, {"SHARE_GRAFANA_BASIC", "SHARE_RELAY_TOKEN", "SHARE_RELAY_ADDR"})
         caddy = self.containers["caddy"]
         self.assertEqual([e["secretRef"]["name"] for e in caddy["envFrom"]], ["share-host"])
-        self.assertFalse(caddy["envFrom"][0]["secretRef"].get("optional"), "Secret が無いまま立ち上がらない")
-        self.assertIn("SHARE_GRAFANA_BASIC", "".join(caddy["command"]))
+        # Basic は起動スクリプトが組み立てる。Secret の値が空のまま Caddyfile (空だと起動しない) に渡さないよう、スクリプトが空を先に見分ける (#64)
+        self.assertIn("SHARE_GRAFANA_BASIC", ENTRYPOINT_TEXT)
         viewer = next(e for e in caddy["env"] if e["name"] == "GRAFANA_VIEWER_PASSWORD")
-        self.assertEqual(viewer["valueFrom"]["secretKeyRef"], {"name": "share-grafana", "key": "viewer-password"})
+        self.assertEqual(viewer["valueFrom"]["secretKeyRef"], {"name": "share-grafana", "key": "viewer-password", "optional": True})
+        for var in sorted(required - {"SHARE_GRAFANA_BASIC"}) + ["GRAFANA_VIEWER_PASSWORD"]:
+            self.assertIn(f'[ -n "${var}" ]', ENTRYPOINT_TEXT, f"{var} が空のとき Caddyfile.closed にならない (Caddyfile は起動しない)")
         # auth は Secret を持たない (API で share-credentials・share-session-key を読む)
         self.assertNotIn("envFrom", self.containers["auth"])
         for container in self.pod["containers"]:
@@ -112,10 +122,36 @@ class ShareManifest(unittest.TestCase):
         for volume, name in volumes.items():
             self.assertIn(name, configmaps, volume)
             self.assertRegex(name, r"^share-(caddy|auth)-[a-z0-9]{6,}$")
-        self.assertEqual(configmaps[volumes["caddyfile"]]["data"], {"Caddyfile": CADDYFILE})
+        self.assertEqual(configmaps[volumes["caddyfile"]]["data"],
+                         {"Caddyfile": CADDYFILE, "Caddyfile.closed": CLOSED_CADDYFILE, "entrypoint.sh": ENTRYPOINT_TEXT})
         self.assertEqual(configmaps[volumes["auth"]]["data"], {"share_auth.py": AUTH_PY})
-        self.assertEqual(self.containers["caddy"]["command"][-1].split()[-4:], ["--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"])
+        # caddy は起動スクリプトから始まる (ConfigMap のファイルは実行ビットが無いので sh で読む)。スクリプトが Caddyfile か Caddyfile.closed を選ぶ
+        caddy_mounts = {m["name"]: m["mountPath"] for m in self.containers["caddy"]["volumeMounts"]}
+        self.assertEqual(caddy_mounts["caddyfile"], "/etc/caddy")
+        self.assertEqual(self.containers["caddy"]["command"], ["sh", "/etc/caddy/entrypoint.sh"])
+        self.assertIn('exec caddy run --config "$config" --adapter caddyfile', ENTRYPOINT_TEXT)
         self.assertIn("/app/share_auth.py", self.containers["auth"]["command"])
+
+    def test_every_secret_reference_is_optional(self):
+        # #64: Secret は just up が作るので、ArgoCD の同期が先だと無い。optional でない参照が 1 つでもあると Pod が CreateContainerConfigError で止まる。
+        # 足した参照も自動で見張る (volume・env・envFrom の全部)。auth は Secret を参照せず API で読む (Secret が無ければ全部 401)
+        refs = []
+        for container in self.pod["containers"]:
+            for source in container.get("envFrom", []):
+                refs.append((container["name"], source["secretRef"]))
+            for env in container.get("env", []):
+                if "secretKeyRef" in env.get("valueFrom", {}):
+                    refs.append((container["name"], env["valueFrom"]["secretKeyRef"]))
+        for volume in self.pod.get("volumes", []):
+            if "secret" in volume:
+                refs.append((volume["name"], volume["secret"]))
+        self.assertEqual(sorted(ref["name"] for _, ref in refs), ["share-grafana", "share-host"])
+        for where, ref in refs:
+            self.assertIs(ref.get("optional"), True, f"{where}: Secret {ref['name']} の参照が optional でない")
+        self.assertNotIn("auth", {where for where, _ in refs})
+        for container in self.pod["containers"]:
+            self.assertNotIn("projected", container)
+        self.assertNotIn("initContainers", self.pod, "init コンテナは Secret を待たない (待つと Pod が起動しない)")
 
     def test_rbac_reads_exactly_the_two_secrets(self):
         (role,) = self.by_kind["Role"]
@@ -154,6 +190,74 @@ class ShareManifest(unittest.TestCase):
         self.assertIn("/tmp", mounts)
         env = {e["name"]: e["value"] for e in self.containers["caddy"]["env"] if "value" in e}
         self.assertTrue(env["XDG_CONFIG_HOME"].startswith("/tmp/") and env["XDG_DATA_HOME"].startswith("/tmp/"))
+
+
+class ClosedCaddyfile(unittest.TestCase):
+    """全拒否の Caddyfile.closed (実物の caddy での応答は test_share_caddy.py)。"""
+
+    code = "\n".join(line for line in CLOSED_CADDYFILE.splitlines() if not line.lstrip().startswith("#"))
+
+    def test_proxies_nothing_and_asks_nobody(self):
+        for word in ("reverse_proxy", "forward_auth", "import", "handle", "route", "header_up"):
+            self.assertNotIn(word, self.code)
+        self.assertEqual(re.findall(r"respond (\S+)", self.code), ["503", "503", "503"])
+
+    def test_listens_where_the_real_caddyfile_does(self):
+        # 同じ 3 つのポート (cloudflared が向く先)・127.0.0.1 だけ。ずれると、Secret が揃った前後で cloudflared がつながらなくなる
+        def listeners(text):
+            return re.findall(r"^http://:\{\$(SHARE_\w+_PORT):(\d+)\} \{\n\tbind 127\.0\.0\.1$", text, re.M)
+
+        self.assertEqual(len(listeners(CLOSED_CADDYFILE)), 3)
+        self.assertEqual(listeners(CLOSED_CADDYFILE), listeners(CADDYFILE))
+
+
+class Entrypoint(unittest.TestCase):
+    """caddy の起動スクリプト (entrypoint.sh) を、偽の caddy で実行する。選んだ設定ファイルと、渡った Grafana の Basic を見る。"""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        stub = self.tmp / "caddy"
+        stub.write_text('#!/bin/sh\necho "args=$*"\necho "basic=${SHARE_GRAFANA_BASIC-unset}"\n')
+        stub.chmod(0o755)
+
+    def run_entrypoint(self, **env):
+        base = {k: v for k, v in os.environ.items() if k not in ("GRAFANA_VIEWER_PASSWORD", "SHARE_RELAY_TOKEN", "SHARE_RELAY_ADDR", "SHARE_GRAFANA_BASIC")}
+        r = subprocess.run(["sh", str(ENTRYPOINT)], capture_output=True, text=True, check=True,
+                           env={**base, "PATH": f"{self.tmp}:{os.environ['PATH']}", "SHARE_CADDY_DIR": "/conf", **env})
+        out = dict(line.split("=", 1) for line in r.stdout.splitlines())
+        return out["args"], out["basic"], r.stderr
+
+    complete = {"GRAFANA_VIEWER_PASSWORD": "pw 'with' %s $x", "SHARE_RELAY_TOKEN": "tok", "SHARE_RELAY_ADDR": "172.18.0.1:8788"}
+
+    def test_complete_secrets_start_the_real_caddyfile_with_the_viewer_key(self):
+        args, basic, _ = self.run_entrypoint(**self.complete)
+        self.assertEqual(args, "run --config /conf/Caddyfile --adapter caddyfile")
+        self.assertEqual(base64.b64decode(basic).decode(), "viewer:pw 'with' %s $x")
+        self.assertNotIn("\n", basic)
+
+    def test_no_secret_at_all_starts_the_closed_caddyfile(self):
+        # share-host も share-grafana も無い (optional の参照で環境変数が無い)
+        args, basic, stderr = self.run_entrypoint()
+        self.assertEqual(args, "run --config /conf/Caddyfile.closed --adapter caddyfile")
+        self.assertEqual(basic, "unset", "Basic を組み立てて渡さない")
+        self.assertIn("503", stderr)
+
+    def test_any_missing_or_empty_value_starts_the_closed_caddyfile(self):
+        for name in self.complete:
+            for how in ("missing", "empty"):
+                env = {k: v for k, v in self.complete.items() if k != name}
+                if how == "empty":
+                    env[name] = ""
+                args, basic, _ = self.run_entrypoint(**env)
+                self.assertEqual(args, "run --config /conf/Caddyfile.closed --adapter caddyfile", (name, how))
+                # base64("viewer:") は空でない。パスワードが無いのに Basic を組み立てて Caddyfile に渡さない
+                self.assertEqual(basic, "unset", (name, how))
+
+    def test_default_config_dir_is_where_the_configmap_is_mounted(self):
+        env = {k: v for k, v in os.environ.items() if k != "SHARE_CADDY_DIR"}
+        r = subprocess.run(["sh", str(ENTRYPOINT)], capture_output=True, text=True, check=True, env={**env, "PATH": f"{self.tmp}:{os.environ['PATH']}"})
+        self.assertIn("--config /etc/caddy/Caddyfile.closed", r.stdout)
 
 
 @NEEDS

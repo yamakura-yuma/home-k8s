@@ -1,0 +1,22 @@
+# share Pod の caddy が、Secret が揃っていないあいだに使う Caddyfile (entrypoint.sh が選ぶ。docs/cluster/share.md の「Secret が揃うまで」)。
+# 3 つのポートのどれも、認証サービスにも upstream にも渡さず、固定の 503 を返す (デフォルト拒否。素通しも認証抜けも作らない)。
+# 経路を問わず同じ応答なので、許可リストの有無は外から探れない。待ち受けは Caddyfile と同じ (127.0.0.1 だけ・同じポート・同じ環境変数)。
+{
+	admin off
+	auto_https off
+}
+
+http://:{$SHARE_GRAFANA_PORT:8081} {
+	bind 127.0.0.1
+	respond 503
+}
+
+http://:{$SHARE_HEADROOM_PORT:8082} {
+	bind 127.0.0.1
+	respond 503
+}
+
+http://:{$SHARE_BACKSTAGE_PORT:8083} {
+	bind 127.0.0.1
+	respond 503
+}

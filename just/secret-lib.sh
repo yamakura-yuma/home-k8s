@@ -27,3 +27,29 @@ create_secret_if_missing() {
     fi
     kubectl --context "$ctx" -n "$ns" create secret generic "$name" "$@"
 }
+
+# secret_exists <kube context> <namespace> <名前>
+# Secret があれば 0。
+secret_exists() {
+    kubectl --context "$1" -n "$2" get secret "$3" >/dev/null 2>&1
+}
+
+# restart_share_pod_if_closed <kube context>
+# share Pod の caddy は Secret share-host・share-grafana を環境変数で起動時にしか読まない。Secret が無いまま起動した Pod (全経路 503、
+# clusters/kind/share/entrypoint.sh) に読ませるには作り直すしかないので、**いま動いている caddy が閉じて起動した**ときだけ Pod を消す (#64)。
+# 判定は caddy のログ (entrypoint.sh が閉じて起動するときに書く行)。Secret が初めてできたかではなく Pod の状態で決めるので、途中で失敗しても
+# 打ち直せば直り、既に開いている Pod には触れない (作り直すと Quick Tunnel の URL が変わり、配った URL が使えなくなる)。
+# Deployment の spec には触れず Pod だけを消す (rollout restart は template に注釈を足し、ArgoCD の selfHeal が戻して 2 度目の作り直しになりうる)。
+# Pod が無い (ArgoCD の同期の前)・ログがまだ無いときは何もしない。呼ぶ前に、Secret が揃っていることを確かめる (揃わないまま作り直しても閉じたまま)。
+# ログは一度変数に取る (grep -q で読み切らずに閉じると、kubectl が SIGPIPE で落ちて pipefail に当たる)。
+share_closed_marker='全経路を 503 で拒否'
+restart_share_pod_if_closed() {
+    local ctx="$1" log
+    log="$(kubectl --context "$ctx" -n share logs deploy/share -c caddy 2>/dev/null || true)"
+    case "$log" in
+        *"$share_closed_marker"*)
+            echo "share Pod の caddy は Secret が揃う前に起動していた (全経路 503)。Pod を作り直して Secret を読ませる"
+            kubectl --context "$ctx" -n share delete pod -l app=share --wait=false
+            ;;
+    esac
+}

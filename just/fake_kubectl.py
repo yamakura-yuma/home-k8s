@@ -10,6 +10,7 @@
   create namespace <名前> --dry-run=client -o yaml     Namespace の manifest を出す
   replace -f - / create -f - / apply -f -              標準入力を FAKE_KUBECTL_STDIN に書く
   logs deploy/share -c <コンテナ>                       FAKE_LOGS/<コンテナ> の中身を出す (無ければ 1)
+  delete pod -l app=share --wait=false                 何もせず 0 で終わる (呼ばれたことは FAKE_KUBECTL_LOG に残る。#64 の Pod の作り直し)
   get secret share-credentials -o go-template=...      FAKE_CREDENTIALS (JSON のファイル {名前: 項目の JSON 文字列}) を "名前<TAB>項目" の行で出す。ファイルが無ければ 1 (Secret が無い)
   patch secret share-credentials --type merge --patch-file F
                                                        {"data": {名前: base64 | null}} を FAKE_CREDENTIALS に反映し、FAKE_KUBECTL_STDIN に {"verb": "patch", "manifest": <patch>} で書く

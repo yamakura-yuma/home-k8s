@@ -19,6 +19,7 @@ sys.dont_write_bytecode = True  # __pycache__ をリポジトリに作らない
 
 JUST = Path(__file__).resolve().parent
 FAKE_KUBECTL = JUST / "fake_kubectl.py"
+ENTRYPOINT = JUST.parent / "clusters/kind/share/entrypoint.sh"
 VIEWER_VALUE = "viewer-pw-0123456789"
 FAKE_RANDOM = "ab" * 32  # 偽の openssl rand -hex 32 の出力
 SECRET_SCRIPTS = ["grafana-secrets.sh", "share-relay.sh", "share-secrets.sh"]
@@ -117,6 +118,77 @@ class ShareSecrets(FakeEnv):
         r = self.run_share_secrets()
         self.assertNotEqual(r.returncode, 0)
         self.assertEqual(self.entries(), [], "viewer のパスワードが無いのに Secret を作った")
+
+
+class ShareSecretsRecreatePod(FakeEnv):
+    """#64: Secret が揃う前に起動して閉じている share Pod だけを、Secret が揃ったあとに作り直す。開いている Pod (2 回目以降の just up) には触れない。"""
+
+    def closed_caddy_log(self):
+        """閉じて起動した caddy のログ: 実物の entrypoint.sh (偽の caddy で、環境変数が空) が書く行そのもの。文言のずれを見つける。"""
+        self.write_stub("caddy", 'echo "{\\"msg\\":\\"started\\"}"')
+        r = subprocess.run(["sh", str(ENTRYPOINT)], capture_output=True, text=True, check=True,
+                           env={k: v for k, v in {**os.environ, "PATH": f"{self.bin}:{os.environ['PATH']}"}.items()
+                                if k not in ("GRAFANA_VIEWER_PASSWORD", "SHARE_RELAY_TOKEN", "SHARE_RELAY_ADDR")})
+        return r.stderr + r.stdout
+
+    def run_share_secrets(self, **env):
+        return self.run_script("share-secrets.sh", str(self.viewer_file), "kind-test", **env)
+
+    def deletes(self):
+        return [c for c in self.calls() if " delete " in c]
+
+    def test_a_pod_that_started_closed_is_recreated_once_the_secrets_exist(self):
+        (self.logs / "caddy").write_text(self.closed_caddy_log())
+        r = self.run_share_secrets(FAKE_EXISTING="share-host")  # share-host は just up の前の段 (_share-relay-up) が作る
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.deletes(), ["kubectl --context kind-test -n share delete pod -l app=share --wait=false"])
+        # 作り直すのは Secret を入れたあと (先に消すと、新しい Pod がまた閉じて起動する)
+        last_put = max(i for i, c in enumerate(self.calls()) if " -f -" in c)
+        self.assertGreater(self.calls().index(self.deletes()[0]), last_put)
+        self.assertIn("作り直", r.stdout)
+
+    def test_an_open_pod_is_left_alone(self):
+        # 2 回目以降の just up: caddy は Secret を読んで開いて起動している。Pod を作り直すと Quick Tunnel の URL が変わる
+        (self.logs / "caddy").write_text('{"level":"info","msg":"serving initial configuration"}\n')
+        for existing in ("share-host", "share-host share-credentials share-session-key share-grafana"):
+            r = self.run_share_secrets(FAKE_EXISTING=existing)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual(self.deletes(), [], existing)
+        # 同じ run を重ねても (打ち直し)、開いている Pod には触れない
+        self.assertEqual(self.run_share_secrets(FAKE_EXISTING="share-host").returncode, 0)
+        self.assertEqual(self.deletes(), [])
+
+    def test_no_pod_yet_does_nothing(self):
+        # ArgoCD の同期の前 (新しいクラスタ): Pod が無く、kubectl logs は失敗する。just up は止まらず、何も消さない
+        r = self.run_share_secrets(FAKE_EXISTING="share-host")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.deletes(), [])
+
+    def test_nothing_is_recreated_before_share_host_exists(self):
+        # share-host が無いまま作り直しても、新しい Pod は閉じたまま。Pod に触れない
+        (self.logs / "caddy").write_text(self.closed_caddy_log())
+        r = self.run_share_secrets()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.deletes(), [])
+
+    def test_a_failed_run_is_recovered_by_running_again(self):
+        # 1 回目は Pod を消せずに落ちる (API の一時的な失敗など)。Secret は既にある。2 回目 (全部ある) でも、閉じた Pod なら作り直す
+        (self.logs / "caddy").write_text(self.closed_caddy_log())
+        for _ in range(2):
+            r = self.run_share_secrets(FAKE_EXISTING="share-host share-credentials share-session-key share-grafana")
+            self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(len(self.deletes()), 2, "Secret が既にあっても、閉じた Pod は打ち直しで作り直す")
+
+    def test_only_the_pod_is_deleted_never_the_deployment(self):
+        (self.logs / "caddy").write_text(self.closed_caddy_log())
+        self.assertEqual(self.run_share_secrets(FAKE_EXISTING="share-host").returncode, 0)
+        joined = "\n".join(self.calls())
+        for word in ("rollout", "delete deploy", "delete deployment", "scale", "patch deploy", "--force", "--grace-period"):
+            self.assertNotIn(word, joined)
+
+    def test_the_marker_is_what_entrypoint_writes(self):
+        self.assertIn("全経路を 503 で拒否", (JUST / "secret-lib.sh").read_text())
+        self.assertIn("全経路を 503 で拒否", self.closed_caddy_log())
 
 
 class EverySecretCreatingScript(FakeEnv):
