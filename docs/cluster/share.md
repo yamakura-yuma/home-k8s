@@ -132,7 +132,9 @@ Grafana 自身のログイン (ユーザー `viewer`) を門にすると 1 つ�
 - 人が viewer のパスワードを変えて締め出さないよう、`/profile/password`・`/api/user/password` は 404 にする。
   viewer は共有相手全員で 1 人なので、ログイン名 (`PUT /api/user`) を変えられても Basic の付与が壊れる (#51)。使い捨ての Grafana 13.2.3 に viewer の Basic で書き込みを当てて確かめたところ、
   `PUT /api/user`・`PUT`/`PATCH /api/user/preferences`・`POST /api/user/using/<org>`・`POST`/`DELETE /api/user/stars/*`、新しい preferences API の `PUT /apis/preferences.grafana.app/*/preferences/<自分>` が通った。
-  このため `/api/user` 以下と `/apis/preferences.grafana.app/` 以下は、GET・HEAD 以外を 404 にする (読み取りは画面が使うので通す)。ほかの書き込み (`/api/org/preferences`・`/api/users/*`・`POST /api/dashboards/db`・`/api/snapshots`) は Grafana が viewer に 401・403 を返すので、caddy では足さない。
+  同じ使い捨ての Grafana 13.2.3 で、新しい API の `collections.grafana.app` (星。`PUT`/`DELETE /apis/collections.grafana.app/v1alpha1/namespaces/default/stars/user-<自分>/update/dashboard.grafana.app/Dashboard/<uid>` が 200) と
+  `userstorage.grafana.app` (画面の保存領域。`POST`/`PUT`/`DELETE .../user-storage/service:<自分>` が 201・200・200) も viewer の書き込みが通った (#54)。
+  このため `/api/user` 以下と `/apis/preferences.grafana.app/`・`/apis/collections.grafana.app/`・`/apis/userstorage.grafana.app/` 以下は、GET・HEAD 以外を 404 にする (読み取りは画面が使うので通す)。ほかの書き込み (`/api/org/preferences`・`/api/users/*`・`POST /api/dashboards/db`・`/api/snapshots`) は Grafana が viewer に 401・403 を返すので、caddy では足さない。
 - 確認済み (#40): Grafana は **ページの要求にも** Basic を受ける。稼働中の Grafana (`localhost:3000`) に viewer の Basic を付けて
   `/`・`/dashboards`・`/profile` が 200、付けない `/` は 302 (ログイン画面)、誤ったパスワードは 302 だった。さらに実際の Caddyfile の `:8081`
   を稼働中の Grafana に向け (読み取りの要求だけ)、人の資格情報で `/`・`/dashboards`・`/api/user` が 200、`/profile/password`・`PUT /api/user/password` が
@@ -147,8 +149,8 @@ Grafana 自身のログイン (ユーザー `viewer`) を門にすると 1 つ�
 
 | 対象 | 通す | 通さない (404) |
 |---|---|---|
-| grafana | すべて (viewer の権限の範囲)。`Location: http://localhost:3000/` は `/` に書き換える | `/profile/password` `/api/user/password`、`/api/user` 以下と `/apis/preferences.grafana.app/` 以下の GET・HEAD 以外 (#51) |
-| headroom | GET の `/dashboard /health /stats /stats-history /stats-lifetime /transformations/feed /favicon.ico` (大文字小文字を区別する完全一致。`/Health` は 404、#53) | それ以外 (`/v1/*`、`POST /settings`、`/stats/reset`、`/cache/clear`、許可リストの経路への HEAD ほか) |
+| grafana | すべて (viewer の権限の範囲)。`Location: http://localhost:3000/` は `/` に書き換える | `/profile/password` `/api/user/password`、`/api/user` 以下と `/apis/preferences.grafana.app/`・`/apis/collections.grafana.app/`・`/apis/userstorage.grafana.app/` 以下の GET・HEAD 以外 (#51・#54) |
+| headroom | GET の `/dashboard /health /stats /stats-history /stats-lifetime /transformations/feed /favicon.ico` (大文字小文字を区別し、送られた経路との完全一致。`/Health`・`//health`・`/%2Fhealth`・`/transformations%2Ffeed` は 404、#53・#54) | それ以外 (`/v1/*`、`POST /settings`、`/stats/reset`、`/cache/clear`、許可リストの経路への HEAD ほか) |
 | backstage | GET・HEAD の `/api/proxy` 以外すべて。POST は `/api/auth/*` と `/api/catalog/entities/by-refs` だけ (POST の許可は大文字小文字を区別する) | `/api/proxy*` (表記揺れも) (Grafana の API を Backstage の資格情報で読ませない)、`POST /api/catalog/locations` ほか |
 
 経路・書き換え (Backstage の `Set-Cookie` の `Domain=localhost` 外し) は `clusters/kind/share/Caddyfile` にあり、ConfigMap `share-caddy` になる。3 サイト (`:8081 grafana` `:8082 headroom` `:8083 backstage`)
@@ -325,4 +327,6 @@ CI の runner にはそれらが無いためである (`just ci` はクラスタ
 - 大文字小文字 (#53): caddy の `path` matcher は区別しないので、許可リストに使うと `GET /Health` が通って upstream に `/Health` のまま届く (headroom は区別するので、未知の経路としてプロキシ本体の受け口に落ちうる)。
   許可は `path_regexp` (区別する・全体一致) で書く (headroom は中継と share の両方、backstage の POST)。拒否の `path` (grafana の password・`/api/user`、backstage の `/api/proxy`) は区別しないままにして、表記揺れの素通りを止める。
   `path_regexp` は caddy が整えた path に当たるが、`reverse_proxy` は生の path を送るので、`/x/../health` のようなドットセグメントが許可リストを通って headroom にそのまま届く。headroom の許可では `rewrite * /{re.dash.1}` で許可した経路そのものに書き換えて渡す (クエリは残る)。
+  ただし `path_regexp` だけだと、`//health`・`/%2Fhealth`・`/transformations%2Ffeed`・`/x/../health` のような、許可していない表記が許可した経路に正規化されて通る (#54)。
+  share の caddy は、送られた生の要求 (`{http.request.orig_uri}`) にも同じ表を全体一致で掛け、これらを 404 にする (試験の `HEADROOM_DENIED`)。
 - `stage C paths` の対象はこの repo の `.github/CODEOWNERS` が決める (dotfiles の `bin/gate-stage-c.sh` は PR の base にある呼ぶ側の CODEOWNERS だけを読み、dotfiles 側にパスの一覧は無い)。`clusters/kind/share/` と `just/share*` の各ファイルは既に載っているので、dotfiles 側の変更は要らない。
