@@ -1,5 +1,5 @@
-# 認証サービス (share_auth.py) が K8s API で読む Secret を、2 つの get だけに絞る (resourceNames)。
-# list・watch・他の Secret は読めない。Secret の中身は git に置かない (just up の _share-secrets が作る)。
+# 認証サービス (share_auth.py) が K8s API で読む Secret を、3 つの get だけに絞る (resourceNames)。
+# share-grafana は Grafana に渡す viewer のパスワード (#58)。list・watch・他の Secret は読めない。Secret の中身は git に置かない (just up の _share-secrets が作る)。
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -12,7 +12,7 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: [secrets]
-    resourceNames: [share-credentials, share-session-key]
+    resourceNames: [share-credentials, share-session-key, share-grafana]
     verbs: [get]
 ---
 apiVersion: rbac.authorization.k8s.io/v1

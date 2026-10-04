@@ -6,6 +6,8 @@
 Caddyfile が読む環境変数と Secret・ポートの食い違い、cloudflared が caddy の 3 つのポートに 1 本ずつ向くこと。
 #64: Pod の Secret の参照がすべて optional で (Secret が無くても CreateContainerConfigError で止まらない)、caddy の起動スクリプト
 (entrypoint.sh) が、Secret の値が揃わないときに全拒否の Caddyfile.closed を選ぶこと (偽の caddy で実行する)。
+#58: Grafana の viewer のパスワード (Secret share-grafana) は caddy の環境変数にも起動スクリプトにも無く、認証サービスが API で実行時に読む
+(RBAC は resourceNames を限った get だけ)。起動時に 1 度だけ読む形に戻ると、パスワードを変えるたびに Pod を作り直す (URL が変わる) ことになる。
 """
 import base64
 import json
@@ -95,18 +97,20 @@ class ShareManifest(unittest.TestCase):
             self.assertRegex(CADDYFILE, rf"SHARE_\w+_PORT:{port}\}}")
 
     def test_caddyfile_variables_are_all_provided(self):
-        # Caddyfile の {$VAR} のうち既定の無いもの (空だと起動しない) が、Pod の環境に入る。Secret share-host は envFrom、Basic は起動コマンドが組み立てる
+        # Caddyfile の {$VAR} のうち既定の無いもの (空だと起動しない) が、Pod の環境に入る。Secret share-host は envFrom
         code = "\n".join(line for line in CADDYFILE.splitlines() if not line.lstrip().startswith("#"))
         required = set(re.findall(r"\{\$(\w+)\}", code))
-        self.assertEqual(required, {"SHARE_GRAFANA_BASIC", "SHARE_RELAY_TOKEN", "SHARE_RELAY_ADDR"})
+        self.assertEqual(required, {"SHARE_RELAY_TOKEN", "SHARE_RELAY_ADDR"})
         caddy = self.containers["caddy"]
         self.assertEqual([e["secretRef"]["name"] for e in caddy["envFrom"]], ["share-host"])
-        # Basic は起動スクリプトが組み立てる。Secret の値が空のまま Caddyfile (空だと起動しない) に渡さないよう、スクリプトが空を先に見分ける (#64)
-        self.assertIn("SHARE_GRAFANA_BASIC", ENTRYPOINT_TEXT)
-        viewer = next(e for e in caddy["env"] if e["name"] == "GRAFANA_VIEWER_PASSWORD")
-        self.assertEqual(viewer["valueFrom"]["secretKeyRef"], {"name": "share-grafana", "key": "viewer-password", "optional": True})
-        for var in sorted(required - {"SHARE_GRAFANA_BASIC"}) + ["GRAFANA_VIEWER_PASSWORD"]:
+        # Secret の値が空のまま Caddyfile (空だと起動しない) に渡さないよう、起動スクリプトが空を先に見分ける (#64)
+        for var in sorted(required):
             self.assertIn(f'[ -n "${var}" ]', ENTRYPOINT_TEXT, f"{var} が空のとき Caddyfile.closed にならない (Caddyfile は起動しない)")
+        # #58: Grafana の viewer のパスワードも Basic の値も、caddy の環境にも Caddyfile・起動スクリプトにも無い (認証サービスが実行時に読む)
+        self.assertEqual([e["name"] for e in caddy["env"]], ["XDG_CONFIG_HOME", "XDG_DATA_HOME"])
+        for name, text in {"Caddyfile": CADDYFILE, "entrypoint.sh": ENTRYPOINT_TEXT}.items():
+            for var in ("GRAFANA_VIEWER_PASSWORD", "SHARE_GRAFANA_BASIC"):
+                self.assertNotIn(var, text, f"{name} が {var} を使う (起動時に 1 度だけ読む形に戻ると、パスワードの変更に Pod の作り直しが要る)")
         # auth は Secret を持たない (API で share-credentials・share-session-key を読む)
         self.assertNotIn("envFrom", self.containers["auth"])
         for container in self.pod["containers"]:
@@ -145,7 +149,8 @@ class ShareManifest(unittest.TestCase):
         for volume in self.pod.get("volumes", []):
             if "secret" in volume:
                 refs.append((volume["name"], volume["secret"]))
-        self.assertEqual(sorted(ref["name"] for _, ref in refs), ["share-grafana", "share-host"])
+        # share-grafana は caddy が参照しない (#58。認証サービスが API で読む)
+        self.assertEqual(sorted(ref["name"] for _, ref in refs), ["share-host"])
         for where, ref in refs:
             self.assertIs(ref.get("optional"), True, f"{where}: Secret {ref['name']} の参照が optional でない")
         self.assertNotIn("auth", {where for where, _ in refs})
@@ -153,9 +158,11 @@ class ShareManifest(unittest.TestCase):
             self.assertNotIn("projected", container)
         self.assertNotIn("initContainers", self.pod, "init コンテナは Secret を待たない (待つと Pod が起動しない)")
 
-    def test_rbac_reads_exactly_the_two_secrets(self):
+    def test_rbac_reads_exactly_the_three_secrets(self):
+        # #58: share-grafana (viewer のパスワード) の get を足した。list・watch・他の Secret は読めない
         (role,) = self.by_kind["Role"]
-        self.assertEqual(role["rules"], [{"apiGroups": [""], "resources": ["secrets"], "resourceNames": ["share-credentials", "share-session-key"], "verbs": ["get"]}])
+        self.assertEqual(role["rules"], [{"apiGroups": [""], "resources": ["secrets"],
+                                          "resourceNames": ["share-credentials", "share-session-key", "share-grafana"], "verbs": ["get"]}])
         (binding,) = self.by_kind["RoleBinding"]
         self.assertEqual(binding["subjects"], [{"kind": "ServiceAccount", "name": "share", "namespace": "share"}])
         self.assertEqual(binding["roleRef"]["name"], role["metadata"]["name"])
@@ -163,6 +170,7 @@ class ShareManifest(unittest.TestCase):
         # 認証サービスが読む Secret の名前は share_auth.py と同じ
         self.assertIn('CREDENTIALS_SECRET = "share-credentials"', AUTH_PY)
         self.assertIn('SESSION_KEY_SECRET = "share-session-key"', AUTH_PY)
+        self.assertIn('GRAFANA_SECRET = "share-grafana"', AUTH_PY)
 
     def test_no_probe_restarts_the_pod_and_none_uses_loopback_from_outside(self):
         # kubelet の probe は Pod の IP から来るので、127.0.0.1 だけで待ち受ける caddy・auth に tcpSocket・httpGet は届かない。exec の readiness だけ。
@@ -212,7 +220,7 @@ class ClosedCaddyfile(unittest.TestCase):
 
 
 class Entrypoint(unittest.TestCase):
-    """caddy の起動スクリプト (entrypoint.sh) を、偽の caddy で実行する。選んだ設定ファイルと、渡った Grafana の Basic を見る。"""
+    """caddy の起動スクリプト (entrypoint.sh) を、偽の caddy で実行する。選んだ設定ファイルと、Grafana の Basic を環境変数で渡さないことを見る (#58)。"""
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -228,19 +236,25 @@ class Entrypoint(unittest.TestCase):
         out = dict(line.split("=", 1) for line in r.stdout.splitlines())
         return out["args"], out["basic"], r.stderr
 
-    complete = {"GRAFANA_VIEWER_PASSWORD": "pw 'with' %s $x", "SHARE_RELAY_TOKEN": "tok", "SHARE_RELAY_ADDR": "172.18.0.1:8788"}
+    complete = {"SHARE_RELAY_TOKEN": "tok", "SHARE_RELAY_ADDR": "172.18.0.1:8788"}
 
-    def test_complete_secrets_start_the_real_caddyfile_with_the_viewer_key(self):
+    def test_complete_secrets_start_the_real_caddyfile_without_a_grafana_key(self):
+        # viewer のパスワードは環境変数に無くても開く。Basic は組み立てて渡さない (認証サービスが実行時に読む。#58)
         args, basic, _ = self.run_entrypoint(**self.complete)
         self.assertEqual(args, "run --config /conf/Caddyfile --adapter caddyfile")
-        self.assertEqual(base64.b64decode(basic).decode(), "viewer:pw 'with' %s $x")
-        self.assertNotIn("\n", basic)
+        self.assertEqual(basic, "unset")
+
+    def test_a_viewer_password_in_the_environment_is_not_turned_into_a_basic(self):
+        # 古い Deployment の環境が残っていても、起動時に 1 度だけ読む Basic は作らない (パスワードの変更が効かなくなる元)
+        args, basic, _ = self.run_entrypoint(GRAFANA_VIEWER_PASSWORD="pw", **self.complete)
+        self.assertEqual(args, "run --config /conf/Caddyfile --adapter caddyfile")
+        self.assertEqual(basic, "unset")
 
     def test_no_secret_at_all_starts_the_closed_caddyfile(self):
-        # share-host も share-grafana も無い (optional の参照で環境変数が無い)
+        # share-host が無い (optional の参照で環境変数が無い)
         args, basic, stderr = self.run_entrypoint()
         self.assertEqual(args, "run --config /conf/Caddyfile.closed --adapter caddyfile")
-        self.assertEqual(basic, "unset", "Basic を組み立てて渡さない")
+        self.assertEqual(basic, "unset")
         self.assertIn("503", stderr)
 
     def test_any_missing_or_empty_value_starts_the_closed_caddyfile(self):
@@ -251,7 +265,6 @@ class Entrypoint(unittest.TestCase):
                     env[name] = ""
                 args, basic, _ = self.run_entrypoint(**env)
                 self.assertEqual(args, "run --config /conf/Caddyfile.closed --adapter caddyfile", (name, how))
-                # base64("viewer:") は空でない。パスワードが無いのに Basic を組み立てて Caddyfile に渡さない
                 self.assertEqual(basic, "unset", (name, how))
 
     def test_default_config_dir_is_where_the_configmap_is_mounted(self):

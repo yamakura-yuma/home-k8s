@@ -4,9 +4,11 @@
 # 順序は固定: 認証が通らなければ経路を問わず 401 (経路の存在を探らせない)、通ったあとで許可リストの外が 404。
 # 特権 viewer も期限付きも同じ表を通る (見られる範囲に差をつけない)。
 #
+# Grafana に渡す viewer の鍵 (Basic) は、環境変数では持たない (#58)。認証サービスが要求ごとに Secret share-grafana を (最大 2 秒の覚えで) 読んで
+# Basic の値を組み、通った応答の X-Share-Grafana-Authorization に載せる。caddy はそれを Grafana への Authorization にする。
+# パスワードを変えても share の再起動 (= Quick Tunnel の URL の変更) は要らない。人の Authorization・Cookie は Grafana に渡さない。
+#
 # 環境変数 (Deployment が渡す。#41。{$VAR} で既定の無いものは、空だと起動しない):
-#   SHARE_GRAFANA_BASIC  Grafana に渡す Basic の値 = base64("viewer:<Secret grafana-viewer のパスワード>")。Caddyfile に
-#                        base64 の関数が無いので、起動時に組み立てて渡す。人の資格情報は Grafana に渡さず、これに差し替える
 #   SHARE_RELAY_TOKEN    headroom の中継 (just/share-relay.Caddyfile) の共有トークン (Secret share-host)
 #   SHARE_RELAY_ADDR     中継の <bridge のゲートウェイ>:<ポート> (Secret share-host。例 172.18.0.1:8788)
 #   SHARE_AUTH_ADDR      認証サービス (既定 127.0.0.1:9000)
@@ -20,25 +22,34 @@
 # 必須の環境変数が空なら、起動しない (空の Basic や空のトークンで、認証が抜けたまま立ち上がらない)。caddy は {$VAR} が空でも
 # 通すが、header の matcher は値が空だと設定の読み込みで落ちるので、それを番人に使う (just/share-relay.Caddyfile も同じ)
 (require_env) {
-	@required_env header X-Share-Required {$SHARE_GRAFANA_BASIC}
-	@required_env2 header X-Share-Required {$SHARE_RELAY_TOKEN}
-	@required_env3 header X-Share-Required {$SHARE_RELAY_ADDR}
+	@required_env header X-Share-Required {$SHARE_RELAY_TOKEN}
+	@required_env2 header X-Share-Required {$SHARE_RELAY_ADDR}
 }
 
 # 認証。認証サービスに「同じ要求」(Authorization・Cookie をそのまま) を GET で聞く。2xx 以外 (401) はその応答をそのまま返し、
 # 以降の許可リストにも upstream にも進まない。forward_auth の短縮形は、認証サービスの応答のヘッダを upstream への要求に
 # 写すだけで、クライアントへの応答には載せられない。署名つき cookie の Set-Cookie (Basic で通ったときだけ付く。Backstage の
-# Bearer の API 呼び出しは cookie で通る) を載せるため、forward_auth の中身を書き下し、2xx の分岐で Set-Cookie を応答に載せる
+# Bearer の API 呼び出しは cookie で通る) を載せるため、forward_auth の中身を書き下し、2xx の分岐で Set-Cookie を応答に載せる。
+# 同じ分岐で、X-Share-Grafana-Authorization (Grafana の経路を聞いたときだけ、認証サービスが付ける viewer の Basic) を要求に写す。
+# 応答に無い (空の) ときは写さない: 照合は forward_auth の copy_headers と同じ vars (placeholder が空かどうか)。expression の != "" は、
+# 無いヘッダでも真になり、空のヘッダを要求に付けてしまう (headroom・backstage の upstream にも空の X-Share-Grafana-Authorization が届く)。
+# 引数は対象 (grafana・headroom・backstage)。認証サービスは X-Share-Target を見て、grafana のときだけ Basic を返し、返せなければ 503 にする。
+# 人が付けてきた X-Share-Grafana-Authorization は、認証サービスの応答のものと取り違えないよう、先に消す (どの経路でも)。
+# X-Share-Target は header_up が人の値を置き換えるので、人は対象を偽れない
 (share_auth) {
+	request_header -X-Share-Grafana-Authorization
 	reverse_proxy {$SHARE_AUTH_ADDR:127.0.0.1:9000} {
 		method GET
 		rewrite /
 		header_up X-Forwarded-Method {method}
 		header_up X-Forwarded-Uri {uri}
+		header_up X-Share-Target {args[0]}
 		@authenticated status 2xx
 		handle_response @authenticated {
 			@cookie expression `{rp.header.Set-Cookie} != ""`
 			header @cookie +Set-Cookie {rp.header.Set-Cookie}
+			@viewer not vars {rp.header.X-Share-Grafana-Authorization} ""
+			request_header @viewer X-Share-Grafana-Authorization {rp.header.X-Share-Grafana-Authorization}
 		}
 	}
 }
@@ -50,7 +61,7 @@ http://:{$SHARE_GRAFANA_PORT:8081} {
 	bind 127.0.0.1
 	import require_env
 	route {
-		import share_auth
+		import share_auth grafana
 		# viewer のパスワードを人が変えて他の人を締め出せないようにする
 		@password path /profile/password /profile/password/ /api/user/password /api/user/password/
 		respond @password 404
@@ -63,9 +74,15 @@ http://:{$SHARE_GRAFANA_PORT:8081} {
 			not method GET HEAD
 		}
 		respond @user_write 404
+		# 認証が通ったのに viewer の鍵が付いていない (Secret share-grafana が無い・空で、認証サービスが読めない) ときは通さない。
+		# 鍵が無いまま渡すと、人の Authorization がそのまま Grafana に届いてしまう (認証サービスの 503 の二重の止め)
+		@no_viewer vars {http.request.header.X-Share-Grafana-Authorization} ""
+		respond @no_viewer 503
 		reverse_proxy {$SHARE_GRAFANA_UPSTREAM:grafana.observability.svc:80} {
-			# 人の資格情報 (Basic) は渡さず、viewer の鍵に差し替える。share_session の cookie も渡さない
-			header_up Authorization "Basic {$SHARE_GRAFANA_BASIC}"
+			# 人の資格情報 (Authorization) は渡さず、認証サービスが応答した viewer の鍵に差し替える (Set は人の値を全部置き換える)。
+			# 鍵を運んだ X-Share-Grafana-Authorization 自身と、share_session の cookie も渡さない
+			header_up Authorization {http.request.header.X-Share-Grafana-Authorization}
+			header_up -X-Share-Grafana-Authorization
 			header_up -Cookie
 			header_down Location ^http://localhost:3000/ /
 		}
@@ -78,7 +95,7 @@ http://:{$SHARE_GRAFANA_PORT:8081} {
 http://:{$SHARE_HEADROOM_PORT:8082} {
 	bind 127.0.0.1
 	route {
-		import share_auth
+		import share_auth headroom
 		# path の matcher は大文字小文字を区別しない (/Health も /health として通る)。headroom は区別するので、
 		# 表記揺れの経路がプロキシ本体の受け口に落ちうる。許可は path_regexp (区別する・全体一致) で書く (#53)
 		@dashboard {
@@ -126,7 +143,7 @@ http://:{$SHARE_BACKSTAGE_PORT:8083} {
 	}
 	@basic header Authorization "Basic *"
 	route {
-		import share_auth
+		import share_auth backstage
 		# Basic の資格情報は Backstage に渡さない (Backstage は Bearer のトークンだけを見る)
 		request_header @basic -Authorization
 		reverse_proxy @read {$SHARE_BACKSTAGE_UPSTREAM:backstage.backstage.svc:7007} {
