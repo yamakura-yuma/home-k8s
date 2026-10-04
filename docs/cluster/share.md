@@ -52,6 +52,7 @@ headroom の中継 (ホスト側。#38 で実装済み):
 - トークンがあっても通すのは **GET の許可リスト** (`/dashboard /health /stats /stats-history /stats-lifetime /transformations/feed /favicon.ico`)
   だけで、残りは 404 (`/v1/messages`・`/stats/reset`・`/settings`・`/cache/clear` ほか)。bridge 上の他のコンテナが見られるのも、
   トークンを知っていればこの読み取りだけ。upstream へはトークンのヘッダを渡さず、`Host` は upstream のものに書き換える。
+  許可リストは、送られた生の要求との全体一致で、大文字小文字を区別する。`//health`・`/%2Fhealth`・`/transformations%2Ffeed`・`/x/../health` のような表記揺れは 404 (#75。「受け入れる制約・残る問題」の大文字小文字 (#53) の項、share の caddy と同じ方針)。
   **HEAD は通さない (#48)**: 実機の headroom は許可リストの経路の HEAD に 404 を返し (`server: uvicorn`)、中継越しの HEAD 応答には
   `Cf-Ray` が付いていた。headroom が経路に無い HEAD を Anthropic 側へ素通ししているとみられ、「GET の読み取りだけを通す」趣旨からずれる。
   HEAD を使う用途は無い (Pod の probe は `exec`) ので、許可リストから外して GET に絞る。HEAD→GET への書き換えは、HEAD の応答に本文を
@@ -345,5 +346,5 @@ CI の runner にはそれらが無いためである (`just ci` はクラスタ
   許可は `path_regexp` (区別する・全体一致) で書く (headroom は中継と share の両方、backstage の POST)。拒否の `path` (grafana の password・`/api/user`、backstage の `/api/proxy`) は区別しないままにして、表記揺れの素通りを止める。
   `path_regexp` は caddy が整えた path に当たるが、`reverse_proxy` は生の path を送る。headroom の許可では `rewrite * /{re.dash.1}` で許可した経路そのものに書き換えて渡す (クエリは残る。下の生の全体一致があるので、二重の備え)。
   ただし `path_regexp` だけだと、`//health`・`/%2Fhealth`・`/transformations%2Ffeed`・`/x/../health` のような、許可していない表記が許可した経路に正規化されて通る (#54)。
-  share の caddy は、送られた生の要求 (`{http.request.orig_uri}`) にも同じ表を全体一致で掛け、これらを 404 にする (試験の `HEADROOM_DENIED`)。
+  share の caddy と、ホスト側の中継 (`just/share-relay.Caddyfile`) は、送られた生の要求 (`{http.request.orig_uri}`) にも同じ表を全体一致で掛け、これらを 404 にする (試験は share の caddy が `HEADROOM_DENIED`、中継が `just/test_share_relay.py` の `DENIED`。中継は #75)。
 - `stage C paths` の対象はこの repo の `.github/CODEOWNERS` が決める (dotfiles の `bin/gate-stage-c.sh` は PR の base にある呼ぶ側の CODEOWNERS だけを読み、dotfiles 側にパスの一覧は無い)。`clusters/kind/share/` と `just/share*` の各ファイルは既に載っているので、dotfiles 側の変更は要らない。

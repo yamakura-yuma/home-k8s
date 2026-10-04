@@ -24,10 +24,13 @@ http://:{$SHARE_RELAY_PORT} {
 	@dashboard {
 		method GET
 		path_regexp dash ^/(dashboard|health|stats|stats-history|stats-lifetime|transformations/feed|favicon\.ico)$
+		# path_regexp は caddy が整えた path (スラッシュの重なり・ドットセグメントが畳まれ、%2F が / になったもの) に当たる。
+		# そのため //health・/%2Fhealth・/transformations%2Ffeed・/x/../health も通り、許可していない表記が許可リストに正規化されて
+		# 通ってしまう。送られた生の要求 (orig_uri。%エンコードもそのまま) にも同じ表を全体一致で掛け、表記揺れは 404 にする (#75。share Pod の caddy と同じ、#54)
+		expression `{http.request.orig_uri}.matches("^/(dashboard|health|stats|stats-history|stats-lifetime|transformations/feed|favicon[.]ico)([?].*)?$")`
 	}
 	handle @dashboard {
-		# path_regexp は caddy が整えた path に当たるが、reverse_proxy は生の path を送る。/x/../health のようなドットセグメントが
-		# そのまま headroom に届かないよう、許可した経路そのものに書き換えて渡す (クエリは残る)
+		# 上の生の全体一致で、ドットセグメントなどはここに来ない。念のため (二重)、許可した経路そのものに書き換えて渡す (クエリは残る)
 		rewrite * /{re.dash.1}
 		reverse_proxy {$SHARE_RELAY_UPSTREAM:localhost:8787} {
 			header_up -X-Share-Relay-Token
