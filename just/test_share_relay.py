@@ -40,6 +40,12 @@ DENIED = [
     *[("GET", variant) for path in ALLOWED for variant in (path.upper(), path[:2].upper() + path[2:], path[:-1] + path[-1].upper())],
     ("GET", "/Health"), ("GET", "/DASHBOARD"), ("GET", "/Favicon.ico"), ("GET", "/favicon.ICO"), ("GET", "/Stats-History"),
     ("GET", "/health%0a"), ("GET", "/%48ealth"),
+    # #75: 重ねたスラッシュ・%2F が許可リストの経路に正規化されて通らない (許可リストは送られた経路との全体一致。share Pod の caddy と同じ、#54)
+    *[("GET", variant) for path in ALLOWED for variant in ("/" + path, path + "/", "/%2F" + path[1:])],
+    ("GET", "//health"), ("GET", "/%2Fhealth"), ("GET", "/transformations%2Ffeed"), ("GET", "//transformations/feed"), ("GET", "/transformations//feed"),
+    ("GET", "/%2e/%2Fhealth"), ("GET", "/health%2F"), ("GET", "/%2Fdashboard"),
+    # #75: ドットセグメントも許可リストの経路に正規化して通さない
+    ("GET", "/x/../health"), ("GET", "/./health"), ("GET", "/%2e/health"), ("GET", "/stats/../stats-history?days=7"),
 ]
 
 
@@ -202,13 +208,6 @@ class Relay(unittest.TestCase):
     def test_query_string_passes_through_on_allowed_route(self):
         self.assertEqual(request(self.port, "GET", "/stats-history?days=7", self.auth()), 200)
         self.assertEqual(self.upstream.seen[0][1], "/stats-history?days=7")
-
-    def test_dot_segments_reach_headroom_only_as_the_allowed_path(self):
-        # path_regexp は caddy が整えた path に当たるが、reverse_proxy は生の path を送る。許可した経路そのものに書き換えて渡す
-        for raw, sent in [("/x/../health", "/health"), ("/./health", "/health"), ("/%2e/health", "/health"), ("/stats/../stats-history?days=7", "/stats-history?days=7")]:
-            self.upstream.seen.clear()
-            self.assertEqual(request(self.port, "GET", raw, self.auth()), 200, raw)
-            self.assertEqual([path for _, path, _ in self.upstream.seen], [sent], raw)
 
     def test_token_does_not_open_anything_outside_the_allowlist(self):
         for method, path in DENIED:
