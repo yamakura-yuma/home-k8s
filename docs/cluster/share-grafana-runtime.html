@@ -104,7 +104,7 @@
 <span class="a">+    resourceNames: [share-credentials, share-session-key, share-grafana]</span>
 <span>     verbs: [get]</span>
 <span class="h">@@ clusters/kind/share/share_auth.py @@</span>
-<span class="a">+def grant_grafana(status, headers, password):</span>
+<span class="a">+def grant_grafana(status, headers, viewer_value):</span>
 <span class="a">+    """Grafana の経路で 200 になった判定に、viewer の Basic を足す。パスワードが無い・空なら 503。"""</span>
 <span class="a">+    ...</span>
 <span>             status, headers = decide(credentials, request, time.time(), session_key, verifier)</span>
@@ -147,9 +147,9 @@
 <div class="panel">
 <table>
 <tr><th>完了条件</th><th>試験</th></tr>
-<tr><td>パスワードを変えると、再起動せずに新しい値が渡る</td><td><code>test_share_caddy.py</code> <code>test_viewer_password_change_reaches_grafana_from_the_next_request</code>: 実物の caddy と認証サービスを<strong>立てたまま</strong>、<code>share-grafana</code> の写しを書き換え、Basic でも cookie でも次の要求から新しい鍵が Grafana の upstream に届く。API 版は <code>test_share_auth.py</code> の <code>KubernetesSource</code> (ttl の後に新しい値・消したら古い値を使い回さない)</td></tr>
-<tr><td><code>share-grafana</code> が無い・空のとき Grafana の経路は拒否</td><td><code>test_grafana_is_denied_while_the_viewer_password_is_missing_or_empty</code>: 許可リストの内も外も 503・upstream に届かない・認証なしは 401・headroom と backstage は 200。揃えると次の要求から通る。<code>test_caddy_denies_grafana_when_the_auth_answer_has_no_key</code>: 認証サービスが鍵を付けない代役でも caddy が 503</td></tr>
-<tr><td>人が送った <code>Authorization</code> が Grafana に届かない</td><td><code>test_a_persons_credentials_never_reach_grafana</code>: Basic・Bearer・小文字の名前・同名を複数本・<code>Cookie</code>・<code>Proxy-Authorization</code>・偽の <code>X-Share-Grafana-Authorization</code> を付けても、upstream が受けた資格情報のヘッダは viewer の Basic の 1 本だけ。<code>test_a_forged_key_header_does_not_open_grafana_while_the_viewer_password_is_missing</code>: 鍵が付けられないとき、偽の鍵のヘッダは通らない</td></tr>
+<tr><td>パスワードを変えると、再起動せずに新しい値が渡る</td><td><code>test_share_caddy.py</code> <code>test_viewer_value_change_reaches_grafana_from_the_next_request</code>: 実物の caddy と認証サービスを<strong>立てたまま</strong>、<code>share-grafana</code> の写しを書き換え、Basic でも cookie でも次の要求から新しい鍵が Grafana の upstream に届く。API 版は <code>test_share_auth.py</code> の <code>KubernetesSource</code> (ttl の後に新しい値・消したら古い値を使い回さない)</td></tr>
+<tr><td><code>share-grafana</code> が無い・空のとき Grafana の経路は拒否</td><td><code>test_grafana_is_denied_while_the_viewer_value_is_missing_or_empty</code>: 許可リストの内も外も 503・upstream に届かない・認証なしは 401・headroom と backstage は 200。揃えると次の要求から通る。<code>test_caddy_denies_grafana_when_the_auth_answer_has_no_key</code>: 認証サービスが鍵を付けない代役でも caddy が 503</td></tr>
+<tr><td>人が送った <code>Authorization</code> が Grafana に届かない</td><td><code>test_a_persons_credentials_never_reach_grafana</code>: Basic・Bearer・小文字の名前・同名を複数本・<code>Cookie</code>・<code>Proxy-Authorization</code>・偽の <code>X-Share-Grafana-Authorization</code> を付けても、upstream が受けた資格情報のヘッダは viewer の Basic の 1 本だけ。<code>test_a_forged_key_header_does_not_open_grafana_while_the_viewer_value_is_missing</code>: 鍵が付けられないとき、偽の鍵のヘッダは通らない</td></tr>
 <tr><td>viewer の鍵が Grafana 以外に漏れない</td><td><code>test_the_viewer_key_goes_only_to_grafana</code>: headroom の中継・backstage の upstream に鍵のヘッダも viewer の Basic も届かない</td></tr>
 <tr><td>RBAC は <code>get</code> だけ・caddy は <code>share-grafana</code> を参照しない</td><td><code>test_share_manifest.py</code>: Role の rules を完全一致 (3 つの <code>resourceNames</code>・<code>verbs: [get]</code>)。caddy の環境・Caddyfile・起動スクリプトに <code>GRAFANA_VIEWER_PASSWORD</code>・<code>SHARE_GRAFANA_BASIC</code> が無い</td></tr>
 </table>

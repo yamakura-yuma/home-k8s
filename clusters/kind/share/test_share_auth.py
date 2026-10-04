@@ -466,7 +466,7 @@ class KubernetesSource(unittest.TestCase):
         self.assertEqual(key, b"k")
         self.assertEqual(sa.decide(creds, with_basic("alice", "pw"), T0, key)[0], 200)
 
-    def test_reads_the_viewer_password_from_share_grafana(self):
+    def test_reads_the_viewer_value_from_share_grafana(self):
         # #58: Grafana に渡す viewer のパスワードは Secret share-grafana (キー viewer-password) を API で読む
         FakeKubernetesAPI.secrets[sa.GRAFANA_SECRET] = {sa.VIEWER_ENTRY: "viewer pw"}
         self.assertEqual(self.source().load_viewer_value(), "viewer pw")
@@ -482,7 +482,7 @@ class KubernetesSource(unittest.TestCase):
         credentials, key = sa.CachedSource(self.source(), ttl=0).load()
         self.assertEqual(sa.decide(credentials, with_basic("alice", "pw"), T0, key)[0], 200)
 
-    def test_viewer_password_change_is_picked_up_without_restart(self):
+    def test_viewer_value_change_is_picked_up_without_restart(self):
         # #58: 読み直しは AUTH_CACHE_TTL ごと。変えたら ttl の後の次の要求から新しい値で、プロセスは作り直さない。消したら古い値を使い回さない
         now = [0.0]
         FakeKubernetesAPI.secrets[sa.GRAFANA_SECRET] = {sa.VIEWER_ENTRY: "old"}
@@ -497,7 +497,7 @@ class KubernetesSource(unittest.TestCase):
         now[0] = 4.0
         self.assertEqual(viewer.load(), "", "消した Secret の古い値を使い回した")
 
-    def test_unreadable_viewer_password_is_empty_and_the_warning_has_no_value(self):
+    def test_unreadable_viewer_value_is_empty_and_the_warning_has_no_value(self):
         bad = tempfile.NamedTemporaryFile("w", delete=False)
         bad.write("wrong")
         bad.close()
