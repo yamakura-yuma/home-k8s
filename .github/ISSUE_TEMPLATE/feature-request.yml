@@ -1,0 +1,48 @@
+name: 機能・改善の要望
+description: 追加したい機能や、直したい点を依頼する。
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: overview
+    attributes:
+      label: 概要
+      description: 何をしたいかを 1〜2 文で書く。
+      placeholder: 例) Prometheus で kubelet 自身のスクレイプを有効にし、Persistent Volumes のダッシュボードを埋める。
+    validations:
+      required: true
+  - type: textarea
+    id: target
+    attributes:
+      label: 対象（ファイル・パス）
+      description: 変更するファイル・ディレクトリ、レシピ、ダッシュボードなどを書く。分からないときは分かる範囲で。
+      placeholder: |
+        - `clusters/kind/observability/prometheus-values.yaml`
+        - `docs/observability/playbook.md`
+        - `just ci`（`just/ci.sh`）
+    validations:
+      required: true
+  - type: textarea
+    id: done-criteria
+    attributes:
+      label: 完了条件
+      description: どうなっていれば終わりか。確かめられる形で、箇条書きで書く。
+      placeholder: |
+        - `just ci` が緑
+        - Grafana の「Persistent Volumes」の欄に系列が出る
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: 理由
+      description: 今どんな困りごとがあって、これが要るのか。
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 代わりの案
+      description: 検討した別のやり方があれば書く。
+    validations:
+      required: false

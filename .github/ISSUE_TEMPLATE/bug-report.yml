@@ -1,0 +1,69 @@
+name: 不具合の報告
+description: 動くはずのものが動かない、出力が期待と違う、など不具合を報告する。不具合かどうか分からないときは「困りごとの相談」を使う。
+labels:
+  - bug
+body:
+  - type: textarea
+    id: overview
+    attributes:
+      label: 概要
+      description: 何が起きているかを 1〜2 文で書く。
+      placeholder: 例) `just up` が ArgoCD の同期待ちで止まり、backstage の Application が Progressing のまま進まない。
+    validations:
+      required: true
+  - type: textarea
+    id: how-to-reproduce
+    attributes:
+      label: 再現手順
+      description: |
+        他の人が同じ状態を作れるように、打ったコマンドを順に書く。不要な手順は削る。
+        [良い再現手順の書き方](https://github.com/suzuki-shunsuke/oss-contribution-guide#write-good-how-to-reproduce)も参照。
+      placeholder: |
+        1. `just devcontainer up`
+        2. `just up`
+        3. `kubectl --context kind-study-kind -n argocd get applications` を見ると backstage が Progressing
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: 期待する動作
+      description: 本来どうなるはずか。
+    validations:
+      required: false
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: 実際の動作
+      description: 実際に何が起きたか。エラーメッセージや出力はそのまま貼る（パスワードやトークンは伏せる）。
+      render: console
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 環境
+      description: |
+        再現に要る情報を貼る。分かる範囲でよい。
+        - 動かした場所: ホスト (WSL2) か、開発用コンテナ `home-k8s-dev` の中か。別の worktree から打ったか
+        - どの checkout か (`git rev-parse --short HEAD`)。観測スタックなどは ArgoCD が GitHub の `main` から同期するので、ローカルの変更は反映されない
+        - 検証だけ (クラスタに触れない) の不具合なら `just ci` の出力（落ちた段の `== ... ==` の見出しから後ろ）
+        - クラスタに関わる不具合なら、クラスタとアプリの状態
+      placeholder: |
+        $ git rev-parse --short HEAD
+        $ docker version --format '{{.Server.Version}}'
+        $ just --version
+        $ kind version
+        $ kubectl --context kind-study-kind get nodes -o wide
+        $ kubectl --context kind-study-kind -n argocd get applications
+        $ kubectl --context kind-study-kind get pods -A | grep -v Running
+      render: console
+    validations:
+      required: false
+  - type: textarea
+    id: note
+    attributes:
+      label: 補足
+      description: 気づいたこと、疑っている原因、関連する Issue や PR など。
+    validations:
+      required: false
