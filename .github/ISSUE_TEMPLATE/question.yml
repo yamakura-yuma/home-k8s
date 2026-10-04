@@ -1,0 +1,27 @@
+name: 質問
+description: このリポジトリの使い方や設計について質問する。
+labels:
+  - question
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: 質問
+      description: 知りたいことを具体的に書く。
+      placeholder: 例) 観測スタックの values を変えたとき、ArgoCD にはいつ反映されるのか。
+    validations:
+      required: true
+  - type: textarea
+    id: background
+    attributes:
+      label: 背景
+      description: なぜ知りたいのか。読んだドキュメントや試したことがあれば書く。
+    validations:
+      required: false
+  - type: textarea
+    id: note
+    attributes:
+      label: 補足
+      description: そのほかに伝えたいこと。
+    validations:
+      required: false
