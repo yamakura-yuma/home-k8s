@@ -6,6 +6,8 @@
 起動し、upstream (grafana・headroom の中継・backstage) は偽の HTTP サーバー (標準ライブラリ)。
 確かめるのは拒否: 認証なしは全経路 401、認証があっても許可リストの外は 404 で upstream に届かない、
 delete・期限切れは次の要求から 401 (Backstage の cookie 経路でも)、特権 viewer に追加の経路が通らない。
+#58: Grafana に渡す viewer の鍵は、認証サービスが Secret share-grafana (試験では JSON の viewer_value) を実行時に読んで渡す。
+パスワードを変えると caddy・認証サービスを立てたまま次の要求から新しい鍵になり、無い・空のあいだは Grafana の経路だけ 503、人の Authorization は Grafana に届かない。
 #64: Secret が揃っていない Pod (起動スクリプト entrypoint.sh が全拒否の Caddyfile.closed を選ぶ) は、3 つの経路がすべて 503 で、
 資格情報が正しくても upstream に届かない。Secret ができて Pod が作り直されたあと (環境変数が揃う) は、同じポートで通常どおり動く。
 
@@ -36,7 +38,8 @@ CADDYFILE = HERE / "Caddyfile"
 ENTRYPOINT = HERE / "entrypoint.sh"
 AUTH_SERVICE = HERE / "share_auth.py"
 RELAY_TOKEN = "0123456789abcdef0123456789abcdef"
-GRAFANA_BASIC = base64.b64encode(b"viewer:viewer-secret").decode()
+VIEWER_VALUE = "viewer-secret"
+GRAFANA_BASIC = base64.b64encode(f"viewer:{VIEWER_VALUE}".encode()).decode()
 SESSION_KEY = "test-session-key"
 ITERATIONS = 100_000  # share_auth.MIN_ITERATIONS。試験を速くする
 PASSWORDS = {"alice": "alice-password", "root": "root-password"}
@@ -162,6 +165,7 @@ class Upstream(BaseHTTPRequestHandler):
 
     def _record(self):
         self.server.seen.append((self.command, self.path, dict(self.headers)))
+        self.server.raw.append(self.headers.items())  # 同じ名前のヘッダが複数あるときも見るため
         self.send_response(200)
         self.send_header("Location", "http://localhost:3000/after")
         self.send_header("Set-Cookie", "backstage-auth=abc; Path=/; Domain=localhost; HttpOnly")
@@ -179,6 +183,7 @@ class Upstream(BaseHTTPRequestHandler):
 def start_upstream():
     server = ThreadingHTTPServer(("127.0.0.1", 0), Upstream)
     server.seen = []
+    server.raw = []
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server
 
@@ -229,6 +234,20 @@ class FreePort(unittest.TestCase):
             socket.create_connection(("127.0.0.1", port), timeout=2).close()
 
 
+class AuthStub(BaseHTTPRequestHandler):
+    """認証サービスの代役。いつも 200 を返し、Grafana の鍵 (X-Share-Grafana-Authorization) は付けない (古い版・不具合の想定)。
+    聞かれた X-Share-Target を記録する。"""
+
+    def do_GET(self):
+        self.server.targets.append(self.headers.get("X-Share-Target"))
+        self.send_response(200)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def log_message(self, format, *args):
+        pass
+
+
 @unittest.skipUnless(shutil.which("caddy"), "caddy が無い")
 class ShareCaddy(unittest.TestCase):
 
@@ -250,7 +269,6 @@ class ShareCaddy(unittest.TestCase):
             env=caddy_env(
                 cls.tmp,
                 SHARE_AUTH_ADDR=f"127.0.0.1:{auth_port}",
-                SHARE_GRAFANA_BASIC=GRAFANA_BASIC,
                 SHARE_RELAY_TOKEN=RELAY_TOKEN,
                 SHARE_RELAY_ADDR=f"127.0.0.1:{cls.headroom_relay.server_port}",
                 SHARE_GRAFANA_UPSTREAM=f"127.0.0.1:{cls.grafana.server_port}",
@@ -274,14 +292,18 @@ class ShareCaddy(unittest.TestCase):
         shutil.rmtree(cls.tmp, ignore_errors=True)
 
     @classmethod
-    def write_credentials(cls, **overrides):
+    def write_credentials(cls, viewer_value=VIEWER_VALUE, **overrides):
+        """viewer_value は Secret share-grafana の写し。None なら Secret が無い状態 (キーを書かない)。"""
         entries = {
             "alice": credential(PASSWORDS["alice"], expires_at=time.time() + 3600),
             "root": credential(PASSWORDS["root"], privileged=True),
         }
         entries.update(overrides)
         entries = {name: entry for name, entry in entries.items() if entry is not None}
-        cls.source.write_text(json.dumps({"credentials": entries, "session_key": SESSION_KEY}), encoding="utf-8")
+        data = {"credentials": entries, "session_key": SESSION_KEY}
+        if viewer_value is not None:
+            data["viewer_value"] = viewer_value
+        cls.source.write_text(json.dumps(data), encoding="utf-8")
 
     def setUp(self):
         self.write_credentials()
@@ -289,6 +311,7 @@ class ShareCaddy(unittest.TestCase):
         self.upstreams = {GRAFANA: self.grafana, HEADROOM: self.headroom_relay, BACKSTAGE: self.backstage}
         for upstream in self.upstreams.values():
             upstream.seen.clear()
+            upstream.raw.clear()
 
     def call(self, target, method, path, headers=None):
         return request(self.ports[target], method, path, headers)
@@ -305,13 +328,13 @@ class ShareCaddy(unittest.TestCase):
         )
 
     def test_caddyfile_validates(self):
-        env = caddy_env(self.tmp, SHARE_GRAFANA_BASIC=GRAFANA_BASIC, SHARE_RELAY_TOKEN=RELAY_TOKEN, SHARE_RELAY_ADDR="172.18.0.1:8788")
+        env = caddy_env(self.tmp, SHARE_RELAY_TOKEN=RELAY_TOKEN, SHARE_RELAY_ADDR="172.18.0.1:8788")
         r = subprocess.run(["caddy", "validate", "--config", str(CADDYFILE), "--adapter", "caddyfile"], env=env, capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_unset_secrets_do_not_start(self):
         # 中継のトークンや中継の宛先が空のまま、許可リストだけで立ち上がらない (認証が抜けた状態を作らない)
-        base = {"SHARE_GRAFANA_BASIC": GRAFANA_BASIC, "SHARE_RELAY_TOKEN": RELAY_TOKEN, "SHARE_RELAY_ADDR": "172.18.0.1:8788"}
+        base = {"SHARE_RELAY_TOKEN": RELAY_TOKEN, "SHARE_RELAY_ADDR": "172.18.0.1:8788"}
         for missing in base:
             env = caddy_env(self.tmp, **{**base, missing: ""})
             r = subprocess.run(["caddy", "validate", "--config", str(CADDYFILE), "--adapter", "caddyfile"], env=env, capture_output=True, text=True)
@@ -369,6 +392,9 @@ class ShareCaddy(unittest.TestCase):
         self.assertEqual(path, "/dashboards")
         self.assertEqual(headers["Authorization"], f"Basic {GRAFANA_BASIC}")
         self.assertNotIn("Cookie", headers)
+        # 鍵を運んだヘッダ・認証サービスへの問い合わせ用のヘッダは Grafana に渡さない
+        self.assertNotIn("X-Share-Grafana-Authorization", headers)
+        self.assertNotIn("X-Share-Target", headers)
         self.assertEqual(resp.getheader("Location"), "/after", "Location: http://localhost:3000/ を相対パスに書き換える")
 
     def test_headroom_goes_through_relay_with_token_only(self):
@@ -456,10 +482,136 @@ class ShareCaddy(unittest.TestCase):
         self.write_credentials(alice=credential(PASSWORDS["alice"], expires_at=None))  # 同じ名前を作り直す
         self.assertEqual(self.call(BACKSTAGE, "GET", "/", {"Cookie": cookie})[0], 401, "同じ名前の作り直しで古い cookie が通った")
 
+    def grafana_authorizations(self):
+        return [headers.get("Authorization") for _, _, headers in self.seen(GRAFANA)]
+
+    def test_viewer_value_change_reaches_grafana_from_the_next_request(self):
+        # #58: caddy も認証サービスも立てたまま、Secret share-grafana の写し (試験では JSON の viewer_value) を書き換えると、
+        # 次の要求から新しい鍵が Grafana に渡る (Pod の作り直し = Quick Tunnel の URL の変更は要らない)。cookie で通った要求にも同じ鍵が付く
+        alice = basic("alice", PASSWORDS["alice"])
+        for value in (VIEWER_VALUE, "rotated-1", "rotated 2:with colon", VIEWER_VALUE):
+            self.write_credentials(viewer_value=value)
+            cookie = self.session_cookie()  # write_credentials は salt を作り直す (古い cookie は効かない) ので、書いたあとに取る
+            self.seen(GRAFANA).clear()
+            for headers in (alice, {"Cookie": cookie}):
+                self.assertEqual(self.call(GRAFANA, "GET", "/dashboards", headers)[0], 200, (value, headers))
+            key = base64.b64encode(f"viewer:{value}".encode()).decode()
+            self.assertEqual(self.grafana_authorizations(), [f"Basic {key}"] * 2, value)
+        self.assertIsNone(self.caddy.poll(), "caddy が立て直された")
+        self.assertIsNone(self.auth.poll(), "認証サービスが立て直された")
+
+    def test_grafana_is_denied_while_the_viewer_value_is_missing_or_empty(self):
+        # #58: Secret share-grafana が無い・空のあいだ、Grafana の経路は認証が通った要求にも 503 (許可リストの内も外も)。通さず、鍵なしで渡すこともしない。
+        # 認証が通らない要求は Secret の有無によらず 401 (有無を探らせない)。headroom・backstage の経路には関わらない
+        for viewer_value, what in ((None, "Secret が無い"), ("", "値が空")):
+            self.write_credentials(viewer_value=viewer_value)
+            authenticated = [basic("alice", PASSWORDS["alice"]), basic("root", PASSWORDS["root"]), {"Cookie": self.session_cookie()}]
+            self.seen(GRAFANA).clear()
+            for method, path in GRAFANA_ALLOWED + GRAFANA_DENIED:
+                for headers in authenticated:
+                    self.assertEqual(self.call(GRAFANA, method, path, headers)[0], 503, (what, method, path, headers))
+                for headers in ({}, basic("alice", "wrong"), {"Authorization": "Bearer attacker"}):
+                    self.assertEqual(self.call(GRAFANA, method, path, headers)[0], 401, (what, method, path, headers))
+            self.assertEqual(self.seen(GRAFANA), [], f"{what}のとき Grafana の upstream に届いた")
+            self.assertEqual(self.call(HEADROOM, "GET", "/health", authenticated[0])[0], 200, what)
+            self.assertEqual(self.call(BACKSTAGE, "GET", "/", authenticated[0])[0], 200, what)
+        # Secret が揃えば、次の要求から通る (再起動なし)
+        self.write_credentials()
+        authenticated = [basic("alice", PASSWORDS["alice"])]
+        self.seen(GRAFANA).clear()
+        self.assertEqual(self.call(GRAFANA, "GET", "/dashboards", authenticated[0])[0], 200)
+        self.assertEqual(self.grafana_authorizations(), [f"Basic {GRAFANA_BASIC}"])
+
+    def test_a_persons_credentials_never_reach_grafana(self):
+        # #58: 人が付けた Authorization (Basic・Bearer・同じ名前を複数本・小文字の名前)・Cookie・Proxy-Authorization と、鍵を運ぶヘッダの偽物は、
+        # Grafana に届かない。届くのは認証サービスの応答から組んだ viewer の Basic の 1 本だけ。
+        # 人が X-Share-Target を偽っても、認証サービスへの問い合わせでは header_up が置き換える (対象を偽って鍵を外せない。Grafana には資格情報でなく素通り)
+        evil = "Basic " + base64.b64encode(b"admin:admin").decode()
+        cookie = self.session_cookie()
+        cases = {
+            "basic": {**basic("alice", PASSWORDS["alice"]), "X-Share-Grafana-Authorization": evil, "X-Share-Target": "headroom"},
+            "root": {**basic("root", PASSWORDS["root"]), "Cookie": "share_session=x; a=b", "Proxy-Authorization": evil},
+            "cookie and bearer": {"Cookie": cookie, "Authorization": "Bearer attacker-token", "X-Share-Grafana-Authorization": evil},
+            "lowercase names": {"authorization": basic("alice", PASSWORDS["alice"])["Authorization"], "x-share-grafana-authorization": evil},
+        }
+        watched = {"authorization", "cookie", "proxy-authorization", "x-share-grafana-authorization"}
+
+        def watched_headers(raw):
+            return [(name.lower(), value) for name, value in raw if name.lower() in watched]
+
+        for name, headers in cases.items():
+            self.grafana.raw.clear()
+            self.assertEqual(self.call(GRAFANA, "GET", "/dashboards", headers)[0], 200, name)
+            (raw,) = self.grafana.raw
+            self.assertEqual(watched_headers(raw), [("authorization", f"Basic {GRAFANA_BASIC}")], name)
+        # 同じ名前のヘッダが複数本ある要求 (最初の Basic で通り、残りも全部置き換わる)
+        self.grafana.raw.clear()
+        conn = http.client.HTTPConnection("127.0.0.1", self.ports[GRAFANA], timeout=10)
+        try:
+            conn.putrequest("GET", "/dashboards")
+            conn.putheader("Authorization", basic("alice", PASSWORDS["alice"])["Authorization"])
+            conn.putheader("Authorization", "Bearer second")
+            conn.putheader("X-Share-Grafana-Authorization", evil)
+            conn.putheader("X-Share-Grafana-Authorization", evil)
+            conn.endheaders()
+            resp = conn.getresponse()
+            resp.read()
+            self.assertEqual(resp.status, 200)
+        finally:
+            conn.close()
+        (raw,) = self.grafana.raw
+        self.assertEqual(watched_headers(raw), [("authorization", f"Basic {GRAFANA_BASIC}")], "複数本の Authorization")
+        # 認証が通らないなら、偽の鍵のヘッダがあっても 401 で、Grafana に届かない
+        self.grafana.seen.clear()
+        for headers in ({"X-Share-Grafana-Authorization": evil}, {"Authorization": evil, "X-Share-Grafana-Authorization": evil},
+                        {"Cookie": "share_session=alice.deadbeef", "X-Share-Grafana-Authorization": evil}):
+            self.assertEqual(self.call(GRAFANA, "GET", "/dashboards", headers)[0], 401, headers)
+        self.assertEqual(self.seen(GRAFANA), [])
+
+    def test_a_forged_key_header_does_not_open_grafana_while_the_viewer_value_is_missing(self):
+        # #58: 認証サービスが鍵を付けられないとき、人が X-Share-Grafana-Authorization を付けても、caddy はそれを鍵として通さない (人の値を先に消す)
+        evil = "Basic " + base64.b64encode(b"admin:admin").decode()
+        self.write_credentials(viewer_value=None)
+        for headers in ({**basic("alice", PASSWORDS["alice"]), "X-Share-Grafana-Authorization": evil},
+                        {"Cookie": self.session_cookie(), "Authorization": "Bearer attacker", "X-Share-Grafana-Authorization": evil}):
+            self.assertEqual(self.call(GRAFANA, "GET", "/dashboards", headers)[0], 503, headers)
+        self.assertEqual(self.seen(GRAFANA), [])
+
+    def test_the_viewer_key_goes_only_to_grafana(self):
+        # #58: viewer の鍵 (Basic) は headroom の中継にも backstage にも渡らない。人が付けた鍵のヘッダも、その 2 つには届かない
+        evil = "Basic " + base64.b64encode(b"admin:admin").decode()
+        alice = {**basic("alice", PASSWORDS["alice"]), "X-Share-Grafana-Authorization": evil}
+        self.assertEqual(self.call(HEADROOM, "GET", "/health", alice)[0], 200)
+        self.assertEqual(self.call(BACKSTAGE, "GET", "/", alice)[0], 200)
+        for upstream in (self.headroom_relay, self.backstage):
+            (raw,) = upstream.raw
+            for name, value in raw:
+                self.assertNotIn("share-grafana-authorization", name.lower())
+                self.assertNotIn(GRAFANA_BASIC, value, name)
+                self.assertNotIn(evil, value, name)
+
+    def test_caddy_denies_grafana_when_the_auth_answer_has_no_key(self):
+        # #58 の二重の止め: 認証サービスが 200 を返しても鍵を付けなかった (古い版・不具合) とき、caddy は人の Authorization を残したまま渡さず 503。
+        # 人が偽の鍵・偽の対象を付けても同じ。各ポートは自分の対象を認証サービスに名乗る (X-Share-Target は header_up が人の値を置き換える)
+        stub = ThreadingHTTPServer(("127.0.0.1", 0), AuthStub)
+        stub.targets = []
+        threading.Thread(target=stub.serve_forever, daemon=True).start()
+        self.addCleanup(stub.server_close)
+        self.addCleanup(stub.shutdown)
+        ports = self.closed_caddy("nokey", f"127.0.0.1:{stub.server_port}")
+        evil = "Basic " + base64.b64encode(b"admin:admin").decode()
+        for headers in ({"Authorization": "Bearer attacker"},
+                        {"Authorization": "Bearer attacker", "X-Share-Grafana-Authorization": evil, "X-Share-Target": "headroom"}):
+            self.assertEqual(request(ports[GRAFANA], "GET", "/dashboards", headers)[0], 503, headers)
+        self.assertEqual(self.seen(GRAFANA), [], "鍵が無いのに Grafana の upstream に届いた")
+        self.assertEqual(request(ports[HEADROOM], "GET", "/health", {"X-Share-Target": "grafana"})[0], 200)
+        self.assertEqual(request(ports[BACKSTAGE], "GET", "/", {"X-Share-Target": "grafana"})[0], 200)
+        self.assertEqual(stub.targets, ["grafana", "grafana", "headroom", "backstage"])
+
     def closed_caddy(self, name, auth_addr):
         """認証サービスに届かない設定の caddy を、別に立てる。(3 対象のポート) を返す。終わったら止める。"""
         ports = {GRAFANA: free_port(), HEADROOM: free_port(), BACKSTAGE: free_port()}
-        env = caddy_env(self.tmp / name, SHARE_AUTH_ADDR=auth_addr, SHARE_GRAFANA_BASIC=GRAFANA_BASIC, SHARE_RELAY_TOKEN=RELAY_TOKEN,
+        env = caddy_env(self.tmp / name, SHARE_AUTH_ADDR=auth_addr, SHARE_RELAY_TOKEN=RELAY_TOKEN,
                         SHARE_RELAY_ADDR=f"127.0.0.1:{self.headroom_relay.server_port}",
                         SHARE_GRAFANA_UPSTREAM=f"127.0.0.1:{self.grafana.server_port}",
                         SHARE_BACKSTAGE_UPSTREAM=f"127.0.0.1:{self.backstage.server_port}",
@@ -508,7 +660,8 @@ class ShareCaddyEntrypoint(unittest.TestCase):
     def setUpClass(cls):
         cls.tmp = Path(tempfile.mkdtemp())
         cls.source = cls.tmp / "credentials.json"
-        cls.source.write_text(json.dumps({"credentials": {"alice": credential(PASSWORDS["alice"])}, "session_key": SESSION_KEY}), encoding="utf-8")
+        cls.source.write_text(json.dumps({"credentials": {"alice": credential(PASSWORDS["alice"])}, "session_key": SESSION_KEY,
+                                          "viewer_value": VIEWER_VALUE}), encoding="utf-8")
         cls.auth_port = free_port()
         cls.auth = subprocess.Popen(
             [sys.executable, "-B", str(AUTH_SERVICE)], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
@@ -530,6 +683,7 @@ class ShareCaddyEntrypoint(unittest.TestCase):
         self.upstreams = {GRAFANA: self.grafana, HEADROOM: self.headroom_relay, BACKSTAGE: self.backstage}
         for upstream in self.upstreams.values():
             upstream.seen.clear()
+            upstream.raw.clear()
         self.ports = {GRAFANA: free_port(), HEADROOM: free_port(), BACKSTAGE: free_port()}
 
     def start(self, name, **secret_env):
@@ -539,7 +693,7 @@ class ShareCaddyEntrypoint(unittest.TestCase):
             SHARE_CADDY_DIR=str(HERE), SHARE_AUTH_ADDR=f"127.0.0.1:{self.auth_port}",
             SHARE_GRAFANA_UPSTREAM=f"127.0.0.1:{self.grafana.server_port}", SHARE_BACKSTAGE_UPSTREAM=f"127.0.0.1:{self.backstage.server_port}",
             SHARE_GRAFANA_PORT=str(self.ports[GRAFANA]), SHARE_HEADROOM_PORT=str(self.ports[HEADROOM]), SHARE_BACKSTAGE_PORT=str(self.ports[BACKSTAGE]))
-        for var in ("GRAFANA_VIEWER_PASSWORD", "SHARE_RELAY_TOKEN", "SHARE_RELAY_ADDR", "SHARE_GRAFANA_BASIC"):
+        for var in ("SHARE_RELAY_TOKEN", "SHARE_RELAY_ADDR"):
             env.pop(var, None)
         env.update(secret_env)
         log_path = self.tmp / f"{name}.log"
@@ -554,7 +708,7 @@ class ShareCaddyEntrypoint(unittest.TestCase):
         proc.terminate()
         proc.wait(timeout=10)
 
-    complete = {"GRAFANA_VIEWER_PASSWORD": "viewer-secret", "SHARE_RELAY_TOKEN": RELAY_TOKEN}
+    complete = {"SHARE_RELAY_TOKEN": RELAY_TOKEN}
 
     def secrets(self):
         return {**self.complete, "SHARE_RELAY_ADDR": f"127.0.0.1:{self.headroom_relay.server_port}"}
@@ -577,14 +731,14 @@ class ShareCaddyEntrypoint(unittest.TestCase):
             self.assertEqual(upstream.seen, [], f"Secret が揃っていないのに {target} の upstream に届いた")
 
     def test_no_secret_denies_every_route(self):
-        # share-host も share-grafana も無い (optional の参照で環境変数が 1 つも無い) Pod
+        # share-host が無い (optional の参照で環境変数が 1 つも無い) Pod
         proc = self.start("none")
         self.addCleanup(self.stop, proc)
         self.assert_everything_denied()
 
     def test_empty_secret_values_deny_every_route(self):
-        # Secret はあるが値が空 (viewer のパスワードのファイルが空だった、など)。空の Basic や空のトークンで通さない
-        for name, env in {"empty-all": {k: "" for k in [*self.complete, "SHARE_RELAY_ADDR"]}, "no-password": {**self.secrets(), "GRAFANA_VIEWER_PASSWORD": ""}}.items():
+        # Secret はあるが値が空 (中継のトークンのファイルが空だった、など)。空のトークンで通さない
+        for name, env in {"empty-all": {k: "" for k in [*self.complete, "SHARE_RELAY_ADDR"]}, "empty-token": {**self.secrets(), "SHARE_RELAY_TOKEN": ""}}.items():
             proc = self.start(name, **env)
             try:
                 self.assert_everything_denied()
@@ -592,7 +746,7 @@ class ShareCaddyEntrypoint(unittest.TestCase):
                 self.stop(proc)
 
     def test_a_missing_secret_value_denies_every_route(self):
-        # 3 つ (中継の宛先・トークン・viewer のパスワード) のどれが欠けても全拒否。一部だけ揃った状態で、揃った分の経路だけが開かない
+        # 2 つ (中継の宛先・トークン) のどちらが欠けても全拒否。一部だけ揃った状態で、揃った分の経路だけが開かない
         for missing in [*self.complete, "SHARE_RELAY_ADDR"]:
             proc = self.start(f"missing-{missing}", **{k: v for k, v in self.secrets().items() if k != missing})
             try:
@@ -607,7 +761,7 @@ class ShareCaddyEntrypoint(unittest.TestCase):
 
     def test_after_the_secrets_exist_the_recreated_pod_serves_normally(self):
         # Secret ができて Pod が作り直された (環境変数が揃った) あとは、同じポートで通常どおり: 認証なしは 401、許可リストの内は 200・外は 404、
-        # Grafana には viewer の鍵が渡る (Basic は起動スクリプトが viewer のパスワードから組み立てる)
+        # Grafana には viewer の鍵が渡る (Basic は認証サービスが Secret share-grafana から組み立てる。caddy の環境変数には viewer のパスワードが無い)
         closed = self.start("before")
         self.assert_everything_denied()
         self.stop(closed)

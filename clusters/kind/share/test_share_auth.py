@@ -466,6 +466,49 @@ class KubernetesSource(unittest.TestCase):
         self.assertEqual(key, b"k")
         self.assertEqual(sa.decide(creds, with_basic("alice", "pw"), T0, key)[0], 200)
 
+    def test_reads_the_viewer_value_from_share_grafana(self):
+        # #58: Grafana に渡す viewer のパスワードは Secret share-grafana (キー viewer-password) を API で読む
+        FakeKubernetesAPI.secrets[sa.GRAFANA_SECRET] = {sa.VIEWER_ENTRY: "viewer pw"}
+        self.assertEqual(self.source().load_viewer_value(), "viewer pw")
+
+    def test_missing_share_grafana_leaves_the_credentials_readable(self):
+        # share-grafana が無い・キーが違う・空: viewer のパスワードは空 (Grafana の経路だけ拒否)。資格情報は読める (headroom・backstage は動く)
+        viewer = sa.ViewerCache(self.source(), ttl=0)
+        self.assertEqual(viewer.load(), "")
+        FakeKubernetesAPI.secrets[sa.GRAFANA_SECRET] = {"other-key": "x"}
+        self.assertEqual(viewer.load(), "")
+        FakeKubernetesAPI.secrets[sa.GRAFANA_SECRET] = {sa.VIEWER_ENTRY: ""}
+        self.assertEqual(viewer.load(), "")
+        credentials, key = sa.CachedSource(self.source(), ttl=0).load()
+        self.assertEqual(sa.decide(credentials, with_basic("alice", "pw"), T0, key)[0], 200)
+
+    def test_viewer_value_change_is_picked_up_without_restart(self):
+        # #58: 読み直しは AUTH_CACHE_TTL ごと。変えたら ttl の後の次の要求から新しい値で、プロセスは作り直さない。消したら古い値を使い回さない
+        now = [0.0]
+        FakeKubernetesAPI.secrets[sa.GRAFANA_SECRET] = {sa.VIEWER_ENTRY: "old"}
+        viewer = sa.ViewerCache(self.source(), ttl=2, clock=lambda: now[0])
+        self.assertEqual(viewer.load(), "old")
+        FakeKubernetesAPI.secrets[sa.GRAFANA_SECRET] = {sa.VIEWER_ENTRY: "new"}
+        now[0] = 1.9
+        self.assertEqual(viewer.load(), "old", "ttl の間は読み直さない")
+        now[0] = 2.0
+        self.assertEqual(viewer.load(), "new")
+        del FakeKubernetesAPI.secrets[sa.GRAFANA_SECRET]
+        now[0] = 4.0
+        self.assertEqual(viewer.load(), "", "消した Secret の古い値を使い回した")
+
+    def test_unreadable_viewer_value_is_empty_and_the_warning_has_no_value(self):
+        bad = tempfile.NamedTemporaryFile("w", delete=False)
+        bad.write("wrong")
+        bad.close()
+        self.addCleanup(Path(bad.name).unlink)
+        FakeKubernetesAPI.secrets[sa.GRAFANA_SECRET] = {sa.VIEWER_ENTRY: "viewer-secret-value"}
+        log = io.StringIO()
+        with contextlib.redirect_stderr(log):
+            self.assertEqual(sa.ViewerCache(self.source(bad.name), ttl=0).load(), "")
+        self.assertIn("HTTPError", log.getvalue())
+        self.assertNotIn("viewer-secret-value", log.getvalue())
+
     def test_missing_secret_is_closed(self):
         del FakeKubernetesAPI.secrets[sa.SESSION_KEY_SECRET]
         self.assertEqual(sa.CachedSource(self.source(), ttl=0).load(), ({}, b""))
@@ -590,6 +633,142 @@ class Server(unittest.TestCase):
         self.assertEqual(self.get()[0], 401)
         self.write()
         self.assertEqual(self.get(request)[0], 200)
+
+
+class GrafanaKey(unittest.TestCase):
+    """#58: Grafana に渡す Basic の値の組み立てと、200 の判定への足し方 (I/O なし)。"""
+
+    def test_basic_value_is_viewer_and_the_password(self):
+        self.assertEqual(sa.grafana_basic("pw"), "Basic " + base64.b64encode(b"viewer:pw").decode())
+        for password in ("pw 'with' %s $x", "a:b:c", "日本語"):
+            value = sa.grafana_basic(password)
+            self.assertEqual(base64.b64decode(value[len("Basic "):]).decode(), f"viewer:{password}")
+            self.assertNotIn("\n", value)
+
+    def test_no_password_gives_no_value(self):
+        # base64("viewer:") は空でない。パスワードが無いのに Basic を作らない
+        for password in ("", None, 0, b"pw", ["pw"]):
+            self.assertEqual(sa.grafana_basic(password), "", password)
+
+    def test_a_granted_200_carries_the_key_and_keeps_the_cookie(self):
+        status, headers = sa.grant_grafana(200, {"Set-Cookie": "c=1"}, "pw")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers, {"Set-Cookie": "c=1", sa.GRAFANA_HEADER: sa.grafana_basic("pw")})
+
+    def test_a_200_without_a_password_becomes_503_without_cookie_or_key(self):
+        for password in ("", None):
+            self.assertEqual(sa.grant_grafana(200, {"Set-Cookie": "c=1"}, password), (503, {}))
+
+    def test_401_is_left_alone(self):
+        # 認証が通らない要求は、パスワードの有無によらず同じ (Secret の有無を探らせない)
+        for password in ("", "pw"):
+            self.assertEqual(sa.grant_grafana(401, {}, password), (401, {}))
+
+
+class GrafanaServer(unittest.TestCase):
+    """#58: caddy の Grafana の経路が付ける X-Share-Target: grafana に、認証サービスが viewer の Basic で答える (HTTP)。"""
+
+    def setUp(self):
+        self.stderr = io.StringIO()
+        redirect = contextlib.redirect_stderr(self.stderr)
+        redirect.__enter__()
+        self.addCleanup(redirect.__exit__, None, None, None)
+        f = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8")
+        f.close()
+        self.addCleanup(Path(f.name).unlink)
+        self.path = f.name
+        self.state = {"credentials": {"alice": entry("pw")}, "session_key": KEY.decode(), "viewer_value": "viewer-pw"}
+        self.write()
+        source = sa.FileSource(self.path)
+        handler = sa.make_handler(sa.CachedSource(source, ttl=0), sa.VerifyCache(ttl=30), sa.ViewerCache(source, ttl=0))
+        self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+        self.addCleanup(self.httpd.server_close)
+        self.addCleanup(self.httpd.shutdown)
+
+    def write(self):
+        Path(self.path).write_text(json.dumps(self.state), encoding="utf-8")
+
+    def get(self, headers=None, target=sa.TARGET_GRAFANA):
+        headers = {"Authorization": basic("alice", "pw")} if headers is None else dict(headers)
+        if target is not None:
+            headers[sa.TARGET_HEADER] = target
+        req = urllib.request.Request(f"http://127.0.0.1:{self.httpd.server_port}/", headers=headers)
+        try:
+            with urllib.request.urlopen(req) as resp:
+                return resp.status, resp.headers
+        except urllib.error.HTTPError as e:
+            e.close()
+            return e.code, e.headers
+
+    def test_grafana_target_gets_the_viewer_basic(self):
+        status, headers = self.get()
+        self.assertEqual(status, 200)
+        self.assertEqual(headers[sa.GRAFANA_HEADER], sa.grafana_basic("viewer-pw"))
+        self.assertIn("share_session=", headers["Set-Cookie"], "Basic で通ったときの cookie はそのまま付く")
+
+    def test_cookie_authentication_gets_it_too(self):
+        _, headers = self.get()
+        status, headers = self.get({"Cookie": cookie_from({"Set-Cookie": headers["Set-Cookie"]})})
+        self.assertEqual(status, 200)
+        self.assertEqual(headers[sa.GRAFANA_HEADER], sa.grafana_basic("viewer-pw"))
+
+    def test_other_targets_never_get_the_key(self):
+        # headroom・backstage の経路 (X-Share-Target が違う・無い) には、viewer の Basic を返さない
+        for target in ("headroom", "backstage", "GRAFANA", "", None):
+            status, headers = self.get(target=target)
+            self.assertEqual(status, 200, target)
+            self.assertIsNone(headers.get(sa.GRAFANA_HEADER), target)
+
+    def test_a_changed_password_is_returned_from_the_next_request(self):
+        self.assertEqual(self.get()[1][sa.GRAFANA_HEADER], sa.grafana_basic("viewer-pw"))
+        self.state["viewer_value"] = "viewer-pw-2"
+        self.write()
+        self.assertEqual(self.get()[1][sa.GRAFANA_HEADER], sa.grafana_basic("viewer-pw-2"))
+
+    def test_no_password_is_503_for_grafana_only(self):
+        for how in ("missing", "empty"):
+            if how == "missing":
+                del self.state["viewer_value"]
+            else:
+                self.state["viewer_value"] = ""
+            self.write()
+            status, headers = self.get()
+            self.assertEqual(status, 503, how)
+            self.assertIsNone(headers.get(sa.GRAFANA_HEADER), how)
+            self.assertIsNone(headers.get("Set-Cookie"), how)
+            self.assertEqual(self.get(target="headroom")[0], 200, how)
+            # 認証が通らない要求は 401 のまま (Secret の有無を探らせない)
+            self.assertEqual(self.get({"Authorization": basic("alice", "wrong")})[0], 401, how)
+            self.assertEqual(self.get({})[0], 401, how)
+        self.state["viewer_value"] = "back"
+        self.write()
+        self.assertEqual(self.get()[0], 200)
+
+    def test_an_unreadable_file_is_closed_and_the_log_has_no_secret(self):
+        self.assertEqual(self.get()[0], 200)
+        Path(self.path).write_text("{broken", encoding="utf-8")
+        self.assertEqual(self.get()[0], 401)
+        self.state["viewer_value"] = "viewer-pw"
+        self.write()
+        self.assertEqual(self.get()[0], 200)
+        log = self.stderr.getvalue()
+        self.assertIn("読めない", log)
+        for secret in ("viewer-pw", sa.grafana_basic("viewer-pw"), sa.grafana_basic("viewer-pw")[len("Basic "):]):
+            self.assertNotIn(secret, log)
+
+    def test_a_handler_without_a_viewer_source_denies_grafana(self):
+        source = sa.FileSource(self.path)
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), sa.make_handler(sa.CachedSource(source, ttl=0)))
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        self.addCleanup(httpd.server_close)
+        self.addCleanup(httpd.shutdown)
+        req = urllib.request.Request(f"http://127.0.0.1:{httpd.server_port}/",
+                                     headers={"Authorization": basic("alice", "pw"), sa.TARGET_HEADER: sa.TARGET_GRAFANA})
+        with self.assertRaises(urllib.error.HTTPError) as ctx:
+            urllib.request.urlopen(req)
+        ctx.exception.close()
+        self.assertEqual(ctx.exception.code, 503)
 
 
 if __name__ == "__main__":

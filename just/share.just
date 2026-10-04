@@ -17,7 +17,8 @@ _share-relay-down:
 
 # share Pod (clusters/kind/share) が起動に要る Secret share-credentials (空)・share-session-key・share-grafana を、無ければ作る (中身は git に置かない)。
 # share-grafana は Grafana の viewer のパスワードのファイルから写す (Secret grafana-viewer は別 namespace)。Secret share-host は _share-relay-up が作る。
-# Pod は Secret が無くても起動する (参照は optional で、揃うまで全経路 503。#64) ので、既存のクラスタで ArgoCD の同期が先でも止まらない。新しいクラスタでは
+# Pod は Secret が無くても起動する (参照は optional で、share-host が揃うまで全経路 503。#64) ので、既存のクラスタで ArgoCD の同期が先でも止まらない。
+# share-grafana は認証サービスが実行時に読む (#58)。揃うまでは Grafana の経路だけ 503 で、揃えば再起動なしで効く。新しいクラスタでは
 # Pod を作り直さずに済むよう、`just up` が ArgoCD の同期 (root.yaml の apply) より前に呼ぶ。Secret が揃う前に起動して閉じている Pod だけを、最後に作り直す。
 # _grafana-secrets の後 (viewer のパスワードのファイルが要る)
 _share-secrets:
