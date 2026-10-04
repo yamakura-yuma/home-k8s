@@ -49,6 +49,8 @@ GRAFANA_ALLOWED = [
     # プロフィール・設定の読み取りは通す (画面が使う。書き込みだけを GRAFANA_DENIED で止める)
     ("GET", "/api/user"), ("GET", "/api/user/preferences"), ("GET", "/api/user/orgs"),
     ("GET", "/apis/preferences.grafana.app/v1alpha1/namespaces/default/preferences"),
+    ("GET", "/apis/collections.grafana.app/v1alpha1/namespaces/default/stars"),
+    ("GET", "/apis/userstorage.grafana.app/v0alpha1/namespaces/default/user-storage/service:abc"),
 ]
 GRAFANA_DENIED = [
     (method, path)
@@ -66,6 +68,31 @@ GRAFANA_DENIED = [
                  "/apis/preferences.grafana.app/v1alpha1/namespaces/default/preferences/user-x",
                  "/apis/preferences.grafana.app/v1/namespaces/default/preferences",
                  "/APIS/preferences.grafana.app/v1alpha1/namespaces/default/preferences/user-x"]
+] + [
+    # #54: 星 (collections) と画面の保存領域 (userstorage) の新しい API も、Grafana 13.2.3 で viewer の PUT・DELETE が通った。
+    # 読み取りだけ通す。表記揺れ (大文字・二重スラッシュ・%エンコード) も同じ表で止める
+    (method, path)
+    for method in ["PUT", "POST", "PATCH", "DELETE"]
+    for path in ["/apis/collections.grafana.app/v1alpha1/namespaces/default/stars/user-x",
+                 "/apis/collections.grafana.app/v1alpha1/namespaces/default/stars/user-x/update/dashboard.grafana.app/Dashboard/abc",
+                 "/apis/collections.grafana.app/v1alpha1/namespaces/default/stars",
+                 "/APIS/collections.grafana.app/v1alpha1/namespaces/default/stars/user-x",
+                 "/apis/COLLECTIONS.grafana.app/v1alpha1/namespaces/default/stars/user-x",
+                 "//apis/collections.grafana.app/v1alpha1/namespaces/default/stars/user-x",
+                 "/apis/collections.grafana.app//v1alpha1/namespaces/default/stars/user-x",
+                 "/apis/%63ollections.grafana.app/v1alpha1/namespaces/default/stars/user-x",
+                 "/apis/userstorage.grafana.app/v0alpha1/namespaces/default/user-storage",
+                 "/apis/userstorage.grafana.app/v0alpha1/namespaces/default/user-storage/service:abc",
+                 "/apis/userstorage.grafana.app/v0alpha1/namespaces/default/user-storage/service%3Aabc",
+                 "/APIS/userstorage.grafana.app/v0alpha1/namespaces/default/user-storage/service:abc",
+                 "//apis/userstorage.grafana.app/v0alpha1/namespaces/default/user-storage/service:abc",
+                 "/apis/%75serstorage.grafana.app/v0alpha1/namespaces/default/user-storage/service:abc"]
+] + [
+    # #54: パスの正規化の抜けを固定する。重ねたスラッシュ・%2F は、許可していない経路に正規化されない
+    (method, path)
+    for method in ["PUT", "POST", "PATCH", "DELETE"]
+    for path in ["//api/user", "///api/user", "/api//user", "/api%2Fuser", "/%2Fapi/user", "//api/user/preferences", "/api/user%2Fpreferences",
+                 "//apis/preferences.grafana.app/v1/namespaces/default/preferences/user-x", "/apis%2Fpreferences.grafana.app/v1/namespaces/default/preferences/user-x"]
 ]
 HEADROOM_ALLOWED = ["/dashboard", "/health", "/stats", "/stats-history", "/stats-lifetime", "/transformations/feed", "/favicon.ico"]
 HEADROOM_DENIED = [
@@ -73,10 +100,16 @@ HEADROOM_DENIED = [
     *[("GET", variant) for path in HEADROOM_ALLOWED for variant in (path.upper(), path[:2].upper() + path[2:], path[:-1] + path[-1].upper())],
     ("GET", "/Health"), ("GET", "/DASHBOARD"), ("GET", "/Favicon.ico"), ("GET", "/favicon.ICO"), ("GET", "/Stats-History"),
     ("GET", "/health%0a"), ("GET", "/%48ealth"),
+    # #54: 重ねたスラッシュ・%2F が許可リストの経路に正規化されて通らない (許可リストは全体一致)
+    *[("GET", variant) for path in HEADROOM_ALLOWED for variant in ("/" + path, path + "/", "/%2F" + path[1:])],
+    ("GET", "//health"), ("GET", "/%2Fhealth"), ("GET", "/transformations%2Ffeed"), ("GET", "//transformations/feed"), ("GET", "/transformations//feed"),
+    ("GET", "/%2e/%2Fhealth"), ("GET", "/health%2F"), ("GET", "/%2Fdashboard"),
     ("POST", "/v1/messages"), ("GET", "/v1/messages"), ("POST", "/stats/reset"), ("GET", "/stats/reset"),
     ("POST", "/settings"), ("GET", "/settings"), ("POST", "/dashboard/settings"), ("POST", "/cache/clear"),
     ("POST", "/dashboard"), ("PUT", "/stats"), ("DELETE", "/health"), ("GET", "/stats/"),
     ("GET", "//v1/messages"), ("GET", "/dashboard/../v1/messages"), ("GET", "/dashboard/%2e%2e/v1/messages"),
+    # #54: ドットセグメントも許可リストの経路に正規化して通さない (許可は送られた生の経路との全体一致)
+    ("GET", "/x/../health"), ("GET", "/./health"), ("GET", "/%2e/health"), ("GET", "/stats/../stats-history?days=7"),
     # #48: 実機の headroom は許可リストの経路の HEAD に 404 を返し、Anthropic へ素通しするとみられる。HEAD は通さない
     *[("HEAD", path) for path in HEADROOM_ALLOWED],
 ]
@@ -346,13 +379,6 @@ class ShareCaddy(unittest.TestCase):
         self.assertEqual(headers["X-Share-Relay-Token"], RELAY_TOKEN)
         self.assertNotIn("Authorization", headers)
         self.assertNotIn("Cookie", headers)
-
-    def test_headroom_dot_segments_reach_the_relay_only_as_the_allowed_path(self):
-        # path_regexp は caddy が整えた path に当たるが、reverse_proxy は生の path を送る。許可した経路そのものに書き換えて渡す
-        for raw, sent in [("/x/../health", "/health"), ("/./health", "/health"), ("/%2e/health", "/health"), ("/stats/../stats-history?days=7", "/stats-history?days=7")]:
-            self.upstreams[HEADROOM].seen.clear()
-            self.assertEqual(self.call(HEADROOM, "GET", raw, basic("alice", PASSWORDS["alice"]))[0], 200, raw)
-            self.assertEqual([path for _, path, _ in self.seen(HEADROOM)], [sent], raw)
 
     def test_headroom_head_is_not_allowed(self):
         # #48: 実機の headroom は HEAD に 404 を返す。許可リストの HEAD は中継にも headroom にも渡さない
