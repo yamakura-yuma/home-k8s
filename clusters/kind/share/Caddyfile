@@ -56,10 +56,11 @@ http://:{$SHARE_GRAFANA_PORT:8081} {
 		respond @password 404
 		# viewer は自分のプロフィールを書き換えられる。PUT /api/user でログイン名を変えると、caddy が付ける
 		# Basic (viewer:<パスワード>) が効かなくなり、共有が全員分壊れる (#51)。viewer は共有相手全員で 1 人なので、
-		# /api/user 以下 (プロフィール・preferences・org の切り替え・星) と、同じ preferences の新しい API
-		# (/apis/preferences.grafana.app) は読み取りだけ通し、書き込みは 404 (Grafana 13.2 で viewer の書き込みを確かめた)
+		# /api/user 以下 (プロフィール・preferences・org の切り替え・星) と、同じ設定を持つ新しい API
+		# (/apis/preferences.grafana.app・collections.grafana.app (星)・userstorage.grafana.app (画面の保存領域)) は
+		# 読み取りだけ通し、書き込みは 404 (Grafana 13.2.3 で viewer の書き込みを確かめた。#54)
 		@user_write {
-			path /api/user /api/user/* /apis/preferences.grafana.app/*
+			path /api/user /api/user/* /apis/preferences.grafana.app/* /apis/collections.grafana.app/* /apis/userstorage.grafana.app/*
 			not method GET HEAD
 		}
 		respond @user_write 404
@@ -84,10 +85,13 @@ http://:{$SHARE_HEADROOM_PORT:8082} {
 		@dashboard {
 			method GET
 			path_regexp dash ^/(dashboard|health|stats|stats-history|stats-lifetime|transformations/feed|favicon\.ico)$
+			# path_regexp は caddy が整えた path (スラッシュの重なり・ドットセグメントが畳まれ、%2F が / になったもの) に当たる。
+			# そのため //health・/%2Fhealth・/transformations%2Ffeed・/x/../health も通り、許可していない表記が許可リストに正規化されて
+			# 通ってしまう。送られた生の要求 (orig_uri。%エンコードもそのまま) にも同じ表を全体一致で掛け、表記揺れは 404 にする (#54)
+			expression `{http.request.orig_uri}.matches("^/(dashboard|health|stats|stats-history|stats-lifetime|transformations/feed|favicon[.]ico)([?].*)?$")`
 		}
 		handle @dashboard {
-			# path_regexp は caddy が整えた path に当たるが、reverse_proxy は生の path を送る。/x/../health のようなドットセグメントが
-			# そのまま headroom に届かないよう、許可した経路そのものに書き換えて渡す (クエリは残る)
+			# 上の生の全体一致で、ドットセグメントなどはここに来ない。念のため (二重)、許可した経路そのものに書き換えて渡す (クエリは残る)
 			rewrite * /{re.dash.1}
 			reverse_proxy {$SHARE_RELAY_ADDR} {
 				header_up X-Share-Relay-Token {$SHARE_RELAY_TOKEN}
