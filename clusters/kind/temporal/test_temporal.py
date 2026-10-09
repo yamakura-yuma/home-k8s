@@ -33,7 +33,7 @@ class TemporalUrlTest(unittest.TestCase):
             (int(host), int(container))
             for container, host in re.findall(r"containerPort: (\d+).*\n\s+hostPort: (\d+)", KIND_CONFIG)
         )
-        for host, node in {**{h: n for h, n in PORTS.values()}, **GRAFANA_PORTS}.items():
+        for host, node in {**dict(PORTS.values()), **GRAFANA_PORTS}.items():
             self.assertEqual(mappings.get(host), node, f"hostPort {host}")
 
     def test_overlay_node_port_matches_the_mapping(self):

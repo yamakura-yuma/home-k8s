@@ -49,7 +49,7 @@ revision が入り、ArgoCD ではいつも 1 なので、chart の版を上げ�
 - **Web UI**: `web.service` は ClusterIP のまま。ホストへ出すのは proxy
 - chart の版は ApplicationSet の `targetRevision`。上げたら `just ci` の `helm template` が新しい版で描画する
 
-DB のパスワード `temporal` は Git に書いてある固定値。DB は ClusterIP の Service だけで、クラスタの外にも他の namespace 向けの口にも出していない
+DB のパスワード `temporal` は Git に書いてある固定値。DB は ClusterIP の Service だけで、クラスタの外にも他の namespace 向けの口にも出していない。
 学習用の DB なので、他の Secret のように `just up` で Git の外から作ることはしていない。
 
 ### Temporal Web UI を iframe に出す (開けたヘッダーとその理由)
