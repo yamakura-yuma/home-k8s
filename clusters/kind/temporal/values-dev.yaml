@@ -1,0 +1,7 @@
+# dev の Temporal。共通の values.yaml に重ねる差分。
+server:
+  config:
+    namespaces:
+      namespace:
+        - name: default
+          retention: 1d

@@ -14,6 +14,8 @@ export const ENV_KEYS = {
   argocdAppName: 'argocd-app-name',
   // Azure の App Service・Functions の名前 (部分一致、大文字小文字を問わない)。azure-sites プラグインの注釈 azure.com/microsoft-web-sites に重ねる
   azureWebSites: 'azure-web-sites',
+  // ブラウザが開く Temporal Web UI の URL (iframe の src)。環境ごとのホストのポート (docs/cluster/temporal.md)
+  temporalUrl: 'temporal-url',
 } as const;
 
 export type Environment = {

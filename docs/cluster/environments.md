@@ -57,7 +57,7 @@ generator や、要素で置き換わらない `{{ }}` が残る template は、
 |---|---|---|---|
 | `api-proxy` | Backstage のバックエンドのプロキシの経路 (`/api/proxy` の下)。サービスの API を読む | Environments | この PR |
 | `grafana-host-id` | `app-config.yaml` の `grafana.hosts[].id` (下の「Grafana」) | Grafana | 予定 |
-| `temporal-url` | ブラウザが開く Temporal UI の URL | Temporal | 予定 |
+| `temporal-url` | ブラウザが開く Temporal Web UI の URL (iframe の src。dev `http://localhost:8233`・prod `http://localhost:8234`) | Temporal | 実装済み ([temporal.md](temporal.md)) |
 | `argocd-app-name` | ArgoCD の Application の名前 (`<名前>-<環境>`、例 `sample-api-dev`)。プラグインの注釈 `argocd/app-name` に重ねる | ArgoCD | 実装済み ([backstage-argocd.md](backstage-argocd.md)) |
 | `azure-web-sites` | Azure の App Service・Functions の名前 (部分一致、大文字小文字を問わない)。プラグインの注釈 `azure.com/microsoft-web-sites` に重ねる | Azure | 実装済み ([backstage-azure.md](backstage-azure.md)) |
 
@@ -102,7 +102,8 @@ const temporalContent = createEnvironmentContent({
 [swagger-tab.md](swagger-tab.md))、環境ごとの Application の同期状態と健全性を出す **ArgoCD**
 (`entity-content:environments/argocd`、キー `argocd-app-name`、[backstage-argocd.md](backstage-argocd.md))、
 Azure のリソースを出す **Azure** (`entity-content:azureSites/azure`、キー `azure-web-sites`、
-[backstage-azure.md](backstage-azure.md)。資格情報が無いときは「資格情報が無い」を出す)。
+[backstage-azure.md](backstage-azure.md)。資格情報が無いときは「資格情報が無い」を出す)と、
+環境ごとの Temporal Web UI を iframe で出す **Temporal** (`entity-content:environments/temporal`、キー `temporal-url`、[temporal.md](temporal.md))。
 
 ## サンプルの API (sample-api)
 
@@ -169,8 +170,9 @@ iframe にしない理由: Grafana は既定で埋め込みを拒み (`allow_emb
 
 Temporal UI や環境ごとの Grafana をブラウザで開くには、ホストのポートが要る。kind の `extraPortMappings` は
 クラスタを作るときにしか効かない (足したら `just down && just up` で作り直す。PV のデータはホストのディレクトリに残る)。
-足す PR が同じ作り直しを何度も求めないよう、ポートは次の並びで取る。**予約だけで、この PR では kind-config を変えていない**
-(ポートを使う PR が `clusters/kind/kind-config.yaml` に足す)。
+足す PR が同じ作り直しを何度も求めないよう、ポートは次の並びで取り、Temporal の PR が Grafana の分もまとめて
+`clusters/kind/kind-config.yaml` に足した (**クラスタの作り直しが要る**: 人が `just down && just up`、[temporal.md](temporal.md))。
+Grafana の 2 つは開けただけで、使うのは Grafana の PR。
 
 | 画面 | dev | prod | NodePort (dev / prod) |
 |---|---|---|---|

@@ -25,6 +25,20 @@ nodes:
       - containerPort: 30707 # Backstage
         hostPort: 7007
         listenAddress: "127.0.0.1"
+      # 環境 (dev・prod) ごとの画面 (docs/cluster/environments.md、docs/cluster/temporal.md)。
+      # extraPortMappings はクラスタを作るときにしか効かないので、足したら just down && just up で作り直す
+      - containerPort: 30301 # dev の Grafana (Grafana の PR が使う)
+        hostPort: 3001
+        listenAddress: "127.0.0.1"
+      - containerPort: 30302 # prod の Grafana
+        hostPort: 3002
+        listenAddress: "127.0.0.1"
+      - containerPort: 30233 # dev の Temporal UI (proxy temporal-ui-embed)
+        hostPort: 8233
+        listenAddress: "127.0.0.1"
+      - containerPort: 30234 # prod の Temporal UI
+        hostPort: 8234
+        listenAddress: "127.0.0.1"
   - role: worker
     # Tempo・Prometheus・Loki・Grafana の保存先。${HOME} は `just up` が展開する (kind 自体は環境変数を展開しない)。
     # PV (clusters/kind/storage) の nodeAffinity がこのラベルを指し、クラスタを作り直しても同じディレクトリを使う。

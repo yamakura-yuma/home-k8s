@@ -1,0 +1,110 @@
+# Temporal の DB。公式 chart は DB を持たないので、PostgreSQL を 1 つ置く (環境ごとに 1 つ、DB 名は temporal・temporal_visibility)。
+# chart の schema ジョブ (database 作成とスキーマ) がこのユーザーで入る。DB は ClusterIP だけで、クラスタの外には開けない。
+# bitnami の chart は使わない (イメージの配布が bitnamilegacy に移った)。公式イメージの StatefulSet を直に置く。
+# パスワードは環境の中に閉じた学習用の固定値。chart の values (existingSecret) が同じ Secret を読むので、Git には 1 か所だけ。
+apiVersion: v1
+kind: Secret
+metadata:
+  name: temporal-postgres
+type: Opaque
+stringData:
+  password: temporal
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: temporal-postgres
+  labels:
+    app.kubernetes.io/name: temporal-postgres
+spec:
+  selector:
+    app.kubernetes.io/name: temporal-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: temporal-postgres
+  labels:
+    app.kubernetes.io/name: temporal-postgres
+spec:
+  serviceName: temporal-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: temporal-postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: temporal-postgres
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70
+        runAsGroup: 70
+        fsGroup: 70
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgres
+          image: postgres:17.6-alpine
+          env:
+            - name: POSTGRES_USER
+              value: temporal
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: temporal-postgres
+                  key: password
+            # ボリュームの直下には lost+found が入りうるので、サブディレクトリに置く
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - name: postgres
+              containerPort: 5432
+          readinessProbe:
+            exec:
+              command: [pg_isready, -U, temporal]
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: [pg_isready, -U, temporal]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            # 読み取り専用の root では、unix ソケットの置き場が書けない
+            - name: run
+              mountPath: /var/run/postgresql
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+  # kind の既定の StorageClass (local-path)。Pod を作り直してもデータは残り、クラスタを作り直すと消える
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 1Gi

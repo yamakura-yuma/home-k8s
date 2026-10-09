@@ -1,0 +1,16 @@
+# Temporal の Web UI (chart の Service temporal-web) を、Backstage のタブの iframe に出せるようにする proxy。
+# Web UI は X-Frame-Options: SAMEORIGIN を返し (設定で変えられない)、別のポート = 別のオリジンの Backstage には埋め込めない。
+# そこで、そのヘッダーを外し、代わりに CSP の frame-ancestors で Backstage のオリジン (と Web UI 自身) だけに埋め込みを許す。
+# 'self' は、Web UI がお知らせの描画に自分の /render を iframe に入れるため (親が Backstage と Web UI 自身の 2 段になる)。
+# Web UI 以外には何もしない (中身は書き換えない)。理由と確かめ方は docs/cluster/temporal.md。
+{
+	admin off
+	auto_https off
+}
+
+:8080 {
+	reverse_proxy temporal-web:8080 {
+		header_down -X-Frame-Options
+		header_down Content-Security-Policy "frame-ancestors 'self' http://localhost:7007"
+	}
+}

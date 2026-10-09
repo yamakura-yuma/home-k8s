@@ -1,0 +1,42 @@
+# 環境 (dev・prod) ごとの Temporal (サーバー 4 つ + Web UI)。公式 chart (temporalio/helm-charts) を、
+# 共通の values.yaml と環境ごとの values-<環境>.yaml で同期する。DB と UI の埋め込み proxy は temporal-support.yaml。
+# 規約は docs/cluster/environments.md、Temporal は docs/cluster/temporal.md。
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: temporal
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - list:
+        elements:
+          - env: dev
+          - env: prod
+  template:
+    metadata:
+      name: 'temporal-{{.env}}'
+    spec:
+      project: default
+      sources:
+        - repoURL: https://go.temporal.io/helm-charts
+          chart: temporal
+          targetRevision: 1.7.0
+          helm:
+            releaseName: temporal
+            valueFiles:
+              - $values/clusters/kind/temporal/values.yaml
+              - '$values/clusters/kind/temporal/values-{{.env}}.yaml'
+        - repoURL: https://github.com/yamakura-yuma/home-k8s
+          targetRevision: main
+          ref: values
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{.env}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

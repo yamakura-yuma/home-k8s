@@ -1,0 +1,10 @@
+# Temporal の chart が持たないものを、環境 (dev・prod) の namespace に置く: DB (PostgreSQL) と、Web UI を
+# Backstage のタブに埋め込むための proxy。ApplicationSet temporal-support (clusters/kind/argocd/apps/temporal-support.yaml)
+# が overlays/<環境> を同期する (docs/cluster/temporal.md)。
+resources:
+  - postgres.yaml
+  - ui-embed.yaml
+configMapGenerator:
+  - name: temporal-ui-embed
+    files:
+      - Caddyfile

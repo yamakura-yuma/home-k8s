@@ -1,0 +1,36 @@
+# 環境 (dev・prod) ごとの Temporal の DB (PostgreSQL) と、Web UI を Backstage のタブに埋め込む proxy
+# (clusters/kind/temporal/overlays/<環境>)。chart 本体は ApplicationSet temporal (temporal.yaml)。
+# chart の schema ジョブは PreSync フックで、DB が同じ Application に入っていると、DB より先に走って待ち続ける。
+# そこで DB は別の Application に分け、ジョブは DB が立つまで再試行する (chart の backoffLimit)。
+# 規約は docs/cluster/environments.md、Temporal は docs/cluster/temporal.md。
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: temporal-support
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - list:
+        elements:
+          - env: dev
+          - env: prod
+  template:
+    metadata:
+      name: 'temporal-support-{{.env}}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/yamakura-yuma/home-k8s
+        targetRevision: main
+        path: 'clusters/kind/temporal/overlays/{{.env}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{.env}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
