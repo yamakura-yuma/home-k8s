@@ -50,7 +50,7 @@ class Recipes(unittest.TestCase):
         out = just("--dry-run", "up").stderr
         steps = ["kind create cluster", "observability/{tempo,prometheus,loki,grafana}",
                  "docker build -t home-k8s-backstage:", "kind load docker-image home-k8s-backstage:",
-                 "helm upgrade --install argocd", "grafana-secrets.sh", "argocd-secrets.sh",
+                 "helm upgrade --install argocd", "grafana-secrets.sh", "argocd-secrets.sh", "backstage-azure-secret.sh",
                  "share-relay.sh up", "share-secrets.sh", "argocd/root.yaml", "argocd-wait.sh", "headlamp-token.sh"]
         pos = [out.find(step) for step in steps]
         self.assertNotIn(-1, pos, out)

@@ -75,6 +75,19 @@ grafana:
   domain: http://localhost:3000
   unifiedAlerting: false
 
+# Azure のタブ (@backstage-community/plugin-azure-sites)。読み取り用のサービスプリンシパルの資格情報を環境変数で受ける。
+# 環境変数は Secret backstage-azure (任意) から来る。`just up` が Git の外のファイル
+# ~/.local/share/home-k8s/backstage/azure.env から作る。ファイルが無いと Secret も無く、環境変数が無い項目は設定から消える。
+# 資格情報が揃わないとバックエンドは公式のプラグインを載せず代役を載せ、Azure のタブは「資格情報が無い」を出す
+# (packages/backend/src/azureSites.ts、docs/cluster/backstage-azure.md)
+azureSites:
+  domain: ${AZURE_DOMAIN}
+  tenantId: ${AZURE_TENANT_ID}
+  clientId: ${AZURE_CLIENT_ID}
+  clientSecret: ${AZURE_CLIENT_SECRET}
+  subscriptions:
+    - id: ${AZURE_SUBSCRIPTION_ID}
+
 # ログインはゲストだけ。127.0.0.1 と、人ごとの資格情報つきの share Pod にしか出さないので、production でもゲストを許す
 auth:
   providers:

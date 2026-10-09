@@ -12,6 +12,8 @@ export const ENV_KEYS = {
   apiProxy: 'api-proxy',
   // 環境の Application の名前 (ArgoCD)。Roadie の ArgoCD プラグインの注釈 argocd/app-name に重ねる
   argocdAppName: 'argocd-app-name',
+  // Azure の App Service・Functions の名前 (部分一致、大文字小文字を問わない)。azure-sites プラグインの注釈 azure.com/microsoft-web-sites に重ねる
+  azureWebSites: 'azure-web-sites',
 } as const;
 
 export type Environment = {

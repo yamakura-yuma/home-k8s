@@ -9,10 +9,11 @@ Backstage は ArgoCD が GitHub の `main` から同期する ([argocd.md](argoc
 
 ```
 just up
-  ├─ docker build -t home-k8s-backstage:0.6.0 backstage   (repo の backstage/。ホストに node は要らない)
-  ├─ kind load docker-image home-k8s-backstage:0.6.0       (3 つのノードに入れる)
+  ├─ docker build -t home-k8s-backstage:0.7.0 backstage   (repo の backstage/。ホストに node は要らない)
+  ├─ kind load docker-image home-k8s-backstage:0.7.0       (3 つのノードに入れる)
   ├─ Secret observability/grafana-backstage                 (Grafana の閲覧用ユーザー backstage のパスワード)
   ├─ Secret backstage/backstage-grafana                     (同じ資格情報を Backstage のプロキシ用に)
+  ├─ Secret backstage/backstage-azure                      (Azure の資格情報のファイルがあるときだけ。backstage-azure.md)
   └─ Secret backstage/backstage-argocd                      (ArgoCD の読み取り専用アカウント backstage の API トークン。backstage-argocd.md)
 
 Application backstage (backstage chart 2.10.2、clusters/kind/backstage/values.yaml)
@@ -31,6 +32,7 @@ Application backstage (backstage chart 2.10.2、clusters/kind/backstage/values.y
 | ArgoCD プラグイン | `backstage/packages/app` | `@roadiehq/backstage-plugin-argo-cd` 2.13.1。環境ごとの Application の同期状態と健全性を出す。設定は [backstage-argocd.md](backstage-argocd.md) |
 | 環境ごとのタブ | `backstage/packages/app/src/modules/environments` | dev・prod を切り替えて中身を出すエンティティのタブ。注釈の規約と作り方は [environments.md](environments.md) |
 | Swagger のタブ・API の定義 | `backstage/packages/app` | `@backstage/plugin-api-docs` 0.14.5 (`/alpha`)。Component sample-api のタブで OpenAPI を Swagger UI で出し、環境ごとのプロキシを向き先にする。[swagger-tab.md](swagger-tab.md) |
+| Azure のタブ | `backstage/packages/app/src/modules/azure`・`backstage/packages/backend/src/azureSites.ts` | `@backstage-community/plugin-azure-sites` と `-backend`。資格情報はファイルから `just up` が Secret にする。無くても起動する ([backstage-azure.md](backstage-azure.md)) |
 | TechDocs | `backstage/packages/app`・`backstage/packages/backend` | `@backstage/plugin-techdocs` 1.18 と `@backstage/plugin-techdocs-backend` 2.3。文書の画面が検索の API を要るので、検索 (`@backstage/plugin-search` と search-backend、カタログと TechDocs の索引) も載せる |
 | 設定 | `backstage/app-config.yaml` | ポート 7007、インメモリの SQLite、ゲストのログイン、Grafana・ArgoCD へのプロキシ (`/grafana/api`・`/argocd/api`)、`argocd.baseUrl`・`argocd.revisionsToLoad`、TechDocs |
 | chart の values | `clusters/kind/backstage/values.yaml` | イメージ、NodePort 30707、Secret の参照、読む `catalog-info.yaml` |
@@ -126,7 +128,7 @@ viewer と `backstage` は別のユーザーなので、viewer のパスワー�
 ## イメージ
 
 レジストリ (GHCR など) には置かず、`just up` が手元で build して `kind load` する。chart の values は
-タグを `0.6.0` に固定し、`pullPolicy: Never` で pull しない。クラスタを作り直しても `just up` が入れ直す。
+タグを `0.7.0` に固定し、`pullPolicy: Never` で pull しない。クラスタを作り直しても `just up` が入れ直す。
 
 - `docker build` は層のキャッシュが効くので、`backstage/` を変えていなければすぐ終わる。初回は 5 分ほど
 - TechDocs の mkdocs は、実行用のイメージに Python の venv (`/opt/venv`) を作って pip で入れる (上流の

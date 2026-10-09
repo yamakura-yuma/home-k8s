@@ -4,7 +4,7 @@
 呼ばれた引数を FAKE_KUBECTL_LOG に 1 行ずつ書き、標準入力で受けた manifest を FAKE_KUBECTL_STDIN に JSON の 1 行で書く
 ({"verb": "replace"|"create"|"apply", "manifest": {...}})。実物と同じ形で返すのは、試験が使う次の呼び方だけ:
   get secret <名前>                                   FAKE_EXISTING (空白区切りの名前) にあれば 0、無ければ 1
-  create secret generic <名前> --from-literal/--from-file ... --dry-run=client -o yaml
+  create secret generic <名前> --from-literal/--from-file/--from-env-file ... --dry-run=client -o yaml
                                                        data を base64 にした Secret の manifest を JSON で出す
   create secret generic <名前> ... (--dry-run 無し)     作った Secret を FAKE_KUBECTL_STDIN に {"verb": "create-secret", ...} で書く
   create namespace <名前> --dry-run=client -o yaml     Namespace の manifest を出す
@@ -53,6 +53,11 @@ def build_manifest(name):
         if arg.startswith("--from-literal="):
             key, _, value = arg[len("--from-literal="):].partition("=")
             data[key] = base64.b64encode(value.encode()).decode()
+        elif arg.startswith("--from-env-file="):
+            with open(arg[len("--from-env-file="):], encoding="utf-8") as f:
+                for env_line in f:
+                    key, _, value = env_line.rstrip("\n").partition("=")
+                    data[key] = base64.b64encode(value.encode()).decode()
         elif arg.startswith("--from-file="):
             key, _, path = arg[len("--from-file="):].partition("=")
             with open(path, "rb") as f:

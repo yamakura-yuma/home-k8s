@@ -16,6 +16,7 @@
 #                      URL を引く関数と CLI (just share add/delete/...、just/share.sh) を偽の kubectl で確かめる (注釈・引数に値が残らない作り方、#49・#56。
 #                      CLI は上限超えの --ttl・不正な名前・2 つ目の特権・期限付きへの rotate の拒否と、作った項目を実物の認証サービスに通す往復)。
 #                      稼働中のクラスタ・ホストには触れない。あわせて環境ごとのサンプルの API (services/sample-api) の経路と OpenAPI の突き合わせ
+#   8b. Azure の資格情報  just/backstage-azure-secret.sh を偽の kubectl で確かめる (ファイルが無い・空・欠けた項目・CRLF・コメント、値が引数に残らないこと)
 #   9. backstage       yarn install --immutable (yarn.lock のとおりに入れ、ずれていたら落とす) のあと、backend・app の jest (yarn workspace backend/app test) と
 #                      型検査 (yarn tsc)。node_modules は backstage/ に入る (git の管理外・.dockerignore 済み)
 set -euo pipefail
@@ -122,6 +123,8 @@ python3 -B -m unittest discover -s services/sample-api -v
 
 echo "== share のホスト側 (中継の caddy、Secret を作るスクリプト、URL を引く関数、CLI) =="
 python3 -B -m unittest discover -s just -p 'test_share_*.py' -v
+echo "== Azure のタブの資格情報の Secret (ファイルが無くても失敗しない、値が引数に残らない) =="
+python3 -B -m unittest discover -s just -p 'test_backstage_azure_secret.py' -v
 
 # backstage の試験と型検査。node と yarn が無いと飛ばされるのではなく失敗にする
 command -v node >/dev/null && command -v yarn >/dev/null || { echo "node か yarn が無い (devShells.ci に入っているはず)" >&2; exit 1; }
