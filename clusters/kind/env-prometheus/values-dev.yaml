@@ -1,0 +1,15 @@
+# dev の Prometheus。ClusterRole は名前が namespace をまたいで重なる (observability の prometheus-server と)
+# ので、環境ごとの名前にする。cAdvisor は全 Pod を返すので、この環境の namespace のものだけを残す。
+# metric_relabel_configs は文字列ではなくリストで書く (post_relabel_configs だけが文字列を受ける)
+server:
+  clusterRoleNameOverride: prometheus-server-dev
+
+scrapeConfigs:
+  kubernetes-nodes-cadvisor:
+    metric_relabel_configs:
+      - source_labels: [namespace]
+        regex: dev
+        action: keep
+      - source_labels: [__name__]
+        regex: container_(cpu_usage_seconds_total|memory_working_set_bytes|network_(receive|transmit)_bytes_total)
+        action: keep

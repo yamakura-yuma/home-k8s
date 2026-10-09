@@ -1,0 +1,7 @@
+# prod の OTel Collector。読むログは、この環境の sample-api の Pod のログだけ (/var/log/pods/<namespace>_<Pod>_<uid>/<container>/<n>.log)。
+# 環境の観測スタック自身のログは読まない (Loki のログが Loki に入って増え続けるのを避ける)
+config:
+  receivers:
+    filelog:
+      include:
+        - /var/log/pods/prod_sample-api-*/*/*.log

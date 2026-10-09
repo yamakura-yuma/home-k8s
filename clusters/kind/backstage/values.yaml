@@ -7,16 +7,18 @@ backstage:
   image:
     registry: ""
     repository: home-k8s-backstage
-    tag: "0.8.0"
+    tag: "0.9.0"
     pullPolicy: Never
 
   # イメージの app-config.yaml に、下の appConfig (chart が ConfigMap にする) を重ねる
   args: ["--config", "app-config.yaml"]
 
-  # GRAFANA_BASIC_AUTH (Grafana の閲覧用ユーザー backstage の資格情報) と、ARGOCD_AUTH_TOKEN (ArgoCD の読み取り専用アカウント
-  # backstage の API トークン)。どちらも `just up` が Git の外のファイルから作る Secret を名前で参照する
+  # GRAFANA_BASIC_AUTH (Grafana の閲覧用ユーザー backstage の資格情報)、GRAFANA_DEV_BASIC_AUTH・GRAFANA_PROD_BASIC_AUTH
+  # (環境の Grafana の同じユーザーの資格情報)、ARGOCD_AUTH_TOKEN (ArgoCD の読み取り専用アカウント backstage の API トークン)。
+  # どれも `just up` が Git の外のファイルから作る Secret を名前で参照する
   extraEnvVarsSecrets:
     - backstage-grafana
+    - backstage-grafana-env
     - backstage-argocd
 
   # Azure のタブの資格情報 (AZURE_*)。`just up` が Git の外のファイル ~/.local/share/home-k8s/backstage/azure.env から Secret

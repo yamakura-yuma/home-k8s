@@ -1,0 +1,22 @@
+# 環境 (dev・prod) ごとの Tempo の共通の values (apps/env-tempo.yaml)。単一バイナリ。
+# observability の Tempo (observability/tempo-values.yaml) より軽くする: 永続化なし (Pod を作り直すと消える)、保持は 2 日。
+tempo:
+  retention: 48h
+  reportingEnabled: false
+  storage:
+    trace:
+      backend: local
+      local:
+        path: /var/tempo/traces
+      wal:
+        path: /var/tempo/wal
+  liveStore:
+    wal:
+      path: /var/tempo/live-store/traces
+
+persistence:
+  enabled: false
+
+resources:
+  requests: {cpu: 20m, memory: 64Mi}
+  limits: {memory: 192Mi}

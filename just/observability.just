@@ -16,3 +16,10 @@ grafana_backstage_password_file := env_var("HOME") + "/.local/share/home-k8s/obs
 # `just up` が先に打つ。中身が同じなら apply は何も変えないので、Grafana の Pod は再起動しない
 _grafana-secrets:
     bash just/grafana-secrets.sh "{{grafana_password_file}}" "{{grafana_viewer_password_file}}" "{{grafana_backstage_password_file}}" {{observe_ns}} "{{justfile_directory()}}" {{kube_context}}
+
+# 環境 (dev・prod) ごとの Grafana (clusters/kind/env-grafana) の Secret を作る。各環境の namespace に grafana-admin・grafana-backstage、
+# Backstage 側に backstage-grafana-env (docs/cluster/backstage-grafana.md)。パスワードはリポジトリの外のファイルに置き、無ければ作って以後は再利用する。
+# `just up` が _grafana-secrets の後に打つ
+grafana_env_dir := env_var("HOME") + "/.local/share/home-k8s/observability/env-grafana"
+_grafana-env-secrets:
+    bash just/grafana-env-secrets.sh "{{grafana_env_dir}}" "{{justfile_directory()}}" {{kube_context}} dev prod

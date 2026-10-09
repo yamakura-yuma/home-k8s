@@ -1,0 +1,42 @@
+# 環境 (dev・prod) ごとの Prometheus。namespace observability の Prometheus (apps/prometheus.yaml) とは別に、環境の namespace に置く。
+# cAdvisor から、その環境の namespace の Pod のメトリクスだけを集める。永続化なし・保持は短い (docs/cluster/backstage-grafana.md)。
+# 規約は docs/cluster/environments.md。values は共通の values.yaml と環境ごとの values-<環境>.yaml。
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: env-prometheus
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - list:
+        elements:
+          - env: dev
+          - env: prod
+  template:
+    metadata:
+      name: 'env-prometheus-{{.env}}'
+    spec:
+      project: default
+      sources:
+        - repoURL: https://prometheus-community.github.io/helm-charts
+          chart: prometheus
+          targetRevision: 29.35.0
+          helm:
+            releaseName: prometheus
+            valueFiles:
+              - $values/clusters/kind/env-prometheus/values.yaml
+              - $values/clusters/kind/env-prometheus/values-{{.env}}.yaml
+        - repoURL: https://github.com/yamakura-yuma/home-k8s
+          targetRevision: main
+          ref: values
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{.env}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

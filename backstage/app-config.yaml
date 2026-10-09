@@ -49,6 +49,20 @@ proxy:
       target: http://grafana.observability.svc.cluster.local
       headers:
         Authorization: Basic ${GRAFANA_BASIC_AUTH}
+    # 環境 (dev・prod) ごとの Grafana (clusters/kind/env-grafana)。経路は grafana.hosts[].proxyPath と同じ /grafana-<環境>/api
+    # (host ごとに別でないと、プラグインが起動時に落とす)。GRAFANA_<環境>_BASIC_AUTH は環境の Grafana の閲覧用ユーザー backstage の
+    # 「ユーザー:パスワード」の base64。`just up` が Git の外のファイルから Secret backstage-grafana-env を作り、chart が環境変数にする
+    # (docs/cluster/backstage-grafana.md)。ダッシュボードの検索 (GET) だけを通す
+    '/grafana-dev/api':
+      target: http://grafana.dev.svc.cluster.local
+      headers:
+        Authorization: Basic ${GRAFANA_DEV_BASIC_AUTH}
+      allowedMethods: [GET]
+    '/grafana-prod/api':
+      target: http://grafana.prod.svc.cluster.local
+      headers:
+        Authorization: Basic ${GRAFANA_PROD_BASIC_AUTH}
+      allowedMethods: [GET]
     # ArgoCD の API。dev・prod の Application は同じ ArgoCD の中にあるので経路は 1 つ (Application の名前は環境のタブが注釈で渡す)。
     # ARGOCD_AUTH_TOKEN は ArgoCD の読み取り専用アカウント backstage の API トークン。`just up` が Git の外のファイルから
     # Secret backstage-argocd を作り、chart が環境変数にする。GET だけを通す (docs/cluster/backstage-argocd.md)
@@ -72,10 +86,24 @@ argocd:
   # デプロイ履歴に出す件数。プラグインは未設定だと slice(0, -1) で最後の 1 件を落とす (履歴が 1 件なら空になる) ので、必ず書く
   revisionsToLoad: 10
 
+# Grafana は host ごとに 1 つ。注釈 grafana/host-id で選び、無いエンティティ (home-k8s) は defaultHost の default (いままでの Grafana)。
+# domain はダッシュボードのリンク先 (ブラウザが開く URL)。dev・prod の画面のポート (3001・3002) は kind-config の extraPortMappings
+# (Temporal の PR が足す)。環境のタブ (modules/environments/GrafanaView.tsx) が、環境の注釈から grafana/host-id を重ねて出す
 grafana:
-  # ダッシュボードのリンク先 (ブラウザが開く URL)
-  domain: http://localhost:3000
-  unifiedAlerting: false
+  defaultHost: default
+  hosts:
+    - id: default
+      domain: http://localhost:3000
+      proxyPath: /grafana/api
+      unifiedAlerting: false
+    - id: dev
+      domain: http://localhost:3001
+      proxyPath: /grafana-dev/api
+      unifiedAlerting: false
+    - id: prod
+      domain: http://localhost:3002
+      proxyPath: /grafana-prod/api
+      unifiedAlerting: false
 
 # Azure のタブ (@backstage-community/plugin-azure-sites)。読み取り用のサービスプリンシパルの資格情報を環境変数で受ける。
 # 環境変数は Secret backstage-azure (任意) から来る。`just up` が Git の外のファイル

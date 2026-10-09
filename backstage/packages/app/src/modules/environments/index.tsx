@@ -4,6 +4,7 @@ import { EntityContentBlueprint } from '@backstage/plugin-catalog-react/alpha';
 import { Environment, ENV_KEYS, environmentsWith } from './annotations';
 import { EnvironmentSwitcher } from './EnvironmentSwitcher';
 import { ArgoCdView } from './ArgoCdView';
+import { GrafanaView } from './GrafanaView';
 import { ServiceInfo } from './ServiceInfo';
 import { SwaggerView } from './SwaggerView';
 import { TemporalView } from './TemporalView';
@@ -69,7 +70,22 @@ const temporalContent = createEnvironmentContent({
   render: env => <TemporalView env={env} />,
 });
 
+// 環境ごとの Grafana のダッシュボードの一覧 (拡張 entity-content:environments/grafana)。Grafana プラグインのカードを使い、iframe にしない
+const grafanaContent = createEnvironmentContent({
+  name: 'grafana',
+  path: '/grafana',
+  title: 'Grafana',
+  requires: [ENV_KEYS.grafanaHostId, ENV_KEYS.grafanaDashboardSelector],
+  render: env => <GrafanaView env={env} />,
+});
+
 export const environmentsPlugin = createFrontendPlugin({
   pluginId: 'environments',
-  extensions: [serviceContent, swaggerContent, argocdContent, temporalContent],
+  extensions: [
+    serviceContent,
+    swaggerContent,
+    argocdContent,
+    temporalContent,
+    grafanaContent,
+  ],
 });
