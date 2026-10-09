@@ -4,6 +4,7 @@ import { EntityContentBlueprint } from '@backstage/plugin-catalog-react/alpha';
 import { Environment, ENV_KEYS, environmentsWith } from './annotations';
 import { EnvironmentSwitcher } from './EnvironmentSwitcher';
 import { ServiceInfo } from './ServiceInfo';
+import { SwaggerView } from './SwaggerView';
 
 // 環境 (dev・prod) を切り替えて中身を出すエンティティのタブを作る。
 // requires は、そのタブが使う環境のキー (annotations.ts の ENV_KEYS)。どの環境にも揃っていないエンティティにはタブを出さない。
@@ -39,7 +40,16 @@ const serviceContent = createEnvironmentContent({
   render: env => <ServiceInfo env={env} />,
 });
 
+// サンプルの API の OpenAPI を、環境のプロキシを向き先にして Swagger UI で出すタブ (拡張 entity-content:environments/swagger)
+const swaggerContent = createEnvironmentContent({
+  name: 'swagger',
+  path: '/swagger',
+  title: 'Swagger',
+  requires: [ENV_KEYS.apiProxy],
+  render: env => <SwaggerView env={env} />,
+});
+
 export const environmentsPlugin = createFrontendPlugin({
   pluginId: 'environments',
-  extensions: [serviceContent],
+  extensions: [serviceContent, swaggerContent],
 });
