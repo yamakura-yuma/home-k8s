@@ -4,7 +4,8 @@
 # (nix が無ければ落ちる)。作業ツリーは変えず、描画した manifest は一時ディレクトリに出す。
 #
 #   1. yamllint        リポジトリの YAML (.yamllint.yaml)
-#   2. helm template   clusters/kind/argocd/apps の各 Application が指す chart を、ArgoCD と同じ版・values で描画
+#   2. helm template   clusters/kind/argocd/apps の各 Application が指す chart を、ArgoCD と同じ版・values で描画。
+#                      ApplicationSet (環境ごとの展開) は list generator の要素ごとに Application へ展開してから描画する
 #   3. kustomize build / 素の manifest  同じ Application の path (dashboards、storage、headlamp/manifests)
 #   4. kubeconform     3 までの出力を、kind の Kubernetes の版のスキーマに照らす
 #   5. kube-linter     3 までの出力 (.kube-linter.yaml)
@@ -14,8 +15,8 @@
 #   8. share のホスト側  中継 (just/share-relay.Caddyfile) を caddy で起動して認証なし・許可リスト外の拒否を確かめ、Secret を作るスクリプトと
 #                      URL を引く関数と CLI (just share add/delete/...、just/share.sh) を偽の kubectl で確かめる (注釈・引数に値が残らない作り方、#49・#56。
 #                      CLI は上限超えの --ttl・不正な名前・2 つ目の特権・期限付きへの rotate の拒否と、作った項目を実物の認証サービスに通す往復)。
-#                      稼働中のクラスタ・ホストには触れない
-#   9. backstage       yarn install --immutable (yarn.lock のとおりに入れ、ずれていたら落とす) のあと、backend の jest (yarn workspace backend test) と
+#                      稼働中のクラスタ・ホストには触れない。あわせて環境ごとのサンプルの API (services/sample-api) の経路と OpenAPI の突き合わせ
+#   9. backstage       yarn install --immutable (yarn.lock のとおりに入れ、ずれていたら落とす) のあと、backend・app の jest (yarn workspace backend/app test) と
 #                      型検査 (yarn tsc)。node_modules は backstage/ に入る (git の管理外・.dockerignore 済み)
 set -euo pipefail
 
@@ -31,14 +32,45 @@ k8s_version=1.35.0
 apps=clusters/kind/argocd/apps
 
 out=$(mktemp -d)
-trap 'rm -rf "$out"' EXIT
+expanded=$(mktemp -d)  # ApplicationSet を要素ごとの Application に展開したもの (2 で描画する)
+trap 'rm -rf "$out" "$expanded"' EXIT
 share_renders=()  # destination が namespace share の Application が描画した manifest (6 で調べる)
 
 echo "== yamllint =="
 git ls-files -z '*.yaml' '*.yml' | xargs -0 yamllint --strict
 
 echo "== 描画 (helm template / kustomize build) =="
+# ApplicationSet (環境ごとの展開、docs/cluster/environments.md) は list generator の要素ごとに template の
+# {{.キー}} を値に置き換え、Application として下の描画に回す。要素の無い ApplicationSet は落とす
+app_files=()
 for app in "$apps"/*.yaml; do
+    if [ "$(yq '.kind' "$app")" != ApplicationSet ]; then
+        app_files+=("$app")
+        continue
+    fi
+    if [ "$(yq '[.spec.generators[] | select(has("list") | not)] | length' "$app")" != 0 ]; then
+        echo "ApplicationSet の generator は list だけにする (just ci が展開できない): $app" >&2
+        exit 1
+    fi
+    n=$(yq '[.spec.generators[].list.elements[]] | length' "$app")
+    [ "$n" -gt 0 ] || { echo "ApplicationSet に list generator の要素が無い: $app" >&2; exit 1; }
+    for ((i = 0; i < n; i++)); do
+        element=$(yq -o=json -I=0 "[.spec.generators[].list.elements[]] | .[$i]" "$app")
+        rendered=$(yq '{"apiVersion": "argoproj.io/v1alpha1", "kind": "Application"} * .spec.template' "$app")
+        while IFS=$'\t' read -r key value; do
+            rendered=${rendered//"{{.$key}}"/$value}
+        done < <(echo "$element" | yq -p=json 'to_entries | .[] | [.key, .value] | @tsv')
+        if grep -q '{{' <<<"$rendered"; then
+            echo "ApplicationSet の template に要素で置き換わらない {{ }} が残る: $app" >&2
+            exit 1
+        fi
+        file="$expanded/$(basename "$app" .yaml)-$i.yaml"
+        echo "$rendered" >"$file"
+        echo "ApplicationSet $(yq '.metadata.name' "$app") -> Application $(yq '.metadata.name' "$file")"
+        app_files+=("$file")
+    done
+done
+for app in "${app_files[@]}"; do
     name=$(yq '.metadata.name' "$app")
     ns=$(yq '.spec.destination.namespace // "default"' "$app")
     # chart を持つ source は helm template。values は ArgoCD の $values/ (この repo) を実ファイルに戻す
@@ -85,6 +117,9 @@ echo "ok (${share_renders[*]##*/})"
 command -v caddy >/dev/null || { echo "caddy が無い (devShells.ci に入っているはず)" >&2; exit 1; }
 echo "== share 認証の単体試験・Caddyfile の経路・manifest (caddy + 認証サービス + 偽の upstream) =="
 python3 -B -m unittest discover -s clusters/kind/share -v
+echo "== sample-api (環境ごとのサンプルの API の経路と OpenAPI の突き合わせ) =="
+python3 -B -m unittest discover -s services/sample-api -v
+
 echo "== share のホスト側 (中継の caddy、Secret を作るスクリプト、URL を引く関数、CLI) =="
 python3 -B -m unittest discover -s just -p 'test_share_*.py' -v
 
@@ -95,5 +130,7 @@ echo "== backstage の依存 (yarn install --immutable) =="
 (cd backstage && yarn install --immutable)
 echo "== backstage backend の jest (yarn workspace backend test) =="
 (cd backstage && CI=1 yarn workspace backend test)
+echo "== backstage app の jest (yarn workspace app test) =="
+(cd backstage && CI=1 yarn workspace app test)
 echo "== backstage の型検査 (yarn tsc) =="
 (cd backstage && yarn tsc)

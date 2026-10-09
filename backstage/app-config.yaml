@@ -42,6 +42,14 @@ proxy:
       target: http://grafana.observability.svc.cluster.local
       headers:
         Authorization: Basic ${GRAFANA_BASIC_AUTH}
+    # 環境 (dev・prod) ごとのサンプルの API (services/sample-api)。エンティティ sample-api の注釈
+    # home-k8s/env.<環境>.api-proxy がこの経路を指す。経路の名前は <サービス>-<環境> (docs/cluster/environments.md)
+    '/sample-api-dev':
+      target: http://sample-api.dev.svc.cluster.local
+      allowedMethods: [GET]
+    '/sample-api-prod':
+      target: http://sample-api.prod.svc.cluster.local
+      allowedMethods: [GET]
 
 grafana:
   # ダッシュボードのリンク先 (ブラウザが開く URL)

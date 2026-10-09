@@ -7,7 +7,7 @@ backstage:
   image:
     registry: ""
     repository: home-k8s-backstage
-    tag: "0.3.0"
+    tag: "0.4.0"
     pullPolicy: Never
 
   # イメージの app-config.yaml に、下の appConfig (chart が ConfigMap にする) を重ねる

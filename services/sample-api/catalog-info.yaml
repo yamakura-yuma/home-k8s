@@ -1,0 +1,32 @@
+# sample-api の Backstage のエンティティ。Component と、それが出す API を同じファイルに書く。
+# API の定義はこのディレクトリの openapi.yaml を $text で読む (app.py が配るものと同じファイル)。
+# 環境 (dev・prod) ごとの接続先は注釈 home-k8s/environments と home-k8s/env.<環境>.<キー> で持つ
+# (規約は docs/cluster/environments.md)。repo の直下の catalog-info.yaml の Location がこのファイルを読む。
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: sample-api
+  description: 環境 (dev・prod) ごとに動かすサンプルの API。Backstage の環境ごとのタブの確かめ役
+  annotations:
+    github.com/project-slug: yamakura-yuma/home-k8s
+    home-k8s/environments: dev,prod
+    home-k8s/env.dev.api-proxy: /sample-api-dev
+    home-k8s/env.prod.api-proxy: /sample-api-prod
+spec:
+  type: service
+  lifecycle: experimental
+  owner: user:yamakura-yuma
+  providesApis:
+    - sample-api
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: sample-api
+  description: sample-api の HTTP API (OpenAPI 3)
+spec:
+  type: openapi
+  lifecycle: experimental
+  owner: user:yamakura-yuma
+  definition:
+    $text: ./openapi.yaml

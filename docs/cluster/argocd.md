@@ -31,7 +31,9 @@ Application root (clusters/kind/argocd/apps を同期する app-of-apps)
   ├── grafana         chart + grafana-values.yaml + dashboards/kustomization.yaml (ダッシュボードの ConfigMap)
   ├── headlamp        chart + clusters/kind/headlamp/ (values と読み取り専用の RBAC)
   ├── backstage       chart + clusters/kind/backstage/values.yaml (イメージは 0 で入れたもの)
-  └── share           clusters/kind/share/ (Deployment `share`。他の人に見せる公開の本体。share.md)
+  ├── share           clusters/kind/share/ (Deployment `share`。他の人に見せる公開の本体。share.md)
+  └── sample-api      ApplicationSet。services/sample-api/ を Application sample-api-dev・sample-api-prod として
+                      namespace dev・prod に同期する (環境ごとの展開。environments.md)
 ```
 
 | Application | chart | 版 | namespace |
@@ -42,6 +44,7 @@ Application root (clusters/kind/argocd/apps を同期する app-of-apps)
 | backstage | `backstage` (<https://backstage.github.io/charts>) | 2.10.2 | backstage |
 | share | なし (マニフェストのみ。caddy・認証・cloudflared ×3 の 1 Pod) | - | share |
 | storage | なし (マニフェストのみ) | - | なし (cluster-scoped) |
+| sample-api-dev / sample-api-prod (ApplicationSet `sample-api`) | なし (マニフェストのみ。`services/sample-api`) | - | dev / prod |
 
 子の Application は chart のリポジトリと home-k8s の 2 つをソースに持つ (multi-source)。
 home-k8s 側は `ref: values` で、chart に渡す values を `$values/clusters/kind/...` で指す。

@@ -9,8 +9,8 @@ Backstage は ArgoCD が GitHub の `main` から同期する ([argocd.md](argoc
 
 ```
 just up
-  ├─ docker build -t home-k8s-backstage:0.3.0 backstage   (repo の backstage/。ホストに node は要らない)
-  ├─ kind load docker-image home-k8s-backstage:0.3.0       (3 つのノードに入れる)
+  ├─ docker build -t home-k8s-backstage:0.4.0 backstage   (repo の backstage/。ホストに node は要らない)
+  ├─ kind load docker-image home-k8s-backstage:0.4.0       (3 つのノードに入れる)
   ├─ Secret observability/grafana-backstage                 (Grafana の閲覧用ユーザー backstage のパスワード)
   └─ Secret backstage/backstage-grafana                     (同じ資格情報を Backstage のプロキシ用に)
 
@@ -26,10 +26,11 @@ Application backstage (backstage chart 2.10.2、clusters/kind/backstage/values.y
 | アプリ | `backstage/` | `@backstage/create-app@0.9.2` (Backstage 1.55.0、新しいフロントエンドシステム) の雛形から、カタログと Grafana プラグイン以外を外したもの |
 | イメージ | `backstage/Dockerfile` | 上流の multi-stage build。yarn install と build もイメージの中で行う |
 | Grafana プラグイン | `backstage/packages/app` | `@backstage-community/plugin-grafana` 1.1.0。拡張 `entity-card:grafana/dashboards` を有効にする |
+| 環境ごとのタブ | `backstage/packages/app/src/modules/environments` | dev・prod を切り替えて中身を出すエンティティのタブ。注釈の規約と作り方は [environments.md](environments.md) |
 | TechDocs | `backstage/packages/app`・`backstage/packages/backend` | `@backstage/plugin-techdocs` 1.18 と `@backstage/plugin-techdocs-backend` 2.3。文書の画面が検索の API を要るので、検索 (`@backstage/plugin-search` と search-backend、カタログと TechDocs の索引) も載せる |
 | 設定 | `backstage/app-config.yaml` | ポート 7007、インメモリの SQLite、ゲストのログイン、Grafana へのプロキシ、TechDocs |
 | chart の values | `clusters/kind/backstage/values.yaml` | イメージ、NodePort 30707、Secret の参照、読む `catalog-info.yaml` |
-| エンティティ | `catalog-info.yaml` (repo の直下) | Component `home-k8s` と、ダッシュボードを選ぶ注釈、TechDocs の注釈 |
+| エンティティ | `catalog-info.yaml` (repo の直下) | Component `home-k8s` と、ダッシュボードを選ぶ注釈、TechDocs の注釈。サービスの `catalog-info.yaml` (`services/*/`) を読む Location |
 | 文書の設定 | `mkdocs.yml` (repo の直下) | `docs/` を HTML にする MkDocs の設定 |
 
 DB はインメモリの SQLite で、Pod を作り直すとカタログは消えるが、起動のたびに GitHub から読み直す。
@@ -121,7 +122,7 @@ viewer と `backstage` は別のユーザーなので、viewer のパスワー�
 ## イメージ
 
 レジストリ (GHCR など) には置かず、`just up` が手元で build して `kind load` する。chart の values は
-タグを `0.3.0` に固定し、`pullPolicy: Never` で pull しない。クラスタを作り直しても `just up` が入れ直す。
+タグを `0.4.0` に固定し、`pullPolicy: Never` で pull しない。クラスタを作り直しても `just up` が入れ直す。
 
 - `docker build` は層のキャッシュが効くので、`backstage/` を変えていなければすぐ終わる。初回は 5 分ほど
 - TechDocs の mkdocs は、実行用のイメージに Python の venv (`/opt/venv`) を作って pip で入れる (上流の

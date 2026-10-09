@@ -9609,6 +9609,7 @@ __metadata:
   resolution: "app@workspace:packages/app"
   dependencies:
     "@backstage-community/plugin-grafana": "npm:^1.1.0"
+    "@backstage/catalog-model": "npm:^1.10.1"
     "@backstage/cli": "npm:^0.36.6"
     "@backstage/core-components": "npm:^0.18.14"
     "@backstage/core-plugin-api": "npm:^1.12.10"
@@ -9617,6 +9618,7 @@ __metadata:
     "@backstage/frontend-test-utils": "npm:^0.6.4"
     "@backstage/plugin-app-react": "npm:^0.2.7"
     "@backstage/plugin-catalog": "npm:^2.0.9"
+    "@backstage/plugin-catalog-react": "npm:^3.2.3"
     "@backstage/plugin-org": "npm:^0.7.9"
     "@backstage/plugin-search": "npm:^1.7.8"
     "@backstage/plugin-techdocs": "npm:^1.18.1"
@@ -9633,6 +9635,7 @@ __metadata:
     react-dom: "npm:^18.0.2"
     react-router: "npm:^6.30.2"
     react-router-dom: "npm:^6.30.2"
+    react-use: "npm:^17.2.4"
   languageName: unknown
   linkType: soft
 
