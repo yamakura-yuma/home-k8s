@@ -9,16 +9,18 @@ Backstage は ArgoCD が GitHub の `main` から同期する ([argocd.md](argoc
 
 ```
 just up
-  ├─ docker build -t home-k8s-backstage:0.5.0 backstage   (repo の backstage/。ホストに node は要らない)
-  ├─ kind load docker-image home-k8s-backstage:0.5.0       (3 つのノードに入れる)
+  ├─ docker build -t home-k8s-backstage:0.6.0 backstage   (repo の backstage/。ホストに node は要らない)
+  ├─ kind load docker-image home-k8s-backstage:0.6.0       (3 つのノードに入れる)
   ├─ Secret observability/grafana-backstage                 (Grafana の閲覧用ユーザー backstage のパスワード)
-  └─ Secret backstage/backstage-grafana                     (同じ資格情報を Backstage のプロキシ用に)
+  ├─ Secret backstage/backstage-grafana                     (同じ資格情報を Backstage のプロキシ用に)
+  └─ Secret backstage/backstage-argocd                      (ArgoCD の読み取り専用アカウント backstage の API トークン。backstage-argocd.md)
 
 Application backstage (backstage chart 2.10.2、clusters/kind/backstage/values.yaml)
   Pod backstage ── イメージは kind load したもの (pullPolicy: Never)
     ├─ カタログ: GitHub の main の catalog-info.yaml を読む (home-k8s・knowledge-base・dotfiles)
     ├─ TechDocs: 文書を開いたときに GitHub から取り、Pod の中の mkdocs で HTML にして配る
     └─ /api/proxy/grafana/api ──Basic 認証──▶ grafana.observability.svc (ユーザー backstage、Viewer)
+    └─ /api/proxy/argocd/api  ──Bearer──────▶ argocd-server.argocd.svc (アカウント backstage、Application の get だけ)
 ```
 
 | 部品 | 置き場所 | 中身 |
@@ -26,10 +28,11 @@ Application backstage (backstage chart 2.10.2、clusters/kind/backstage/values.y
 | アプリ | `backstage/` | `@backstage/create-app@0.9.2` (Backstage 1.55.0、新しいフロントエンドシステム) の雛形から、カタログと Grafana プラグイン以外を外したもの |
 | イメージ | `backstage/Dockerfile` | 上流の multi-stage build。yarn install と build もイメージの中で行う |
 | Grafana プラグイン | `backstage/packages/app` | `@backstage-community/plugin-grafana` 1.1.0。拡張 `entity-card:grafana/dashboards` を有効にする |
+| ArgoCD プラグイン | `backstage/packages/app` | `@roadiehq/backstage-plugin-argo-cd` 2.13.1。環境ごとの Application の同期状態と健全性を出す。設定は [backstage-argocd.md](backstage-argocd.md) |
 | 環境ごとのタブ | `backstage/packages/app/src/modules/environments` | dev・prod を切り替えて中身を出すエンティティのタブ。注釈の規約と作り方は [environments.md](environments.md) |
 | Swagger のタブ・API の定義 | `backstage/packages/app` | `@backstage/plugin-api-docs` 0.14.5 (`/alpha`)。Component sample-api のタブで OpenAPI を Swagger UI で出し、環境ごとのプロキシを向き先にする。[swagger-tab.md](swagger-tab.md) |
 | TechDocs | `backstage/packages/app`・`backstage/packages/backend` | `@backstage/plugin-techdocs` 1.18 と `@backstage/plugin-techdocs-backend` 2.3。文書の画面が検索の API を要るので、検索 (`@backstage/plugin-search` と search-backend、カタログと TechDocs の索引) も載せる |
-| 設定 | `backstage/app-config.yaml` | ポート 7007、インメモリの SQLite、ゲストのログイン、Grafana へのプロキシ、TechDocs |
+| 設定 | `backstage/app-config.yaml` | ポート 7007、インメモリの SQLite、ゲストのログイン、Grafana・ArgoCD へのプロキシ (`/grafana/api`・`/argocd/api`)、`argocd.baseUrl`・`argocd.revisionsToLoad`、TechDocs |
 | chart の values | `clusters/kind/backstage/values.yaml` | イメージ、NodePort 30707、Secret の参照、読む `catalog-info.yaml` |
 | エンティティ | `catalog-info.yaml` (repo の直下) | Component `home-k8s` と、ダッシュボードを選ぶ注釈、TechDocs の注釈。サービスの `catalog-info.yaml` (`services/*/`) を読む Location |
 | 文書の設定 | `mkdocs.yml` (repo の直下) | `docs/` を HTML にする MkDocs の設定 |
@@ -123,7 +126,7 @@ viewer と `backstage` は別のユーザーなので、viewer のパスワー�
 ## イメージ
 
 レジストリ (GHCR など) には置かず、`just up` が手元で build して `kind load` する。chart の values は
-タグを `0.5.0` に固定し、`pullPolicy: Never` で pull しない。クラスタを作り直しても `just up` が入れ直す。
+タグを `0.6.0` に固定し、`pullPolicy: Never` で pull しない。クラスタを作り直しても `just up` が入れ直す。
 
 - `docker build` は層のキャッシュが効くので、`backstage/` を変えていなければすぐ終わる。初回は 5 分ほど
 - TechDocs の mkdocs は、実行用のイメージに Python の venv (`/opt/venv`) を作って pip で入れる (上流の

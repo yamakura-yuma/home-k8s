@@ -50,7 +50,7 @@ class Recipes(unittest.TestCase):
         out = just("--dry-run", "up").stderr
         steps = ["kind create cluster", "observability/{tempo,prometheus,loki,grafana}",
                  "docker build -t home-k8s-backstage:", "kind load docker-image home-k8s-backstage:",
-                 "helm upgrade --install argocd", "grafana-secrets.sh",
+                 "helm upgrade --install argocd", "grafana-secrets.sh", "argocd-secrets.sh",
                  "share-relay.sh up", "share-secrets.sh", "argocd/root.yaml", "argocd-wait.sh", "headlamp-token.sh"]
         pos = [out.find(step) for step in steps]
         self.assertNotIn(-1, pos, out)
@@ -71,6 +71,17 @@ class Recipes(unittest.TestCase):
         self.assertLess(up.find("grafana-secrets.sh"), up.find("share-secrets.sh"))
         self.assertLess(up.find("share-secrets.sh"), up.find("argocd/root.yaml"))
         self.assertNotIn("share-secrets", " ".join(just("--list").stdout.split()), "内部用は公開しない")
+
+    def test_argocd_token_secret_is_made_after_argocd_and_before_it_syncs_backstage(self):
+        # トークンは動いている ArgoCD (helm の --wait のあと) でしか作れない。Backstage の Pod が起動する前 (root.yaml の同期の前) に Secret が要る。
+        # トークンのファイルは Git の外 (~/.local/share/home-k8s)
+        up = just("--dry-run", "up").stderr
+        self.assertRegex(up, r'argocd-secrets\.sh ".*/\.local/share/home-k8s/argocd/backstage-token" ".+" kind-study-kind\n')
+        self.assertLess(up.find("helm upgrade --install argocd"), up.find("argocd-secrets.sh"))
+        self.assertLess(up.find("argocd-secrets.sh"), up.find("argocd/root.yaml"))
+        self.assertNotIn("argocd-secrets", " ".join(just("--list").stdout.split()), "内部用は公開しない")
+        values = (ROOT / "clusters/kind/backstage/values.yaml").read_text()
+        self.assertIn("- backstage-argocd", values)
 
     def test_backstage_image_tag_matches_values(self):
         # kind load するイメージのタグと、chart が使うタグ (pull しない) がずれると Pod が起動しない

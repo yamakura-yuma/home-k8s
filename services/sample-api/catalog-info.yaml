@@ -12,6 +12,9 @@ metadata:
     home-k8s/environments: dev,prod
     home-k8s/env.dev.api-proxy: /sample-api-dev
     home-k8s/env.prod.api-proxy: /sample-api-prod
+    # 環境ごとの ArgoCD の Application (ApplicationSet sample-api が作る)。ArgoCD のタブが同期状態と健全性を出す
+    home-k8s/env.dev.argocd-app-name: sample-api-dev
+    home-k8s/env.prod.argocd-app-name: sample-api-prod
 spec:
   type: service
   lifecycle: experimental

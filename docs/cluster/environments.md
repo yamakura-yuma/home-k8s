@@ -58,7 +58,7 @@ generator や、要素で置き換わらない `{{ }}` が残る template は、
 | `api-proxy` | Backstage のバックエンドのプロキシの経路 (`/api/proxy` の下)。サービスの API を読む | Environments | この PR |
 | `grafana-host-id` | `app-config.yaml` の `grafana.hosts[].id` (下の「Grafana」) | Grafana | 予定 |
 | `temporal-url` | ブラウザが開く Temporal UI の URL | Temporal | 予定 |
-| `argocd-app-name` | ArgoCD の Application の名前 (`<名前>-<環境>`) | ArgoCD | 予定 |
+| `argocd-app-name` | ArgoCD の Application の名前 (`<名前>-<環境>`、例 `sample-api-dev`)。プラグインの注釈 `argocd/app-name` に重ねる | ArgoCD | 実装済み ([backstage-argocd.md](backstage-argocd.md)) |
 
 「予定」のキーは名前だけを決めておく。値の形は、そのタブを作る PR が決めてこの表を直す。
 
@@ -67,6 +67,8 @@ generator や、要素で置き換わらない `{{ }}` が残る template は、
 - 資格情報は注釈にもブラウザにも置かない。プロキシの `headers` に、`just up` が Git の外のファイルから
   作る Secret の値 (環境変数) を入れる ([backstage.md](backstage.md) の「Grafana の読み方」と同じ形)
 - 環境に依らない値 (GitHub の slug など) は、ふつうの注釈のまま書く
+- 環境の数だけサービスがあるのではなく、1 つのサービスが環境をまたいで持つもの (ArgoCD は dev・prod の Application を
+  同じ ArgoCD が持つ) は、プロキシの経路を `/argocd/api` の 1 つにして、環境の違いは注釈の値 (Application の名前) で渡す
 
 ## 環境を切り替えるタブ (新しいフロントエンドシステムの拡張)
 
@@ -95,8 +97,9 @@ const temporalContent = createEnvironmentContent({
   そのまま `render` で使うか、`@backstage/core-compat-api` の `compatWrapper` で包む
 
 いまあるタブは、サンプルの API の `/info` を環境ごとに出す **Environments** (`entity-content:environments/service`、
-キー `api-proxy`) と、OpenAPI を Swagger UI で出す **Swagger** (`entity-content:environments/swagger`、キー `api-proxy`、
-[swagger-tab.md](swagger-tab.md))。
+キー `api-proxy`) と、OpenAPI UI (`entity-content:environments/swagger`、キー `api-proxy`、
+[swagger-tab.md](swagger-tab.md))、環境ごとの Application の同期状態と健全性を出す **ArgoCD**
+(`entity-content:environments/argocd`、キー `argocd-app-name`、[backstage-argocd.md](backstage-argocd.md))。
 
 ## サンプルの API (sample-api)
 

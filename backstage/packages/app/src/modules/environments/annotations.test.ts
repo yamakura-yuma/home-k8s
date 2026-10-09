@@ -1,5 +1,6 @@
 import { Entity } from '@backstage/catalog-model';
 import {
+  ENV_KEYS,
   entityForEnvironment,
   environmentsWith,
   readEnvironments,
@@ -32,17 +33,17 @@ describe('readEnvironments', () => {
   });
 
   it('home-k8s/environments が無ければ環境は無い', () => {
-    expect(
-      readEnvironments({ ...entity, metadata: { name: 'x' } }),
-    ).toEqual([]);
+    expect(readEnvironments({ ...entity, metadata: { name: 'x' } })).toEqual(
+      [],
+    );
   });
 });
 
 describe('environmentsWith', () => {
   it('キーを全部持つ環境だけを返す', () => {
-    expect(environmentsWith(entity, ['grafana-host-id']).map(e => e.name)).toEqual(
-      ['dev'],
-    );
+    expect(
+      environmentsWith(entity, ['grafana-host-id']).map(e => e.name),
+    ).toEqual(['dev']);
     expect(environmentsWith(entity, ['temporal-url'])).toEqual([]);
   });
 });
@@ -63,5 +64,35 @@ describe('entityForEnvironment', () => {
       ],
     ).toBe('default');
     expect(entity.metadata.annotations?.['grafana/host-id']).toBe('default');
+  });
+});
+
+describe('argocd-app-name', () => {
+  const sample: Entity = {
+    ...entity,
+    metadata: {
+      ...entity.metadata,
+      annotations: {
+        'home-k8s/environments': 'dev,prod',
+        'home-k8s/env.dev.argocd-app-name': 'sample-api-dev',
+        'home-k8s/env.prod.argocd-app-name': 'sample-api-prod',
+      },
+    },
+  };
+
+  it('環境ごとの Application の名前を、プラグインの注釈 argocd/app-name に重ねる', () => {
+    const mapping = { 'argocd/app-name': ENV_KEYS.argocdAppName };
+    const names = readEnvironments(sample).map(
+      env =>
+        entityForEnvironment(sample, env, mapping).metadata.annotations?.[
+          'argocd/app-name'
+        ],
+    );
+    expect(names).toEqual(['sample-api-dev', 'sample-api-prod']);
+  });
+
+  it('注釈を持たないエンティティ (home-k8s など) には ArgoCD のタブを出さない', () => {
+    expect(environmentsWith(sample, [ENV_KEYS.argocdAppName])).toHaveLength(2);
+    expect(environmentsWith(entity, [ENV_KEYS.argocdAppName])).toEqual([]);
   });
 });

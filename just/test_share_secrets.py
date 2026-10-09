@@ -22,7 +22,7 @@ FAKE_KUBECTL = JUST / "fake_kubectl.py"
 ENTRYPOINT = JUST.parent / "clusters/kind/share/entrypoint.sh"
 VIEWER_VALUE = "viewer-pw-0123456789"
 FAKE_RANDOM = "ab" * 32  # 偽の openssl rand -hex 32 の出力
-SECRET_SCRIPTS = ["grafana-secrets.sh", "share-relay.sh", "share-secrets.sh"]
+SECRET_SCRIPTS = ["argocd-secrets.sh", "grafana-secrets.sh", "share-relay.sh", "share-secrets.sh"]
 
 
 def decode(manifest):
@@ -237,6 +237,112 @@ class EverySecretCreatingScript(FakeEnv):
         basic = base64.b64encode(b"backstage:BACKSTAGEPW-secret").decode()
         self.assertEqual([c for c in self.calls() if basic in c or "from-literal" in c and "GRAFANA_BASIC_AUTH" in c], [],
                          "Backstage の Basic が kubectl の引数に出た")
+
+
+class ArgocdSecrets(FakeEnv):
+    """argocd-secrets.sh: ArgoCD の読み取り専用アカウント backstage のトークンを、Git の外のファイルから Secret backstage-argocd にする。
+
+    偽の kubectl は argocd-server の Pod の中で動かすスクリプトを手元の sh で動かし、PATH の先頭の偽の argocd を呼ぶ。
+    """
+
+    ADMIN = "admin-pw-0123456789"
+    NEW = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJiYWNrc3RhZ2UifQ.sig-new-0123456789"
+    OLD = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJiYWNrc3RhZ2UifQ.sig-old-0123456789"
+
+    def setUp(self):
+        super().setUp()
+        self.token_file = self.tmp / "home-k8s" / "argocd" / "backstage-token"
+        self.argocd_log = self.tmp / "argocd.log"
+        self.execs = self.tmp / "execs"
+        self.write_stub("sleep", "exit 0")
+        # 偽の argocd: 呼ばれた副コマンドだけを記録する (パスワードやトークンはログに残さない)。
+        # get-user-info は FAKE_VALID_TOKEN と同じ --auth-token のときだけ "Logged In: true"
+        self.write_stub("argocd", """echo "$1 $2" >> "$ARGOCD_LOG"
+case "$1" in
+    login) ;;
+    account)
+        case "$2" in
+            get-user-info)
+                token=""
+                while [ $# -gt 0 ]; do [ "$1" = "--auth-token" ] && token="$2"; shift; done
+                if [ -n "$token" ] && [ "$token" = "$FAKE_VALID_TOKEN" ]; then echo "Logged In: true"; else echo "Logged In: false"; fi ;;
+            generate-token) echo "$FAKE_NEW_TOKEN" ;;
+        esac ;;
+esac""")
+
+    def run_argocd_secrets(self, **env):
+        defaults = {"ARGOCD_LOG": str(self.argocd_log), "FAKE_ARGOCD_EXECS": str(self.execs),
+                    "FAKE_ARGOCD_ADMIN_PASSWORD": self.ADMIN, "FAKE_NEW_TOKEN": self.NEW, "FAKE_VALID_TOKEN": ""}
+        return self.run_script("argocd-secrets.sh", str(self.token_file), str(JUST), "kind-test", **{**defaults, **env})
+
+    def argocd_calls(self):
+        return self.argocd_log.read_text().splitlines() if self.argocd_log.exists() else []
+
+    def test_creates_the_token_file_and_the_secret(self):
+        r = self.run_argocd_secrets()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.token_file.read_text(), self.NEW)
+        self.assertEqual(self.token_file.stat().st_mode & 0o777, 0o600, "トークンのファイルは本人だけが読める")
+        secrets = self.secrets()
+        self.assertEqual(list(secrets), ["backstage-argocd"])
+        self.assertEqual(secrets["backstage-argocd"][1], {"ARGOCD_AUTH_TOKEN": self.NEW})
+        self.assertIn(secrets["backstage-argocd"][0], ("create", "replace"))
+        for e in self.entries():
+            if e["manifest"].get("kind") == "Secret":
+                self.assertEqual(e["manifest"]["metadata"]["namespace"], "backstage")
+                self.assertNotIn("annotations", e["manifest"]["metadata"])
+        # トークンのファイルが無いので、通るかの確認 (get-user-info) は挟まない
+        self.assertEqual(self.argocd_calls(), ["login localhost:8080", "account generate-token"])
+        # exec に渡すスクリプトは複数行で、ログでは行ごとに分かれる。kubectl の呼び出しの行だけを見る
+        for call in [c for c in self.calls() if c.startswith("kubectl")]:
+            self.assertIn("--context kind-test", call)
+
+    def test_nothing_secret_reaches_the_command_line(self):
+        self.assertEqual(self.run_argocd_secrets().returncode, 0)
+        joined = "\n".join(self.calls())
+        self.assertNotIn(self.ADMIN, joined, "admin のパスワードが kubectl の引数に出た")
+        self.assertNotIn(self.NEW, joined, "トークンが kubectl の引数に出た")
+
+    def test_a_token_that_argocd_still_accepts_is_reused(self):
+        # 打ち直すたびに作ると、ArgoCD のアカウントにトークンが溜まる
+        self.token_file.parent.mkdir(parents=True)
+        self.token_file.write_text(self.OLD)
+        r = self.run_argocd_secrets(FAKE_VALID_TOKEN=self.OLD)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("account generate-token", self.argocd_calls())
+        self.assertEqual(self.token_file.read_text(), self.OLD)
+        self.assertEqual(self.secrets()["backstage-argocd"][1], {"ARGOCD_AUTH_TOKEN": self.OLD})
+
+    def test_a_token_that_argocd_rejects_is_replaced(self):
+        # クラスタを作り直すと署名鍵が変わり、古いトークンは通らない
+        self.token_file.parent.mkdir(parents=True)
+        self.token_file.write_text(self.OLD)
+        r = self.run_argocd_secrets(FAKE_VALID_TOKEN="")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("account generate-token", self.argocd_calls())
+        self.assertEqual(self.token_file.read_text(), self.NEW)
+        self.assertEqual(self.secrets()["backstage-argocd"][1], {"ARGOCD_AUTH_TOKEN": self.NEW})
+
+    def test_waits_for_argocd_to_load_the_account(self):
+        # accounts.backstage を入れた直後は ArgoCD がまだ読んでいない (account does not exist)。少し待って打ち直す
+        r = self.run_argocd_secrets(FAKE_ARGOCD_FAILURES="3")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(self.execs.read_text(), "4")
+        self.assertEqual(self.token_file.read_text(), self.NEW)
+
+    def test_gives_up_without_writing_anything(self):
+        r = self.run_argocd_secrets(FAKE_ARGOCD_FAILURES="99")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertEqual(self.execs.read_text(), "10")
+        self.assertFalse(self.token_file.exists())
+        self.assertEqual(self.secrets(), {}, "トークンが無いのに Secret を作った")
+
+    def test_output_that_is_not_a_token_is_refused(self):
+        r = self.run_argocd_secrets(FAKE_NEW_TOKEN="FATA[0000] rpc error: boom")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertFalse(self.token_file.exists())
+        self.assertEqual(self.secrets(), {})
+        self.assertNotIn("boom", r.stderr + r.stdout, "トークンでない出力をそのまま表示しない")
 
 
 class ShareUrls(FakeEnv):

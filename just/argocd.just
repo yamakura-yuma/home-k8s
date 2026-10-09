@@ -6,6 +6,8 @@ argocd_ns := "argocd"
 argocd_chart_version := "10.9.6" # clusters/kind/argocd/apps/argocd.yaml の targetRevision と揃える
 # Headlamp にログインするトークンの置き場所。Git の外に置き、`just show headlamp` が表示する
 headlamp_token_file := env_var("HOME") + "/.local/share/home-k8s/headlamp/token"
+# Backstage が ArgoCD の API を読むトークン (読み取り専用のアカウント backstage の API トークン)。Git の外に置き、無ければ作る
+argocd_backstage_token_file := env_var("HOME") + "/.local/share/home-k8s/argocd/backstage-token"
 
 # トークンは ServiceAccount headlamp (Application headlamp が作る) に結び付いた Secret から取る
 # Headlamp (localhost:4466) にログインするトークンを作り、ファイルに書いて表示する
@@ -20,3 +22,8 @@ _argocd-install:
         --repo https://argoproj.github.io/argo-helm --version {{argocd_chart_version}} \
         --kube-context {{kube_context}} --namespace {{argocd_ns}} --create-namespace \
         --values clusters/kind/argocd/values.yaml --wait
+
+# 読み取り専用のアカウント backstage (clusters/kind/argocd/values.yaml) の API トークンを作り、Secret backstage-argocd (Backstage 側) に入れる。
+# `just up` が ArgoCD を入れたあとに打つ。トークンのファイルが今の ArgoCD で通るなら作り直さない
+_argocd-secrets:
+    bash just/argocd-secrets.sh "{{argocd_backstage_token_file}}" "{{justfile_directory()}}" {{kube_context}}

@@ -16,6 +16,7 @@ just up
   1. helm upgrade --install argocd (argo-cd chart、clusters/kind/argocd/values.yaml)
   2. Secret grafana-admin / grafana-viewer / grafana-backstage / backstage-grafana
      (Git の外のファイルから。just/grafana-secrets.sh)
+     Secret backstage-argocd (ArgoCD の読み取り専用アカウント backstage の API トークン。just/argocd-secrets.sh、backstage-argocd.md)
      headroom の中継 (ホストの docker コンテナ、just/share-relay.sh) と、share の Secret (just/share-secrets.sh)
   3. kubectl apply -f clusters/kind/argocd/root.yaml
   4. 全 Application が Synced/Healthy になるまで待つ

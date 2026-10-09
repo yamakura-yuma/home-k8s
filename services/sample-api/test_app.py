@@ -3,6 +3,7 @@
 import json
 import re
 import unittest
+from pathlib import Path
 
 from app import OPENAPI, route
 
@@ -32,6 +33,19 @@ class RouteTest(unittest.TestCase):
         self.assertTrue(paths)
         for p in paths:
             self.assertNotEqual(route(p, "", "dev")[0], 404, p)
+
+
+class CatalogInfoTest(unittest.TestCase):
+    def test_argocd_app_names_match_what_the_applicationset_generates(self):
+        # ArgoCD のタブは、環境ごとの Application の名前を注釈 home-k8s/env.<環境>.argocd-app-name から引く。
+        # ApplicationSet sample-api (clusters/kind/argocd/apps/sample-api.yaml) の <名前>-<環境> と食い違えば、タブは何も出さない
+        root = Path(__file__).resolve().parents[2]
+        catalog = (root / "services/sample-api/catalog-info.yaml").read_text()
+        appset = (root / "clusters/kind/argocd/apps/sample-api.yaml").read_text()
+        envs = re.findall(r"^\s+- env: (\S+)$", appset, re.M)
+        self.assertEqual(envs, ["dev", "prod"])
+        for env in envs:
+            self.assertIn(f"home-k8s/env.{env}.argocd-app-name: sample-api-{env}\n", catalog)
 
 
 if __name__ == "__main__":
