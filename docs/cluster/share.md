@@ -347,4 +347,3 @@ CI の runner にはそれらが無いためである (`just ci` はクラスタ
   `path_regexp` は caddy が整えた path に当たるが、`reverse_proxy` は生の path を送る。headroom の許可では `rewrite * /{re.dash.1}` で許可した経路そのものに書き換えて渡す (クエリは残る。下の生の全体一致があるので、二重の備え)。
   ただし `path_regexp` だけだと、`//health`・`/%2Fhealth`・`/transformations%2Ffeed`・`/x/../health` のような、許可していない表記が許可した経路に正規化されて通る (#54)。
   share の caddy と、ホスト側の中継 (`just/share-relay.Caddyfile`) は、送られた生の要求 (`{http.request.orig_uri}`) にも同じ表を全体一致で掛け、これらを 404 にする (試験は share の caddy が `HEADROOM_DENIED`、中継が `just/test_share_relay.py` の `DENIED`。中継は #75)。
-- `stage C paths` の対象はこの repo の `.github/CODEOWNERS` が決める (dotfiles の `bin/gate-stage-c.sh` は PR の base にある呼ぶ側の CODEOWNERS だけを読み、dotfiles 側にパスの一覧は無い)。`clusters/kind/share/` と `just/share*` の各ファイルは既に載っているので、dotfiles 側の変更は要らない。
