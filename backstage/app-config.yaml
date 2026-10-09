@@ -29,6 +29,8 @@ backend:
     port: 7007
   csp:
     connect-src: ["'self'", 'http:', 'https:']
+    # Temporal のタブの iframe (環境ごとの Web UI)。この 2 つのオリジンだけ埋め込みを許す (docs/cluster/temporal.md)
+    frame-src: ["'self'", 'http://localhost:8233', 'http://localhost:8234']
   cors:
     origin: http://localhost:7007
     methods: [GET, HEAD, PATCH, POST, PUT, DELETE]

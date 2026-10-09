@@ -18,6 +18,9 @@ metadata:
     # Azure のタブが探す App Service・Functions の名前 (部分一致)。実際のサブスクリプションに同名のリソースを置くと出る
     home-k8s/env.dev.azure-web-sites: sample-api-dev
     home-k8s/env.prod.azure-web-sites: sample-api-prod
+    # 環境ごとの Temporal Web UI。ブラウザが開く URL で、kind-config の extraPortMappings のホストのポート (docs/cluster/temporal.md)
+    home-k8s/env.dev.temporal-url: http://localhost:8233
+    home-k8s/env.prod.temporal-url: http://localhost:8234
 spec:
   type: service
   lifecycle: experimental

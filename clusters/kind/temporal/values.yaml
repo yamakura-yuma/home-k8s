@@ -1,0 +1,92 @@
+# temporalio/helm-charts の temporal chart の values (環境に共通の分)。環境ごとの差は values-<環境>.yaml。
+# ApplicationSet temporal (clusters/kind/argocd/apps/temporal.yaml) が、dev・prod の namespace に同じ形で入れる。
+# 1 つの kind に 2 環境を載せるので、メモリを詰めてある (各サーバーはレプリカ 1、requests/limits を置く)。
+# DB は同じ namespace の PostgreSQL (clusters/kind/temporal/base/postgres.yaml)。chart は DB を持たない。
+
+# Web UI は ClusterIP のまま。ホストへは proxy temporal-ui-embed (X-Frame-Options を外して Backstage の iframe に出す) が出す
+web:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+
+# temporal CLI の入った管理用の Pod は置かない。スキーマ・namespace を作るジョブは同じイメージを使うので影響しない
+admintools:
+  enabled: false
+
+schema:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+
+server:
+  replicaCount: 1
+  config:
+    logLevel: "info"
+    persistence:
+      # シャードの数は DB を作った後で変えられない。学習用なので小さくして、history のメモリを抑える (既定は 512)
+      numHistoryShards: 4
+      defaultStore: default
+      visibilityStore: visibility
+      datastores:
+        default:
+          sql:
+            pluginName: postgres12
+            databaseName: temporal
+            connectAddr: "temporal-postgres:5432"
+            connectProtocol: tcp
+            user: temporal
+            existingSecret: temporal-postgres
+            secretKey: password
+            maxConns: 10
+            maxIdleConns: 10
+            maxConnLifetime: 1h
+        visibility:
+          sql:
+            pluginName: postgres12
+            databaseName: temporal_visibility
+            connectAddr: "temporal-postgres:5432"
+            connectProtocol: tcp
+            user: temporal
+            existingSecret: temporal-postgres
+            secretKey: password
+            maxConns: 10
+            maxIdleConns: 10
+            maxConnLifetime: 1h
+    namespaces:
+      # Web UI が最初に開く namespace default を作る (保存期間は values-<環境>.yaml)
+      create: true
+  frontend:
+    resources:
+      requests:
+        cpu: 20m
+        memory: 128Mi
+      limits:
+        memory: 384Mi
+  history:
+    resources:
+      requests:
+        cpu: 20m
+        memory: 128Mi
+      limits:
+        memory: 512Mi
+  matching:
+    resources:
+      requests:
+        cpu: 20m
+        memory: 96Mi
+      limits:
+        memory: 384Mi
+  worker:
+    resources:
+      requests:
+        cpu: 20m
+        memory: 96Mi
+      limits:
+        memory: 384Mi

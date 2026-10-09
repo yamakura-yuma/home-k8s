@@ -15,7 +15,8 @@
 #   8. share のホスト側  中継 (just/share-relay.Caddyfile) を caddy で起動して認証なし・許可リスト外の拒否を確かめ、Secret を作るスクリプトと
 #                      URL を引く関数と CLI (just share add/delete/...、just/share.sh) を偽の kubectl で確かめる (注釈・引数に値が残らない作り方、#49・#56。
 #                      CLI は上限超えの --ttl・不正な名前・2 つ目の特権・期限付きへの rotate の拒否と、作った項目を実物の認証サービスに通す往復)。
-#                      稼働中のクラスタ・ホストには触れない。あわせて環境ごとのサンプルの API (services/sample-api) の経路と OpenAPI の突き合わせ
+#                      稼働中のクラスタ・ホストには触れない。あわせて環境ごとのサンプルの API (services/sample-api) の経路と OpenAPI の突き合わせ、
+#                      Temporal (clusters/kind/temporal) の URL・ポート・CSP・proxy の突き合わせ
 #   8b. Azure の資格情報  just/backstage-azure-secret.sh を偽の kubectl で確かめる (ファイルが無い・空・欠けた項目・CRLF・コメント、値が引数に残らないこと)
 #   9. backstage       yarn install --immutable (yarn.lock のとおりに入れ、ずれていたら落とす) のあと、backend・app の jest (yarn workspace backend/app test) と
 #                      型検査 (yarn tsc)。node_modules は backstage/ に入る (git の管理外・.dockerignore 済み)
@@ -120,6 +121,8 @@ echo "== share 認証の単体試験・Caddyfile の経路・manifest (caddy + �
 python3 -B -m unittest discover -s clusters/kind/share -v
 echo "== sample-api (環境ごとのサンプルの API の経路と OpenAPI の突き合わせ) =="
 python3 -B -m unittest discover -s services/sample-api -v
+echo "== temporal (環境ごとの UI の URL・ポート・CSP・proxy の突き合わせ) =="
+python3 -B -m unittest discover -s clusters/kind/temporal -v
 
 echo "== share のホスト側 (中継の caddy、Secret を作るスクリプト、URL を引く関数、CLI) =="
 python3 -B -m unittest discover -s just -p 'test_share_*.py' -v

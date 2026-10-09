@@ -6,6 +6,7 @@ import { EnvironmentSwitcher } from './EnvironmentSwitcher';
 import { ArgoCdView } from './ArgoCdView';
 import { ServiceInfo } from './ServiceInfo';
 import { SwaggerView } from './SwaggerView';
+import { TemporalView } from './TemporalView';
 
 // 環境 (dev・prod) を切り替えて中身を出すエンティティのタブを作る。
 // requires は、そのタブが使う環境のキー (annotations.ts の ENV_KEYS)。どの環境にも揃っていないエンティティにはタブを出さない。
@@ -59,7 +60,16 @@ const argocdContent = createEnvironmentContent({
   render: env => <ArgoCdView env={env} />,
 });
 
+// 環境の Temporal Web UI を iframe で出すタブ (拡張 entity-content:environments/temporal)
+const temporalContent = createEnvironmentContent({
+  name: 'temporal',
+  path: '/temporal',
+  title: 'Temporal',
+  requires: [ENV_KEYS.temporalUrl],
+  render: env => <TemporalView env={env} />,
+});
+
 export const environmentsPlugin = createFrontendPlugin({
   pluginId: 'environments',
-  extensions: [serviceContent, swaggerContent, argocdContent],
+  extensions: [serviceContent, swaggerContent, argocdContent, temporalContent],
 });

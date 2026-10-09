@@ -1,0 +1,11 @@
+# prod の Temporal UI の NodePort。ホストの localhost:8234 に kind-config の extraPortMappings でつながる (docs/cluster/temporal.md)
+resources:
+  - ../../base
+patches:
+  - target:
+      kind: Service
+      name: temporal-ui-embed
+    patch: |-
+      - op: add
+        path: /spec/ports/0/nodePort
+        value: 30234
