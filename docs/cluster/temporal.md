@@ -94,7 +94,7 @@ URL を変えたら、Backstage の CSP の `frame-src` と proxy の NodePort�
 | prod の Grafana | 127.0.0.1:3002 | 30302 | Grafana の PR |
 
 **`extraPortMappings` はクラスタを作るときにしか効かない。マージ後は、人が `just down && just up` でクラスタを作り直す。**
-PV のデータ (観測スタックの保存先) はホストのディレクトリに残る。Backstage のイメージ (0.7.0) も `just up` が入れ直す。
+PV のデータ (観測スタックの保存先) はホストのディレクトリに残る。Backstage のイメージ (0.8.0) も `just up` が入れ直す。
 作り直しの間は、観測スタックと Backstage が止まる。
 
 ## メモリの見込み
