@@ -93,7 +93,9 @@ Azure 側のタグ:  environment=dev|prod   service=sample-api
   Component の `dependsOn` として逆向きにも結ばれる (Component の relations に `resource:dev/…` が並ぶ)。
   名前空間が `default` でないので `default/` を省略せず書く (省略すると同じ namespace = `dev` の中を探して解決できない)。
   `owner` (`defaultOwner`) も同じ理由で `user:default/yamakura-yuma`
-- **表示は Azure のタブの中**: 環境のタブの切り替え (`createEnvironmentContent`) に乗り、選んだ環境の namespace の
+- **表示は Azure のタブの中**: 表は azure-sites の `/health` が 200 のとき (資格情報が揃うとき) だけ出る。`AZURE_DOMAIN` だけが欠けると、取り込みは走るがタブは「資格情報が無い」を出すので、5 つとも置く。
+  タブは注釈 `azure-web-sites` を持つ環境にだけ出るので、Web アプリの無いサービスは、その注釈を (使わない名前でも) 付けないとタブが出ない。
+  ここから先: 環境のタブの切り替え (`createEnvironmentContent`) に乗り、選んだ環境の namespace の
   Resource を `catalogApi.getEntities` で引く (`packages/app/src/modules/azure/AzureResourcesList.tsx`)。
   Resource の名前のリンクは、カタログの Resource のページ (`/catalog/dev/resource/<名前>`) を開く
 
