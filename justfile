@@ -75,3 +75,4 @@ show what="":
 # 共有の資格情報を操作する (add <名前> [--ttl 30m|8h] [--permanent] | delete <名前> | list | get <名前> | rotate <名前> | prune | test-smoke)
 share *args:
     @bash just/share.sh {{kube_context}} {{args}}
+# gate 確認用
