@@ -96,6 +96,7 @@ const temporalContent = createEnvironmentContent({
 
 いまあるタブは、サンプルの API の `/info` を環境ごとに出す **Environments** (`entity-content:environments/service`、
 キー `api-proxy`) だけ。
+Swagger のタブ (`entity-content:environments/swagger`) は [swagger-tab.md](swagger-tab.md)。
 
 ## サンプルの API (sample-api)
 
