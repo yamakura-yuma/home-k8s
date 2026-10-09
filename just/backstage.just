@@ -3,7 +3,7 @@
 
 # repo の backstage/ から作るイメージ。レジストリに置かず kind load するので、タグは固定して
 # clusters/kind/backstage/values.yaml の image と揃える。アプリを変えたらタグを上げる (同じタグのままだと Pod は作り直されない)
-backstage_image := "home-k8s-backstage:0.3.0"
+backstage_image := "home-k8s-backstage:0.4.0"
 
 # Backstage のイメージを build し、kind のクラスタに入れる。
 # build は docker の層のキャッシュが効くので、変更が無ければすぐ終わる。

@@ -32,3 +32,12 @@ metadata:
   name: yamakura-yuma
 spec:
   memberOf: []
+---
+# repo の中のサービスのエンティティ。サービスのコードの隣の catalog-info.yaml を読む (相対パスはこのファイルから)
+apiVersion: backstage.io/v1alpha1
+kind: Location
+metadata:
+  name: home-k8s-services
+spec:
+  targets:
+    - ./services/sample-api/catalog-info.yaml

@@ -1,0 +1,12 @@
+# sample-api の manifest。ApplicationSet sample-api (clusters/kind/argocd/apps/sample-api.yaml) が
+# dev と prod の namespace に同じものを同期する (docs/cluster/environments.md)。namespace はここに書かず、
+# ArgoCD の destination が決める。
+# コードと OpenAPI はこのディレクトリのファイルから ConfigMap にする。名前にハッシュが付くので、
+# 中身を変えると Deployment の参照も変わり、Pod が作り直される。
+resources:
+  - deployment.yaml
+configMapGenerator:
+  - name: sample-api
+    files:
+      - app.py
+      - openapi.yaml

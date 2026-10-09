@@ -1,0 +1,71 @@
+# sample-api の OpenAPI。app.py が /openapi.yaml で配り、Backstage の API エンティティ sample-api が
+# catalog-info.yaml の $text で読む (どちらもこのファイルが正本)。経路を足したら app.py と test_app.py も直す
+openapi: 3.0.3
+info:
+  title: sample-api
+  version: 0.1.0
+  description: 環境 (dev・prod) ごとに動かすサンプルの API。Backstage の環境ごとのタブの確かめ役
+servers:
+  - url: /api/proxy/sample-api-dev
+    description: dev (Backstage のプロキシ経由)
+  - url: /api/proxy/sample-api-prod
+    description: prod (Backstage のプロキシ経由)
+paths:
+  /info:
+    get:
+      summary: サービスの名前・環境・版を返す
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+  /hello:
+    get:
+      summary: あいさつを返す
+      parameters:
+        - name: name
+          in: query
+          required: false
+          schema:
+            type: string
+            default: world
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Hello'
+  /healthz:
+    get:
+      summary: 生きているか (probe 用)
+      responses:
+        "200":
+          description: ok
+          content:
+            text/plain:
+              schema:
+                type: string
+components:
+  schemas:
+    Info:
+      type: object
+      required: [service, environment, version]
+      properties:
+        service:
+          type: string
+        environment:
+          type: string
+          description: Pod の namespace (dev・prod)
+        version:
+          type: string
+    Hello:
+      type: object
+      required: [message, environment]
+      properties:
+        message:
+          type: string
+        environment:
+          type: string

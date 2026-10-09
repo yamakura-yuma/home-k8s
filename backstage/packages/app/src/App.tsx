@@ -4,7 +4,15 @@ import grafanaPlugin from '@backstage-community/plugin-grafana/alpha';
 import techdocsPlugin from '@backstage/plugin-techdocs/alpha';
 import searchPlugin from '@backstage/plugin-search/alpha';
 import { navModule } from './modules/nav';
+import { environmentsPlugin } from './modules/environments';
 
 export default createApp({
-  features: [catalogPlugin, grafanaPlugin, techdocsPlugin, searchPlugin, navModule],
+  features: [
+    catalogPlugin,
+    grafanaPlugin,
+    techdocsPlugin,
+    searchPlugin,
+    environmentsPlugin,
+    navModule,
+  ],
 });

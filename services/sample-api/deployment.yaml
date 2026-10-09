@@ -1,0 +1,81 @@
+# サンプルの API (app.py)。イメージは作らず、python の公式イメージで ConfigMap のコードを動かす。
+# 環境の名前は namespace (Downward API) から取るので、dev と prod で同じ manifest になる。
+# Service は ClusterIP だけ。ブラウザからは Backstage のバックエンドのプロキシ (/api/proxy/sample-api-<環境>) で読む。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-api
+  labels:
+    app.kubernetes.io/name: sample-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sample-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sample-api
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: sample-api
+          image: python:3.13-alpine
+          command: ["python", "/app/app.py"]
+          env:
+            - name: APP_ENV
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: app
+              mountPath: /app
+              readOnly: true
+      volumes:
+        - name: app
+          configMap:
+            name: sample-api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sample-api
+  labels:
+    app.kubernetes.io/name: sample-api
+spec:
+  selector:
+    app.kubernetes.io/name: sample-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
