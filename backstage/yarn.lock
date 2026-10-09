@@ -910,7 +910,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@azure/identity@npm:^4.0.0":
+"@azure/identity@npm:^4.0.0, @azure/identity@npm:^4.13.0":
   version: 4.13.3
   resolution: "@azure/identity@npm:4.13.3"
   dependencies:
@@ -951,7 +951,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@azure/ms-rest-js@npm:^2.2.0":
+"@azure/ms-rest-js@npm:^2.2.0, @azure/ms-rest-js@npm:^2.7.0":
   version: 2.7.0
   resolution: "@azure/ms-rest-js@npm:2.7.0"
   dependencies:
@@ -1456,6 +1456,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@backstage-community/plugin-azure-resources-node@npm:^0.15.0":
+  version: 0.15.0
+  resolution: "@backstage-community/plugin-azure-resources-node@npm:0.15.0"
+  dependencies:
+    "@azure/arm-resourcegraph": "npm:^4.2.1"
+    "@azure/identity": "npm:^4.13.0"
+    "@azure/ms-rest-js": "npm:^2.7.0"
+    "@backstage/backend-plugin-api": "npm:^1.10.0"
+  checksum: 10c0/0c9996feb87bda75e0e212bbdf2309021f731ff03aead357c529013e6dd6d3203c81abb3dc81de7ed0ee718fa6c9e1f7e8ebb60d5ae5ca4f508377c2732fc25d
+  languageName: node
+  linkType: hard
+
 "@backstage-community/plugin-azure-sites-backend@npm:^0.16.0":
   version: 0.16.0
   resolution: "@backstage-community/plugin-azure-sites-backend@npm:0.16.0"
@@ -1514,6 +1526,20 @@ __metadata:
     react-dom: ^16.13.1 || ^17.0.0 || ^18.0.0
     react-router-dom: 6.0.0-beta.0 || ^6.3.0
   checksum: 10c0/f20e993983a50b15e4a4db39b97ed40edb44bdb772abb2d179809666df9fff2e05e14c2162597f516fa878e1aa755b4d42ae52cb6ba340e4669662178864b5f9
+  languageName: node
+  linkType: hard
+
+"@backstage-community/plugin-catalog-backend-module-azure-resources@npm:^0.12.0":
+  version: 0.12.0
+  resolution: "@backstage-community/plugin-catalog-backend-module-azure-resources@npm:0.12.0"
+  dependencies:
+    "@backstage-community/plugin-azure-resources-node": "npm:^0.15.0"
+    "@backstage/backend-plugin-api": "npm:^1.10.0"
+    "@backstage/catalog-model": "npm:^1.10.0"
+    "@backstage/plugin-catalog-node": "npm:^2.2.4"
+    lodash: "npm:^4.17.21"
+    uuid: "npm:^13.0.0"
+  checksum: 10c0/dcca65f044a3690117af9739b11cb14ae9a25b4b26f8646913357ff130abd603f35ebd9b744b2347423f88f9e4154a7514bfe76c4db1ad7ba413cb1f0789549a
   languageName: node
   linkType: hard
 
@@ -1760,7 +1786,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@backstage/backend-plugin-api@npm:^1.10.1, @backstage/backend-plugin-api@npm:^1.6.0, @backstage/backend-plugin-api@npm:^1.6.2, @backstage/backend-plugin-api@npm:^1.7.0, @backstage/backend-plugin-api@npm:^1.8.0, @backstage/backend-plugin-api@npm:^1.9.0":
+"@backstage/backend-plugin-api@npm:^1.10.0, @backstage/backend-plugin-api@npm:^1.10.1, @backstage/backend-plugin-api@npm:^1.6.0, @backstage/backend-plugin-api@npm:^1.6.2, @backstage/backend-plugin-api@npm:^1.7.0, @backstage/backend-plugin-api@npm:^1.8.0, @backstage/backend-plugin-api@npm:^1.9.0":
   version: 1.10.1
   resolution: "@backstage/backend-plugin-api@npm:1.10.1"
   dependencies:
@@ -1796,7 +1822,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@backstage/catalog-model@npm:^1.10.1, @backstage/catalog-model@npm:^1.7.6, @backstage/catalog-model@npm:^1.7.7":
+"@backstage/catalog-model@npm:^1.10.0, @backstage/catalog-model@npm:^1.10.1, @backstage/catalog-model@npm:^1.7.6, @backstage/catalog-model@npm:^1.7.7":
   version: 1.10.1
   resolution: "@backstage/catalog-model@npm:1.10.1"
   dependencies:
@@ -3182,7 +3208,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@backstage/plugin-catalog-node@npm:^2.2.5":
+"@backstage/plugin-catalog-node@npm:^2.2.4, @backstage/plugin-catalog-node@npm:^2.2.5":
   version: 2.2.5
   resolution: "@backstage/plugin-catalog-node@npm:2.2.5"
   dependencies:
@@ -12806,6 +12832,7 @@ __metadata:
   resolution: "backend@workspace:packages/backend"
   dependencies:
     "@backstage-community/plugin-azure-sites-backend": "npm:^0.16.0"
+    "@backstage-community/plugin-catalog-backend-module-azure-resources": "npm:^0.12.0"
     "@backstage/backend-defaults": "npm:^0.18.0"
     "@backstage/backend-plugin-api": "npm:^1.10.1"
     "@backstage/cli": "npm:^0.36.6"
@@ -12823,8 +12850,10 @@ __metadata:
     "@backstage/plugin-search-backend-node": "npm:^1.4.8"
     "@backstage/plugin-search-common": "npm:^1.2.25"
     "@backstage/plugin-techdocs-backend": "npm:^2.3.0"
+    "@types/js-yaml": "npm:^4.0.9"
     app: "link:../app"
     better-sqlite3: "npm:^12.0.0"
+    js-yaml: "npm:^4.1.0"
     node-gyp: "npm:^10.0.0"
   languageName: unknown
   linkType: soft
@@ -29818,6 +29847,15 @@ __metadata:
   bin:
     uuid: dist/esm/bin/uuid
   checksum: 10c0/9e3af58eba872ece5a5e76f4773a94fc78a0ef2c2444c38dbe6b42f41dadf76c01850fd783604f27986f6195e6286aef064d45987d401b2a33127b98ddf7c0c5
+  languageName: node
+  linkType: hard
+
+"uuid@npm:^13.0.0":
+  version: 13.0.2
+  resolution: "uuid@npm:13.0.2"
+  bin:
+    uuid: dist-node/bin/uuid
+  checksum: 10c0/32c7ee84fa7c7966cc09b3a1514a752a8e2f609f15c00033fbaedc0255d577d1877b839f11ee537f37e587bbc620bbb98c3b3a1482931b8ed47d79497cd7a7cd
   languageName: node
   linkType: hard
 

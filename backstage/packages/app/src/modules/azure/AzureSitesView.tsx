@@ -6,8 +6,10 @@ import {
   useApi,
 } from '@backstage/core-plugin-api';
 import { EmptyState, Progress } from '@backstage/core-components';
+import { Grid } from '@material-ui/core';
 import { compatWrapper } from '@backstage/core-compat-api';
 import { EntityAzureSitesOverviewWidget } from '@backstage-community/plugin-azure-sites';
+import { AzureResourcesList } from './AzureResourcesList';
 import {
   Environment,
   ENV_KEYS,
@@ -52,7 +54,11 @@ export function AzureSitesView({ env }: { env: Environment }) {
       <EmptyState
         missing="info"
         title="Azure の資格情報が無い"
-        description={`~/.local/share/home-k8s/backstage/azure.env に読み取り用のサービスプリンシパルの資格情報を置いて just up を打つ (${env.name} の ${env.values[ENV_KEYS.azureWebSites]} は、資格情報ができたら出る。手順は docs/cluster/backstage-azure.md)`}
+        description={`~/.local/share/home-k8s/backstage/azure.env に読み取り用のサービスプリンシパルの資格情報を置いて just up を打つ (${
+          env.name
+        } の ${
+          env.values[ENV_KEYS.azureWebSites]
+        } は、資格情報ができたら出る。手順は docs/cluster/backstage-azure.md)`}
       />
     );
   }
@@ -60,9 +66,17 @@ export function AzureSitesView({ env }: { env: Environment }) {
   const scoped = entityForEnvironment(entity, env, {
     [AZURE_WEB_SITES_ANNOTATION]: ENV_KEYS.azureWebSites,
   });
+  // 上に、カタログに取り込まれた Azure のリソース (Resource Graph)、下に App Service・Functions (azure-sites)
   return (
-    <EntityProvider entity={scoped}>
-      {compatWrapper(<EntityAzureSitesOverviewWidget />)}
-    </EntityProvider>
+    <Grid container spacing={3}>
+      <Grid item xs={12}>
+        <AzureResourcesList entity={entity} env={env} />
+      </Grid>
+      <Grid item xs={12}>
+        <EntityProvider entity={scoped}>
+          {compatWrapper(<EntityAzureSitesOverviewWidget />)}
+        </EntityProvider>
+      </Grid>
+    </Grid>
   );
 }

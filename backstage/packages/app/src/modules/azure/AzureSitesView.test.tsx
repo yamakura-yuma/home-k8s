@@ -5,8 +5,11 @@ import {
   FetchApi,
   fetchApiRef,
 } from '@backstage/core-plugin-api';
-import { useEntity } from '@backstage/plugin-catalog-react';
-import { renderInTestApp, TestApiProvider } from '@backstage/frontend-test-utils';
+import { catalogApiRef, useEntity } from '@backstage/plugin-catalog-react';
+import {
+  renderInTestApp,
+  TestApiProvider,
+} from '@backstage/frontend-test-utils';
 import { AzureSitesView, AZURE_WEB_SITES_ANNOTATION } from './AzureSitesView';
 
 // 部品は azure-sites 本体ではなく、渡された注釈を出すだけのものにする (本体は Azure のバックエンドを呼ぶ)
@@ -19,7 +22,8 @@ jest.mock('@backstage-community/plugin-azure-sites', () => {
       const { entity } = useScopedEntity();
       return (
         <div>
-          azure-sites の注釈: {entity.metadata.annotations?.['azure.com/microsoft-web-sites']}
+          azure-sites の注釈:{' '}
+          {entity.metadata.annotations?.['azure.com/microsoft-web-sites']}
         </div>
       );
     },
@@ -56,6 +60,7 @@ async function renderWith(health: { status: number }) {
       apis={[
         [discoveryApiRef, discovery as DiscoveryApi],
         [fetchApiRef, { fetch } as unknown as FetchApi],
+        [catalogApiRef, { getEntities: async () => ({ items: [] }) } as any],
       ]}
     >
       <EntityProvider entity={entity}>
@@ -68,7 +73,9 @@ async function renderWith(health: { status: number }) {
 
 describe('AzureSitesView', () => {
   it('バックエンドの /health が 503 なら、資格情報が無い旨を出し、プラグインの部品は出さない', async () => {
-    const { findByText, queryByText, fetch } = await renderWith({ status: 503 });
+    const { findByText, queryByText, fetch } = await renderWith({
+      status: 503,
+    });
     expect(await findByText('Azure の資格情報が無い')).not.toBeNull();
     expect(fetch).toHaveBeenCalledWith('http://backend/api/azure-sites/health');
     expect(queryByText(/azure-sites の注釈/)).toBeNull();

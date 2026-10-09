@@ -1,6 +1,7 @@
 // home-k8s の Backstage のバックエンド。カタログ (Git の catalog-info.yaml)、
 // Grafana プラグインが Grafana の API を読むためのプロキシ、TechDocs (文書の build と配信) と検索だけを載せる。
 import { createBackend } from '@backstage/backend-defaults';
+import { azureResourcesFeatureLoader } from './azureResources';
 import { azureSitesFeatureLoader } from './azureSites';
 import { searchModuleEmptyOnMissingIndex } from './searchEngine';
 
@@ -28,5 +29,8 @@ backend.add(import('@backstage/plugin-search-backend-module-techdocs'));
 
 // Azure のタブ (環境ごとの Azure のリソースを読む)。資格情報があるときだけ公式のプラグインを載せる (azureSites.ts)
 backend.add(azureSitesFeatureLoader);
+
+// Azure のリソースを Resource としてカタログに取り込む。資格情報があるときだけ載せる (azureResources.ts)
+backend.add(azureResourcesFeatureLoader);
 
 backend.start();

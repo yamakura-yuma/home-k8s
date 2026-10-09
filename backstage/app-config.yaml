@@ -118,6 +118,20 @@ azureSites:
   subscriptions:
     - id: ${AZURE_SUBSCRIPTION_ID}
 
+# Azure のリソースをカタログの Resource として取り込む
+# (@backstage-community/plugin-catalog-backend-module-azure-resources、docs/cluster/backstage-azure.md)。
+# 資格情報は azureSites と同じ AZURE_* で受ける。環境変数が無い項目は設定から消え、そのとき
+# バックエンドはこのモジュールを載せない (packages/backend/src/azureResources.ts)。
+# 環境 (dev・prod) ごとにプロバイダーを分ける。取り込んだ Resource は namespace が環境の名前になり (資源名は環境をまたいで
+# 重なりうるため)、spec.dependencyOf で sample-api の Component に結ばれる。sample-api のページの Azure のタブが、
+# 選んだ環境の namespace の Resource を依存先として一覧にする。
+# 絞り込みの KQL は 環境のタグ (environment) と サービスのタグ (service)。Azure 側のタグの付け方は docs/cluster/backstage-azure.md
+azureResources:
+  credentials:
+    tenantId: ${AZURE_TENANT_ID}
+    clientId: ${AZURE_CLIENT_ID}
+    clientSecret: ${AZURE_CLIENT_SECRET}
+
 # ログインはゲストだけ。127.0.0.1 と、人ごとの資格情報つきの share Pod にしか出さないので、production でもゲストを許す
 auth:
   providers:
@@ -141,6 +155,51 @@ techdocs:
     type: local
 
 catalog:
+  providers:
+    azureResources:
+      - id: sample-api-dev
+        query: |
+          resources
+          | where tolower(tostring(tags['environment'])) == 'dev'
+          | where tolower(tostring(tags['service'])) == 'sample-api'
+          | extend environment = 'dev'
+        scope:
+          subscriptions:
+            - ${AZURE_SUBSCRIPTION_ID}
+        schedule:
+          frequency: { minutes: 30 }
+          timeout: { minutes: 5 }
+        # owner はタグ backstage.io-owner にあればそれ、無ければ defaultOwner。namespace が default でないので、省略せず default と書く
+        defaultOwner: user:default/yamakura-yuma
+        mapping:
+          metadata:
+            namespace: environment
+            annotations:
+              home-k8s/environment: environment
+          spec:
+            dependencyOf:
+              - component:default/sample-api
+      - id: sample-api-prod
+        query: |
+          resources
+          | where tolower(tostring(tags['environment'])) == 'prod'
+          | where tolower(tostring(tags['service'])) == 'sample-api'
+          | extend environment = 'prod'
+        scope:
+          subscriptions:
+            - ${AZURE_SUBSCRIPTION_ID}
+        schedule:
+          frequency: { minutes: 30 }
+          timeout: { minutes: 5 }
+        defaultOwner: user:default/yamakura-yuma
+        mapping:
+          metadata:
+            namespace: environment
+            annotations:
+              home-k8s/environment: environment
+          spec:
+            dependencyOf:
+              - component:default/sample-api
   rules:
     - allow: [Component, System, API, Resource, Location, User]
   # 読み込む catalog-info.yaml (locations) は clusters/kind/backstage/values.yaml に置く。
