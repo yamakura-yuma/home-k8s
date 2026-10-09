@@ -87,7 +87,7 @@ function ApiSwagger(props: {
   // 向き先 (プロキシ) への要求だけに付け、他の URL にはトークンを渡さない
   const requestInterceptor = useCallback(
     async (req: { url: string; headers: Record<string, string> }) => {
-      if (req.url.startsWith(serverUrl)) {
+      if (req.url.startsWith(`${serverUrl}/`)) {
         const { token } = await identity.getCredentials();
         if (token) req.headers.Authorization = `Bearer ${token}`;
       }

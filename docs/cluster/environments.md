@@ -95,8 +95,8 @@ const temporalContent = createEnvironmentContent({
   そのまま `render` で使うか、`@backstage/core-compat-api` の `compatWrapper` で包む
 
 いまあるタブは、サンプルの API の `/info` を環境ごとに出す **Environments** (`entity-content:environments/service`、
-キー `api-proxy`) だけ。
-Swagger のタブ (`entity-content:environments/swagger`) は [swagger-tab.md](swagger-tab.md)。
+キー `api-proxy`) と、OpenAPI を Swagger UI で出す **Swagger** (`entity-content:environments/swagger`、キー `api-proxy`、
+[swagger-tab.md](swagger-tab.md))。
 
 ## サンプルの API (sample-api)
 
