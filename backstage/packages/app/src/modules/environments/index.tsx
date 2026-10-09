@@ -3,6 +3,7 @@ import { createFrontendPlugin } from '@backstage/frontend-plugin-api';
 import { EntityContentBlueprint } from '@backstage/plugin-catalog-react/alpha';
 import { Environment, ENV_KEYS, environmentsWith } from './annotations';
 import { EnvironmentSwitcher } from './EnvironmentSwitcher';
+import { ArgoCdView } from './ArgoCdView';
 import { ServiceInfo } from './ServiceInfo';
 import { SwaggerView } from './SwaggerView';
 
@@ -49,7 +50,16 @@ const swaggerContent = createEnvironmentContent({
   render: env => <SwaggerView env={env} />,
 });
 
+// 環境ごとの Application (sample-api-dev・sample-api-prod) の同期状態と健全性 (拡張 entity-content:environments/argocd)
+const argocdContent = createEnvironmentContent({
+  name: 'argocd',
+  path: '/argocd',
+  title: 'ArgoCD',
+  requires: [ENV_KEYS.argocdAppName],
+  render: env => <ArgoCdView env={env} />,
+});
+
 export const environmentsPlugin = createFrontendPlugin({
   pluginId: 'environments',
-  extensions: [serviceContent, swaggerContent],
+  extensions: [serviceContent, swaggerContent, argocdContent],
 });

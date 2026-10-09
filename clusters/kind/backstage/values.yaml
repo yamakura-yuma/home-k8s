@@ -7,15 +7,17 @@ backstage:
   image:
     registry: ""
     repository: home-k8s-backstage
-    tag: "0.5.0"
+    tag: "0.6.0"
     pullPolicy: Never
 
   # イメージの app-config.yaml に、下の appConfig (chart が ConfigMap にする) を重ねる
   args: ["--config", "app-config.yaml"]
 
-  # GRAFANA_BASIC_AUTH (Grafana の閲覧用ユーザー backstage の資格情報)。`just up` が作る Secret を名前で参照する
+  # GRAFANA_BASIC_AUTH (Grafana の閲覧用ユーザー backstage の資格情報) と、ARGOCD_AUTH_TOKEN (ArgoCD の読み取り専用アカウント
+  # backstage の API トークン)。どちらも `just up` が Git の外のファイルから作る Secret を名前で参照する
   extraEnvVarsSecrets:
     - backstage-grafana
+    - backstage-argocd
 
   appConfig:
     catalog:

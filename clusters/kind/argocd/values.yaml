@@ -9,6 +9,10 @@ configs:
   params:
     server.insecure: true
   cm:
+    # Backstage が Application の同期状態と健全性を読む、読み取り専用のアカウント。apiKey は API トークンだけで入れる
+    # (パスワードでのログインはできない)。トークンは `just up` が作り、Git の外のファイルから Secret backstage-argocd にする
+    # (just/argocd-secrets.sh、docs/cluster/backstage-argocd.md)
+    accounts.backstage: apiKey
     # root が子の Application のヘルスを引き継ぐようにする。ArgoCD は既定では
     # Application のヘルスを評価しないので、子が Degraded でも root は Healthy のままになる
     resource.customizations.health.argoproj.io_Application: |
@@ -22,6 +26,12 @@ configs:
         end
       end
       return hs
+  rbac:
+    # backstage のアカウントには Application の取得 (get) だけを許す。作成・同期・削除・ログ・Secret は許さない。
+    # 既定の role (policy.default) は空のままなので、ここに書いた以外はすべて拒否される
+    policy.csv: |
+      p, role:backstage-readonly, applications, get, */*, allow
+      g, backstage, role:backstage-readonly
 server:
   service:
     type: NodePort

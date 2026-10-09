@@ -10,6 +10,8 @@ export const ENV_ANNOTATION_PREFIX = 'home-k8s/env.';
 export const ENV_KEYS = {
   // Backstage のバックエンドのプロキシの経路 (/api/proxy の下)。サービスの API を読む
   apiProxy: 'api-proxy',
+  // 環境の Application の名前 (ArgoCD)。Roadie の ArgoCD プラグインの注釈 argocd/app-name に重ねる
+  argocdAppName: 'argocd-app-name',
 } as const;
 
 export type Environment = {

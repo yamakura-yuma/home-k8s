@@ -14,6 +14,9 @@
   get secret share-credentials -o go-template=...      FAKE_CREDENTIALS (JSON のファイル {名前: 項目の JSON 文字列}) を "名前<TAB>項目" の行で出す。ファイルが無ければ 1 (Secret が無い)
   patch secret share-credentials --type merge --patch-file F
                                                        {"data": {名前: base64 | null}} を FAKE_CREDENTIALS に反映し、FAKE_KUBECTL_STDIN に {"verb": "patch", "manifest": <patch>} で書く
+  get secret argocd-initial-admin-secret -o jsonpath=...  FAKE_ARGOCD_ADMIN_PASSWORD を base64 にして出す (argocd-secrets.sh)
+  exec -i deploy/argocd-server -- sh -c <スクリプト>       FAKE_ARGOCD_EXECS (回数のファイル) が FAKE_ARGOCD_FAILURES より小さい間は 1 で落ち、それ以降は手元の sh で同じスクリプトを動かす
+                                                       (PATH の先頭の偽の argocd を呼ぶ。標準入力はそのまま渡る)
   exec -i deploy/share -c auth -- python -B -c <コード>  実物の share_auth を FAKE_AUTH_DIR から読んで、手元の python3 で同じコードを動かす (標準入力はそのまま渡る)
 """
 import base64
@@ -89,6 +92,17 @@ elif args[:3] == ["patch", "secret", "share-credentials"]:
             state[name] = base64.b64decode(value).decode()
     with open(path, "w", encoding="utf-8") as f:
         json.dump(state, f)
+elif args[:3] == ["get", "secret", "argocd-initial-admin-secret"] and "-o" in args:
+    sys.stdout.write(base64.b64encode(os.environ["FAKE_ARGOCD_ADMIN_PASSWORD"].encode()).decode())
+elif args[:1] == ["exec"] and "deploy/argocd-server" in args:
+    counter = os.environ["FAKE_ARGOCD_EXECS"]
+    done = int(open(counter).read()) if os.path.isfile(counter) else 0
+    with open(counter, "w", encoding="utf-8") as f:
+        f.write(str(done + 1))
+    if done < int(os.environ.get("FAKE_ARGOCD_FAILURES", "0")):
+        print("error: account 'backstage' does not exist", file=sys.stderr)
+        sys.exit(1)
+    sys.exit(subprocess.run(["sh", "-c", args[args.index("-c") + 1]]).returncode)
 elif args[:1] == ["exec"] and "--" in args:
     code = args[args.index("-c", args.index("--")) + 1]
     sys.exit(subprocess.run([sys.executable, "-B", "-c", code], env={**os.environ, "PYTHONPATH": os.environ["FAKE_AUTH_DIR"]}).returncode)
