@@ -16,6 +16,7 @@ just up
   1. helm upgrade --install argocd (argo-cd chart、clusters/kind/argocd/values.yaml)
   2. Secret grafana-admin / grafana-viewer / grafana-backstage / backstage-grafana
      (Git の外のファイルから。just/grafana-secrets.sh)
+     Secret dev・prod/grafana-admin・grafana-backstage と backstage/backstage-grafana-env (環境ごとの Grafana。just/grafana-env-secrets.sh、backstage-grafana.md)
      Secret backstage-argocd (ArgoCD の読み取り専用アカウント backstage の API トークン。just/argocd-secrets.sh、backstage-argocd.md)
      headroom の中継 (ホストの docker コンテナ、just/share-relay.sh) と、share の Secret (just/share-secrets.sh)
   3. kubectl apply -f clusters/kind/argocd/root.yaml
@@ -35,6 +36,9 @@ Application root (clusters/kind/argocd/apps を同期する app-of-apps)
   ├── share           clusters/kind/share/ (Deployment `share`。他の人に見せる公開の本体。share.md)
   └── sample-api      ApplicationSet。services/sample-api/ を Application sample-api-dev・sample-api-prod として
                       namespace dev・prod に同期する (環境ごとの展開。environments.md)
+  └── env-prometheus・env-loki・env-tempo・env-otel-collector・env-grafana
+                      ApplicationSet。環境 (dev・prod) ごとの観測スタックを namespace dev・prod に立てる
+                      (clusters/kind/env-*/。backstage-grafana.md)
 ```
 
 | Application | chart | 版 | namespace |
@@ -75,6 +79,7 @@ Node・PersistentVolume・StorageClass・CRD・ClusterRole を読むだけの `h
 | Secret | 作るもの | 中身の出どころ |
 |---|---|---|
 | `observability/grafana-admin`・`grafana-viewer`・`grafana-backstage` | `just up` | `~/.local/share/home-k8s/observability/grafana-*-password` (無ければ作る) |
+| `dev・prod/grafana-admin`・`grafana-backstage`、`backstage/backstage-grafana-env` | `just up` | `~/.local/share/home-k8s/observability/env-grafana/<環境>-{admin,backstage}-password` (無ければ作る)。`backstage-grafana-env` は環境ごとの Basic 認証の値 ([backstage-grafana.md](backstage-grafana.md)) |
 | `backstage/backstage-grafana` | `just up` | 上の `grafana-backstage-password` から、Backstage のプロキシが使う Basic 認証の値を作る ([backstage.md](backstage.md)) |
 | `share/share-credentials`・`share-session-key`・`share-grafana`・`share-host` | `just up`・`just share add` | 資格情報はハッシュだけ (`just share` が足す。空で作り、あれば触らない)。`share-grafana` は `grafana-viewer-password` の写し。`share-host` は headroom の中継の宛先とトークン ([share.md](share.md)) |
 | `headlamp/headlamp-token` | `just up` | kube-controller-manager が ServiceAccount `headlamp` のトークンを入れる。取り出して `~/.local/share/home-k8s/headlamp/token` に書く |

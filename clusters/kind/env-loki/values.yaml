@@ -1,0 +1,63 @@
+# 環境 (dev・prod) ごとの Loki の共通の values (apps/env-loki.yaml)。単一バイナリ。
+# observability の Loki (observability/loki-values.yaml) より軽くする: 永続化なし (Pod を作り直すと消える)、保持は 2 日。
+deploymentMode: Monolithic
+
+loki:
+  # マルチテナントにしない (X-Scope-OrgID ヘッダ無しで読み書きする)
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem
+  schemaConfig:
+    configs:
+      - from: "2026-09-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+  limits_config:
+    retention_period: 48h
+    # OTLP のリソース属性・ログ属性は structured metadata として残す (Loki 3 の既定)
+    allow_structured_metadata: true
+  # 保持期間を過ぎたログは compactor が消す
+  compactor:
+    retention_enabled: true
+    delete_request_store: filesystem
+  analytics:
+    reporting_enabled: false
+
+singleBinary:
+  replicas: 1
+  persistence:
+    enabled: false
+  resources:
+    requests: {cpu: 20m, memory: 64Mi}
+    limits: {memory: 192Mi}
+
+# ClusterRole が observability の loki と重ならないよう、namespace の Role にする
+rbac:
+  namespaced: true
+
+# 単一構成では使わない部品を止める
+gateway:
+  enabled: false
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
+lokiCanary:
+  enabled: false
+test:
+  enabled: false
+sidecar:
+  rules:
+    enabled: false
+read:
+  replicas: 0
+write:
+  replicas: 0
+backend:
+  replicas: 0

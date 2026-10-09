@@ -16,6 +16,11 @@ export const ENV_KEYS = {
   azureWebSites: 'azure-web-sites',
   // ブラウザが開く Temporal Web UI の URL (iframe の src)。環境ごとのホストのポート (docs/cluster/temporal.md)
   temporalUrl: 'temporal-url',
+  // 環境の Grafana の host の id (app-config.yaml の grafana.hosts[].id)。Grafana プラグインの注釈 grafana/host-id に重ねる
+  grafanaHostId: 'grafana-host-id',
+  // 環境の Grafana で出すダッシュボードの選び方 (タグ)。注釈 grafana/dashboard-selector に重ねる。
+  // エンティティ自身には grafana/* を書かない (観測スタックの Grafana の既定のカードが、このエンティティにも出るのを避ける)
+  grafanaDashboardSelector: 'grafana-dashboard-selector',
 } as const;
 
 export type Environment = {

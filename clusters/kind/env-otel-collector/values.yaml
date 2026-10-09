@@ -1,0 +1,70 @@
+# 環境 (dev・prod) ごとの OTel Collector の共通の values (apps/env-otel-collector.yaml)。
+# observability の Collector (observability/otel-collector-values.yaml) とは別に、環境の namespace に置く。
+# 受け口は OTLP (4317・4318) の ClusterIP だけ。ログは DaemonSet の filelog が、ノードの /var/log/pods から読む。
+# 渡し先は同じ環境の Tempo (4317)・Prometheus (OTLP 受信)・Loki (OTLP 受信)。Service 名は namespace の中の名前で引ける。
+mode: daemonset
+
+image:
+  # 最小構成の k8s ディストリビューション。otlp receiver/exporter・filelog・batch を含む
+  repository: otel/opentelemetry-collector-k8s
+
+# daemonset モードでは chart は既定で Service を作らない。アプリからの OTLP の入口 (otel-collector-opentelemetry-collector.<環境>:4317・4318) のために作る
+service:
+  enabled: true
+  type: ClusterIP
+
+presets:
+  logsCollection:
+    enabled: true
+    # Collector 自身のログは読まない
+    includeCollectorLogs: false
+
+ports:
+  jaeger-compact:
+    enabled: false
+  jaeger-thrift:
+    enabled: false
+  jaeger-grpc:
+    enabled: false
+  zipkin:
+    enabled: false
+
+resources:
+  requests: {cpu: 10m, memory: 32Mi}
+  limits: {memory: 96Mi}
+
+config:
+  receivers:
+    # chart 既定の jaeger/zipkin/prometheus receiver は使わない
+    jaeger: null
+    zipkin: null
+    prometheus: null
+  exporters:
+    otlp_grpc/tempo:
+      endpoint: tempo:4317
+      tls:
+        insecure: true
+    # Prometheus の OTLP 受信 (--web.enable-otlp-receiver)。/v1/metrics は exporter が付ける
+    otlp_http/prometheus:
+      metrics_endpoint: http://prometheus-server/api/v1/otlp/v1/metrics
+      tls:
+        insecure: true
+    # Loki 3 の OTLP 受信。/v1/logs は exporter が付ける
+    otlp_http/loki:
+      endpoint: http://loki:3100/otlp
+      tls:
+        insecure: true
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [otlp_grpc/tempo]
+      metrics:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [otlp_http/prometheus]
+      logs:
+        receivers: [otlp, filelog]
+        processors: [memory_limiter, batch]
+        exporters: [otlp_http/loki]

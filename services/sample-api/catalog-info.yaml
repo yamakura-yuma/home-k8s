@@ -12,6 +12,12 @@ metadata:
     home-k8s/environments: dev,prod
     home-k8s/env.dev.api-proxy: /sample-api-dev
     home-k8s/env.prod.api-proxy: /sample-api-prod
+    # Grafana のタブ。host の id は backstage/app-config.yaml の grafana.hosts、タグは env-grafana のダッシュボードの tags。
+    # grafana/* はこのエンティティ自身には書かない (書くと観測スタックの Grafana の既定のカードがここにも出る)
+    home-k8s/env.dev.grafana-host-id: dev
+    home-k8s/env.dev.grafana-dashboard-selector: sample-api
+    home-k8s/env.prod.grafana-host-id: prod
+    home-k8s/env.prod.grafana-dashboard-selector: sample-api
     # 環境ごとの ArgoCD の Application (ApplicationSet sample-api が作る)。ArgoCD のタブが同期状態と健全性を出す
     home-k8s/env.dev.argocd-app-name: sample-api-dev
     home-k8s/env.prod.argocd-app-name: sample-api-prod

@@ -1,0 +1,119 @@
+# 環境 (dev・prod) ごとの Grafana の共通の values (apps/env-grafana.yaml)。環境ごとの差 (NodePort) は values-<環境>.yaml。
+# observability の Grafana (observability/grafana-values.yaml) より軽くする: 永続化なし (UI で作ったものは Pod を作り直すと消える)、
+# プラグイン・grafana.com のダッシュボードなし。データソースとダッシュボードは provisioning で入る。
+# Quick Tunnel で外に出さないが、匿名アクセスは付けずログインを必須にする (Backstage のプロキシも Basic 認証で入る)。
+service:
+  type: NodePort
+
+persistence:
+  enabled: false
+
+resources:
+  requests: {cpu: 20m, memory: 96Mi}
+  limits: {memory: 256Mi}
+
+# ClusterRole が observability の grafana と重ならないよう、namespace の Role にする
+rbac:
+  namespaced: true
+
+# 管理者のパスワードは `just up` が作る Secret から読む。値はリポジトリに置かない。
+# DB を永続化しないので、起動のたびに Secret の値で admin が作られる (reset-admin-password は要らない)
+admin:
+  existingSecret: grafana-admin
+  userKey: admin-user
+  passwordKey: admin-password
+
+# Backstage が Grafana を読む閲覧用ユーザー backstage (Viewer ロール)。Grafana の横にサイドカーを置き、
+# Pod の起動ごとに一度だけ HTTP API でユーザーを作る (Grafana のイメージは distroless で sh が無いため別コンテナにする)。
+# パスワードは `just up` が作る Secret grafana-backstage から読む。Secret が無いあいだは何もしない (optional)。
+# ここは chart が tpl に通すので、二重波括弧を書かないこと
+extraContainers: |
+  - name: backstage-user
+    image: curlimages/curl:8.16.0
+    resources:
+      requests: {cpu: 5m, memory: 8Mi}
+      limits: {memory: 32Mi}
+    env:
+      - name: ADMIN_USER
+        valueFrom:
+          secretKeyRef:
+            name: grafana-admin
+            key: admin-user
+      - name: ADMIN_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: grafana-admin
+            key: admin-password
+      - name: BACKSTAGE_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: grafana-backstage
+            key: password
+            optional: true
+    command:
+      - sh
+      - -c
+      - |
+        api=http://127.0.0.1:3000/api
+        # Grafana が起動するまで待つ
+        until curl -sf -o /dev/null "$api/health"; do sleep 2; done
+        if [ -n "$BACKSTAGE_PASSWORD" ]; then
+          # 新しいユーザーのロールは auto_assign_org_role (下の grafana.ini で Viewer)
+          printf '{"name":"backstage","login":"backstage","password":"%s"}' "$BACKSTAGE_PASSWORD" \
+            | curl -sf -o /dev/null -u "$ADMIN_USER:$ADMIN_PASSWORD" \
+                -H 'Content-Type: application/json' --data-binary @- "$api/admin/users" \
+            && echo "backstage を作った" || echo "backstage を作れなかった" >&2
+        fi
+        while true; do sleep 3600; done
+
+grafana.ini:
+  auth.anonymous:
+    enabled: false
+  users:
+    auto_assign_org_role: Viewer
+  analytics:
+    reporting_enabled: false
+    check_for_updates: false
+  # ログイン直後のホームを sample-api のダッシュボードにする (下の provisioning で置かれるファイル)
+  dashboards:
+    default_home_dashboard_path: /var/lib/grafana/dashboards/default/sample-api.json
+
+# 同じ環境 (namespace) の Prometheus・Loki・Tempo。Service 名は namespace の中の名前で引ける
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        uid: prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus-server
+        isDefault: true
+        editable: false
+      - name: Loki
+        uid: loki
+        type: loki
+        access: proxy
+        url: http://loki:3100
+        editable: false
+      - name: Tempo
+        uid: tempo
+        type: tempo
+        access: proxy
+        url: http://tempo:3200
+        editable: false
+
+# ダッシュボードは JSON をリポジトリに置き、provisioning で読み込む。JSON は dashboards/kustomization.yaml が
+# ConfigMap にし (Application が同期する)、下の dashboardsConfigMaps が /var/lib/grafana/dashboards/default にマウントする
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+      - name: default
+        orgId: 1
+        type: file
+        disableDeletion: true
+        options:
+          path: /var/lib/grafana/dashboards/default
+dashboardsConfigMaps:
+  default: grafana-dashboards-default

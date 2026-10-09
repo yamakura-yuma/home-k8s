@@ -22,7 +22,7 @@ FAKE_KUBECTL = JUST / "fake_kubectl.py"
 ENTRYPOINT = JUST.parent / "clusters/kind/share/entrypoint.sh"
 VIEWER_VALUE = "viewer-pw-0123456789"
 FAKE_RANDOM = "ab" * 32  # 偽の openssl rand -hex 32 の出力
-SECRET_SCRIPTS = ["argocd-secrets.sh", "backstage-azure-secret.sh", "grafana-secrets.sh", "share-relay.sh", "share-secrets.sh"]
+SECRET_SCRIPTS = ["argocd-secrets.sh", "backstage-azure-secret.sh", "grafana-env-secrets.sh", "grafana-secrets.sh", "share-relay.sh", "share-secrets.sh"]
 
 
 def decode(manifest):
@@ -237,6 +237,66 @@ class EverySecretCreatingScript(FakeEnv):
         basic = base64.b64encode(b"backstage:BACKSTAGEPW-secret").decode()
         self.assertEqual([c for c in self.calls() if basic in c or "from-literal" in c and "GRAFANA_BASIC_AUTH" in c], [],
                          "Backstage の Basic が kubectl の引数に出た")
+
+
+class GrafanaEnvSecrets(FakeEnv):
+    """環境 (dev・prod) ごとの Grafana の Secret (grafana-env-secrets.sh)。"""
+
+    def run_env_secrets(self, *envs, **env):
+        return self.run_script("grafana-env-secrets.sh", str(self.tmp / "pw"), str(JUST), "kind-test", *envs, **env)
+
+    def test_puts_each_environments_secrets_and_one_backstage_secret(self):
+        pw = self.tmp / "pw"
+        pw.mkdir()
+        (pw / "dev-admin-password").write_text("DEVADMIN-secret")
+        (pw / "dev-backstage-password").write_text("DEVBS-secret")
+        (pw / "prod-admin-password").write_text("PRODADMIN-secret")
+        (pw / "prod-backstage-password").write_text("PRODBS-secret")
+        r = self.run_env_secrets("dev", "prod")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        puts = [(e["manifest"]["metadata"]["name"], e["verb"], decode(e["manifest"]))
+                for e in self.entries() if e["manifest"].get("kind") == "Secret"]
+        self.assertEqual([name for name, _, _ in puts],
+                         ["grafana-admin", "grafana-backstage", "grafana-admin", "grafana-backstage", "backstage-grafana-env"])
+        self.assertEqual(puts[0][2], {"admin-user": "admin", "admin-password": "DEVADMIN-secret"})
+        self.assertEqual(puts[3][2], {"password": "PRODBS-secret"})
+        # put_secret は Secret を丸ごと置き換えるので、Backstage 側は両方の環境のキーが 1 つの Secret に入る
+        self.assertEqual(puts[4][2], {
+            "GRAFANA_DEV_BASIC_AUTH": base64.b64encode(b"backstage:DEVBS-secret").decode(),
+            "GRAFANA_PROD_BASIC_AUTH": base64.b64encode(b"backstage:PRODBS-secret").decode()})
+        for _, verb, _ in puts:
+            self.assertIn(verb, ("create", "replace"))
+        for e in self.entries():
+            if e["manifest"].get("kind") == "Secret":
+                self.assertNotIn("annotations", e["manifest"]["metadata"])
+
+    def test_generates_missing_passwords_once_and_reuses_them(self):
+        r = self.run_env_secrets("dev")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        files = sorted(p.name for p in (self.tmp / "pw").iterdir())
+        self.assertEqual(files, ["dev-admin-password", "dev-backstage-password"])
+        self.assertEqual((self.tmp / "pw" / "dev-admin-password").stat().st_mode & 0o077, 0, "本人以外が読める")
+        self.assertEqual((self.tmp / "pw" / "dev-admin-password").read_text(), "ab" * 32)  # 偽の openssl の出力
+        before = (self.tmp / "pw" / "dev-backstage-password").read_text()
+        self.write_stub("openssl", "echo changed")
+        self.assertEqual(self.run_env_secrets("dev").returncode, 0)
+        self.assertEqual((self.tmp / "pw" / "dev-backstage-password").read_text(), before)
+
+    def test_no_password_reaches_kubectl_arguments(self):
+        pw = self.tmp / "pw"
+        pw.mkdir()
+        (pw / "dev-admin-password").write_text("DEVADMIN-secret")
+        (pw / "dev-backstage-password").write_text("DEVBS-secret")
+        basic = base64.b64encode(b"backstage:DEVBS-secret").decode()
+        self.assertEqual(self.run_env_secrets("dev").returncode, 0)
+        self.assertEqual([c for c in self.calls() if "-secret" in c or basic in c or "from-literal=GRAFANA" in c], [],
+                         "パスワードか Basic が kubectl の引数に出た")
+
+    def test_bad_environment_names_stop_before_touching_the_cluster(self):
+        for bad in ("Dev", "dev prod", "../x", ""):
+            r = self.run_env_secrets(bad)
+            self.assertNotEqual(r.returncode, 0, bad)
+        self.assertEqual(self.calls(), [])
 
 
 class ArgocdSecrets(FakeEnv):

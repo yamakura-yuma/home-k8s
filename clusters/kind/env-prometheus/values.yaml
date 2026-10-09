@@ -1,0 +1,48 @@
+# 環境 (dev・prod) ごとの Prometheus の共通の values (apps/env-prometheus.yaml)。環境ごとの差は values-<環境>.yaml。
+# namespace observability の Prometheus (observability/prometheus-values.yaml) より軽くする: 永続化なし (Pod を作り直すと消える)、
+# 保持は 2 日、kube-state-metrics・node-exporter・Alertmanager・Pushgateway は入れない (docs/cluster/backstage-grafana.md のメモリの見積もり)。
+server:
+  retention: 2d
+  extraFlags:
+    - web.enable-lifecycle
+    # 環境の OTel Collector がアプリのメトリクスを OTLP で入れる (/api/v1/otlp/v1/metrics)
+    - web.enable-otlp-receiver
+  # PVC を作らず emptyDir で動かす。PV (clusters/kind/storage) とホストのディレクトリを増やさない
+  persistentVolume:
+    enabled: false
+  resources:
+    requests: {cpu: 20m, memory: 96Mi}
+    limits: {memory: 192Mi}
+
+# スクレイプは cAdvisor (Pod の CPU・メモリ・ネットワーク) だけ。チャートの既定は全部入りなので、ほかは止める。
+# cAdvisor の絞り込み (namespace のラベル) は環境ごとに values-<環境>.yaml に置く
+scrapeConfigs:
+  prometheus:
+    enabled: false
+  kubernetes-api-servers:
+    enabled: false
+  kubernetes-nodes:
+    enabled: false
+  kubernetes-nodes-cadvisor:
+    enabled: true
+  kubernetes-service-endpoints:
+    enabled: false
+  kubernetes-service-endpoints-slow:
+    enabled: false
+  prometheus-pushgateway:
+    enabled: false
+  kubernetes-services:
+    enabled: false
+  kubernetes-pods:
+    enabled: false
+  kubernetes-pods-slow:
+    enabled: false
+
+kube-state-metrics:
+  enabled: false
+prometheus-node-exporter:
+  enabled: false
+alertmanager:
+  enabled: false
+prometheus-pushgateway:
+  enabled: false

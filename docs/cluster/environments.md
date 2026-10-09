@@ -56,7 +56,8 @@ generator や、要素で置き換わらない `{{ }}` が残る template は、
 | キー | 値 | 使うタブ | 状態 |
 |---|---|---|---|
 | `api-proxy` | Backstage のバックエンドのプロキシの経路 (`/api/proxy` の下)。サービスの API を読む | Environments | この PR |
-| `grafana-host-id` | `app-config.yaml` の `grafana.hosts[].id` (下の「Grafana」) | Grafana | 予定 |
+| `grafana-host-id` | Grafana の host の id (`app-config.yaml` の `grafana.hosts[].id`)。プラグインの注釈 `grafana/host-id` に重ねる | Grafana | 実装済み ([backstage-grafana.md](backstage-grafana.md)) |
+| `grafana-dashboard-selector` | 環境の Grafana で出すダッシュボードの選び方 (タグ)。プラグインの注釈 `grafana/dashboard-selector` に重ねる | Grafana | 実装済み ([backstage-grafana.md](backstage-grafana.md)) |
 | `temporal-url` | ブラウザが開く Temporal Web UI の URL (iframe の src。dev `http://localhost:8233`・prod `http://localhost:8234`) | Temporal | 実装済み ([temporal.md](temporal.md)) |
 | `argocd-app-name` | ArgoCD の Application の名前 (`<名前>-<環境>`、例 `sample-api-dev`)。プラグインの注釈 `argocd/app-name` に重ねる | ArgoCD | 実装済み ([backstage-argocd.md](backstage-argocd.md)) |
 | `azure-web-sites` | Azure の App Service・Functions の名前 (部分一致、大文字小文字を問わない)。プラグインの注釈 `azure.com/microsoft-web-sites` に重ねる | Azure | 実装済み ([backstage-azure.md](backstage-azure.md)) |
@@ -126,6 +127,8 @@ Azure のリソースを出す **Azure** (`entity-content:azureSites/azure`、�
 
 ## Grafana (環境ごとの観測スタック)
 
+実装済み。設定の場所・資格情報・メモリの見積もり・確かめ方は [backstage-grafana.md](backstage-grafana.md)。決めた方式は次のとおり。
+
 既存の Grafana プラグイン (`@backstage-community/plugin-grafana` 1.1.0) は、`grafana.domain` と 1 つのプロキシ
 だけでなく、`grafana.hosts` で複数の Grafana を持てる (各 host は `id`・`domain`・`proxyPath`)。エンティティの
 注釈 `grafana/host-id` がどの host を読むかを決め、無ければ `grafana.defaultHost`。
@@ -157,9 +160,10 @@ proxy:
 
 - `grafana.hosts` を書くと `grafana.domain` は無視されるので、既存の `grafana.domain`・`unifiedAlerting` は
   `hosts` の `default` に移す。プロキシの経路は host ごとに別でないとプラグインが起動時に落とす
-- タブは `createEnvironmentContent({ requires: ['grafana-host-id'], ... })` で作り、
-  `entityForEnvironment(entity, env, { 'grafana/host-id': 'grafana-host-id' })` を `EntityProvider` で渡して、
-  プラグインの `EntityGrafanaDashboardsCard` をそのまま出す。ダッシュボードの選び方 (`grafana/dashboard-selector`) は環境で共通
+- タブは `createEnvironmentContent({ requires: ['grafana-host-id', 'grafana-dashboard-selector'], ... })` で作り、
+  `entityForEnvironment(entity, env, { 'grafana/host-id': 'grafana-host-id', 'grafana/dashboard-selector': 'grafana-dashboard-selector' })` を
+  `EntityProvider` で渡して、プラグインの `EntityGrafanaDashboardsCard` をそのまま出す。ダッシュボードの選び方も環境の注釈で持つのは、
+  エンティティ自身に `grafana/dashboard-selector` を書くと、観測スタックの Grafana の既定のカードがそのエンティティのページにも出るため
 - 資格情報は環境ごとに、既存と同じ Viewer の専用ユーザー `backstage` を Basic 認証で読む
   (`just up` が Git の外のファイルから Secret を作る)
 

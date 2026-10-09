@@ -35,7 +35,7 @@ ci:
 # 打ち直しても同じ状態に戻るだけ。
 
 # kind のクラスタを作り、ArgoCD・Secret・観測スタック・Headlamp・Backstage を立ち上げる
-up: _kind-up _backstage-image _argocd-install _grafana-secrets _argocd-secrets _backstage-azure-secret _share-relay-up _share-secrets && _headlamp-token
+up: _kind-up _backstage-image _argocd-install _grafana-secrets _grafana-env-secrets _argocd-secrets _backstage-azure-secret _share-relay-up _share-secrets && _headlamp-token
     kubectl --context {{kube_context}} apply -f clusters/kind/argocd/root.yaml
     @echo "ArgoCD が子の Application を同期するのを待つ (初回は image の pull で数分かかる)"
     bash just/argocd-wait.sh {{kube_context}} {{argocd_ns}}

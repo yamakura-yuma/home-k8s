@@ -1,0 +1,41 @@
+# 環境 (dev・prod) ごとの OTel Collector。環境の sample-api のログを読み (filelog)、アプリからの OTLP と合わせて、
+# 同じ環境の Tempo・Prometheus・Loki へ渡す。受け口は ClusterIP だけ (ホストには出さない)。規約は docs/cluster/environments.md。
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: env-otel-collector
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - list:
+        elements:
+          - env: dev
+          - env: prod
+  template:
+    metadata:
+      name: 'env-otel-collector-{{.env}}'
+    spec:
+      project: default
+      sources:
+        - repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+          chart: opentelemetry-collector
+          targetRevision: 0.174.0
+          helm:
+            releaseName: otel-collector
+            valueFiles:
+              - $values/clusters/kind/env-otel-collector/values.yaml
+              - $values/clusters/kind/env-otel-collector/values-{{.env}}.yaml
+        - repoURL: https://github.com/yamakura-yuma/home-k8s
+          targetRevision: main
+          ref: values
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{.env}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
