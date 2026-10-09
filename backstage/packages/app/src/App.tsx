@@ -7,6 +7,7 @@ import techdocsPlugin from '@backstage/plugin-techdocs/alpha';
 import searchPlugin from '@backstage/plugin-search/alpha';
 import { navModule } from './modules/nav';
 import { environmentsPlugin } from './modules/environments';
+import { azurePlugin } from './modules/azure';
 
 export default createApp({
   features: [
@@ -17,6 +18,7 @@ export default createApp({
     techdocsPlugin,
     searchPlugin,
     environmentsPlugin,
+    azurePlugin,
     navModule,
   ],
 });

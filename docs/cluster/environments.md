@@ -59,6 +59,7 @@ generator や、要素で置き換わらない `{{ }}` が残る template は、
 | `grafana-host-id` | `app-config.yaml` の `grafana.hosts[].id` (下の「Grafana」) | Grafana | 予定 |
 | `temporal-url` | ブラウザが開く Temporal UI の URL | Temporal | 予定 |
 | `argocd-app-name` | ArgoCD の Application の名前 (`<名前>-<環境>`、例 `sample-api-dev`)。プラグインの注釈 `argocd/app-name` に重ねる | ArgoCD | 実装済み ([backstage-argocd.md](backstage-argocd.md)) |
+| `azure-web-sites` | Azure の App Service・Functions の名前 (部分一致、大文字小文字を問わない)。プラグインの注釈 `azure.com/microsoft-web-sites` に重ねる | Azure | 実装済み ([backstage-azure.md](backstage-azure.md)) |
 
 「予定」のキーは名前だけを決めておく。値の形は、そのタブを作る PR が決めてこの表を直す。
 
@@ -99,7 +100,9 @@ const temporalContent = createEnvironmentContent({
 いまあるタブは、サンプルの API の `/info` を環境ごとに出す **Environments** (`entity-content:environments/service`、
 キー `api-proxy`) と、OpenAPI UI (`entity-content:environments/swagger`、キー `api-proxy`、
 [swagger-tab.md](swagger-tab.md))、環境ごとの Application の同期状態と健全性を出す **ArgoCD**
-(`entity-content:environments/argocd`、キー `argocd-app-name`、[backstage-argocd.md](backstage-argocd.md))。
+(`entity-content:environments/argocd`、キー `argocd-app-name`、[backstage-argocd.md](backstage-argocd.md))、
+Azure のリソースを出す **Azure** (`entity-content:azureSites/azure`、キー `azure-web-sites`、
+[backstage-azure.md](backstage-azure.md)。資格情報が無いときは「資格情報が無い」を出す)。
 
 ## サンプルの API (sample-api)
 

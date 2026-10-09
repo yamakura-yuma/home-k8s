@@ -22,7 +22,7 @@ FAKE_KUBECTL = JUST / "fake_kubectl.py"
 ENTRYPOINT = JUST.parent / "clusters/kind/share/entrypoint.sh"
 VIEWER_VALUE = "viewer-pw-0123456789"
 FAKE_RANDOM = "ab" * 32  # 偽の openssl rand -hex 32 の出力
-SECRET_SCRIPTS = ["argocd-secrets.sh", "grafana-secrets.sh", "share-relay.sh", "share-secrets.sh"]
+SECRET_SCRIPTS = ["argocd-secrets.sh", "backstage-azure-secret.sh", "grafana-secrets.sh", "share-relay.sh", "share-secrets.sh"]
 
 
 def decode(manifest):

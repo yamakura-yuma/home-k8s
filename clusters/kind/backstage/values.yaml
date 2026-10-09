@@ -7,7 +7,7 @@ backstage:
   image:
     registry: ""
     repository: home-k8s-backstage
-    tag: "0.6.0"
+    tag: "0.7.0"
     pullPolicy: Never
 
   # イメージの app-config.yaml に、下の appConfig (chart が ConfigMap にする) を重ねる
@@ -18,6 +18,41 @@ backstage:
   extraEnvVarsSecrets:
     - backstage-grafana
     - backstage-argocd
+
+  # Azure のタブの資格情報 (AZURE_*)。`just up` が Git の外のファイル ~/.local/share/home-k8s/backstage/azure.env から Secret
+  # backstage-azure を作る。ファイルが無いと Secret も無いので、optional にして Pod は起動させる (環境変数が無ければ
+  # Azure のタブは「資格情報が無い」を出す。docs/cluster/backstage-azure.md)
+  extraEnvVars:
+    - name: AZURE_DOMAIN
+      valueFrom:
+        secretKeyRef:
+          name: backstage-azure
+          key: AZURE_DOMAIN
+          optional: true
+    - name: AZURE_TENANT_ID
+      valueFrom:
+        secretKeyRef:
+          name: backstage-azure
+          key: AZURE_TENANT_ID
+          optional: true
+    - name: AZURE_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: backstage-azure
+          key: AZURE_CLIENT_ID
+          optional: true
+    - name: AZURE_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: backstage-azure
+          key: AZURE_CLIENT_SECRET
+          optional: true
+    - name: AZURE_SUBSCRIPTION_ID
+      valueFrom:
+        secretKeyRef:
+          name: backstage-azure
+          key: AZURE_SUBSCRIPTION_ID
+          optional: true
 
   appConfig:
     catalog:
