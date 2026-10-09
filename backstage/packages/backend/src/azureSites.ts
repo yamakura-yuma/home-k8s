@@ -19,8 +19,14 @@ import { Config } from '@backstage/config';
 // (clientId・clientSecret)。ひとつでも欠ければ「資格情報が無い」とする (DefaultAzureCredential は使わない)
 const REQUIRED_KEYS = ['domain', 'tenantId', 'clientId', 'clientSecret'];
 
+// subscriptions[].id も要る。${AZURE_SUBSCRIPTION_ID} が無いと要素が {} になり、公式のプラグインが getString('id') で落ちる
 export function azureSitesConfigured(config: Config): boolean {
-  return REQUIRED_KEYS.every(key => config.has(`azureSites.${key}`));
+  return (
+    REQUIRED_KEYS.every(key => config.has(`azureSites.${key}`)) &&
+    (config.getOptionalConfigArray('azureSites.subscriptions') ?? []).every(
+      sub => sub.has('id'),
+    )
+  );
 }
 
 // 資格情報が無いときの代役。フロントエンドが見分けられるよう、公式のプラグインと同じ pluginId と /health にする

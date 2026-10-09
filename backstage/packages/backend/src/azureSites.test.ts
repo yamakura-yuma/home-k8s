@@ -15,6 +15,21 @@ describe('azureSitesConfigured', () => {
     );
   });
 
+  it('subscriptions の id が空 (環境変数が無い) なら資格情報が無い', () => {
+    expect(
+      azureSitesConfigured(
+        new ConfigReader({ azureSites: { ...full, subscriptions: [{}] } }),
+      ),
+    ).toBe(false);
+    expect(
+      azureSitesConfigured(
+        new ConfigReader({
+          azureSites: { ...full, subscriptions: [{ id: 'sub' }] },
+        }),
+      ),
+    ).toBe(true);
+  });
+
   it('azureSites が無ければ資格情報が無い', () => {
     expect(azureSitesConfigured(new ConfigReader({}))).toBe(false);
   });

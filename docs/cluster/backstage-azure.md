@@ -78,7 +78,7 @@ az rest --method get --url 'https://graph.microsoft.com/v1.0/domains' --query "v
 ### 置くファイル
 
 `~/.local/share/home-k8s/backstage/azure.env` (他の秘密のファイルと同じ `~/.local/share/home-k8s/` の下)。
-`KEY=VALUE` の行で、`#` の行と空行は読み飛ばす。シェルとして実行はしない。
+`KEY=VALUE` の行で、`#` の行と空行は読み飛ばす。シェルとして実行はしないので、値は引用符で囲まない (囲むと引用符も値に入る)。
 
 ```sh
 mkdir -p ~/.local/share/home-k8s/backstage
@@ -124,13 +124,18 @@ kubectl --context kind-study-kind -n backstage delete pod -l app.kubernetes.io/n
 
 ```sh
 docker build -t home-k8s-backstage:test backstage
+# クラスタの外では catalog (GitHub の main)・プロキシ (sample-api の Service)・ポートが合わないので、
+# 上書きの設定 app-config.local.yaml (catalog の url location、proxy の target、listen.port) を重ねる。
+# やり方は environments.md の確かめ方と同じ (sample-api を app.py で dev・prod に 2 つ、カタログを http.server で配る)
 # 資格情報なし: 起動し、/health が 503
-docker run --rm --network host -e PORT=7007 home-k8s-backstage:test
+docker run --rm --network host -v $PWD/app-config.local.yaml:/app/app-config.local.yaml:ro home-k8s-backstage:test \
+  node packages/backend --config app-config.yaml --config app-config.local.yaml
 tok=$(curl -s -X POST http://localhost:7007/api/auth/guest/refresh | jq -r .backstageIdentity.token)
 curl -s -o /dev/null -w '%{http_code}\n' http://localhost:7007/api/azure-sites/health      # 503
 # 偽の資格情報あり: 公式のプラグインが載り、/health が 200 (Azure の呼び出しは認証で失敗する)
 docker run --rm --network host -e AZURE_DOMAIN=x.onmicrosoft.com -e AZURE_TENANT_ID=t -e AZURE_CLIENT_ID=c \
-  -e AZURE_CLIENT_SECRET=s -e AZURE_SUBSCRIPTION_ID=u home-k8s-backstage:test
+  -e AZURE_CLIENT_SECRET=s -e AZURE_SUBSCRIPTION_ID=u -v $PWD/app-config.local.yaml:/app/app-config.local.yaml:ro \
+  home-k8s-backstage:test node packages/backend --config app-config.yaml --config app-config.local.yaml
 ```
 
 ### マージ後のクラスタ (読み取りだけ。話題チャットが確かめる)
