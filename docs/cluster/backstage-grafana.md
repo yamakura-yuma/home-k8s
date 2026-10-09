@@ -89,7 +89,7 @@ Grafana の横のサイドカー (`backstage-user`、`curlimages/curl`) が、Po
 | `env-prometheus` | `prometheus` 29.35.0 | cAdvisor だけをスクレイプし、`metric_relabel_configs` で、その環境の namespace の `container_cpu_usage_seconds_total`・`container_memory_working_set_bytes`・`container_network_{receive,transmit}_bytes_total` だけを残す。OTLP の受信も開ける。ClusterRole の名前は `prometheus-server-<環境>` (`prometheus-server` は `observability` が使っていて、クラスタに 1 つしか置けない) |
 | `env-loki` | `loki` 18.13.7 | 単一バイナリ。OTLP (`/otlp`) を受ける。保持 2 日。ClusterRole を作らず namespace の Role にする (`rbac.namespaced`) |
 | `env-tempo` | `tempo` 3.0.0 | 単一バイナリ。OTLP を受ける。保持 2 日 |
-| `env-otel-collector` | `opentelemetry-collector` 0.174.0 | DaemonSet。その環境の `sample-api` の Pod のログ (`/var/log/pods/<環境>_sample-api-*/*/*.log`) を filelog で読み、アプリからの OTLP と合わせて同じ環境の Tempo・Prometheus・Loki へ渡す。スタック自身のログは読まない (Loki のログが Loki に入って増え続けるのを避ける)。受け口は ClusterIP |
+| `env-otel-collector` | `opentelemetry-collector` 0.174.0 | DaemonSet (worker の数だけ Pod)。その環境の `sample-api` の Pod のログ (`/var/log/pods/<環境>_sample-api-*/*/*.log`) を filelog で読み、アプリからの OTLP と合わせて同じ環境の Tempo・Prometheus・Loki へ渡す。スタック自身のログは読まない (Loki のログが Loki に入って増え続けるのを避ける)。受け口は Service `otel-collector-opentelemetry-collector` (ClusterIP、4317・4318。daemonset モードの chart は既定では Service を作らないので `service.enabled: true` を置く) |
 | `env-grafana` | `grafana` 13.2.7 | データソースは同じ namespace の Prometheus・Loki・Tempo (Service 名は namespace の中の名前で引ける)。ダッシュボードは ConfigMap から provisioning。NodePort 30301 (dev)・30302 (prod)。匿名アクセスなし。ClusterRole を作らず namespace の Role にする |
 
 `sample-api` のダッシュボード (`sample-api.json`) は、Pod の CPU・メモリ・受信・送信 (Prometheus) と、ログ (Loki) を出す。
@@ -107,13 +107,13 @@ Grafana の横のサイドカー (`backstage-user`、`curlimages/curl`) が、Po
 | Prometheus | 96Mi | 192Mi | 〜100Mi (cAdvisor の絞り込み後の系列は数百) |
 | Loki | 64Mi | 192Mi | 〜70Mi |
 | Tempo | 64Mi | 192Mi | 〜100Mi (空に近い) |
-| OTel Collector (DaemonSet、1 ノードなので 1 Pod) | 32Mi | 96Mi | 〜40Mi |
+| OTel Collector (DaemonSet。worker 2 台なので 2 Pod。control-plane には taint があり tolerations を置かない) | 64Mi | 192Mi | 〜80Mi |
 | Grafana (+ サイドカー) | 96Mi (+8Mi) | 256Mi (+32Mi) | 〜150Mi |
-| **1 環境** | **360Mi** | **960Mi** | **〜460Mi** |
-| **2 環境 (dev・prod)** | **720Mi** | **1.9GiB** | **〜0.9GiB** |
+| **1 環境** | **392Mi** | **1.0GiB** | **〜500Mi** |
+| **2 環境 (dev・prod)** | **784Mi** | **2.1GiB** | **〜1.0GiB** |
 
-環境の土台の見積もり (観測スタック ×2 で +2.6〜3.6GiB、kind 全体で 5〜6GiB) より小さくなる。要るのは CPU も含め `requests` の 720Mi と、
-実使用の〜0.9GiB。Pod は 1 環境で 5 つ (Prometheus・Loki・Tempo・Collector・Grafana)、2 環境で 10 になり、inotify の instance
+環境の土台の見積もり (観測スタック ×2 で +2.6〜3.6GiB、kind 全体で 5〜6GiB) より小さくなる。要るのは `requests` の 784Mi と、
+実使用の〜1.0GiB。Pod は 1 環境で 6 つ (Prometheus・Loki・Tempo・Collector ×2・Grafana)、2 環境で 12 になり、inotify の instance
 (`fs.inotify.max_user_instances`、このホストは 128) も使う。Pod が `too many open files` で起動しないときは、ホストで `sudo sysctl -w fs.inotify.max_user_instances=512` を打つ (要 root)。
 
 ## 確かめ方 (マージ後)
@@ -132,7 +132,7 @@ ctx=kind-study-kind
 # ApplicationSet が 5 つ、Application が環境ごとに 5 つ (計 10)。observability の Application は変わらない
 kubectl --context $ctx -n argocd get applicationsets | grep '^env-'
 kubectl --context $ctx -n argocd get applications | grep -E '^env-|^(prometheus|loki|tempo|otel-collector|grafana) '
-# 環境の Pod が揃っている (prod も同じ)
+# 環境の Pod が揃っている (prod も同じ。Collector は worker 2 台で 2 Pod)
 kubectl --context $ctx -n dev get pods,svc
 kubectl --context $ctx -n dev top pods     # メモリの実測。上の見積もりと比べる (metrics-server が無ければ crictl stats)
 # Secret がある (値は表示しない)

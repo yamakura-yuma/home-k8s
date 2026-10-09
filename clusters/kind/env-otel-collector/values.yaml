@@ -8,7 +8,9 @@ image:
   # 最小構成の k8s ディストリビューション。otlp receiver/exporter・filelog・batch を含む
   repository: otel/opentelemetry-collector-k8s
 
+# daemonset モードでは chart は既定で Service を作らない。アプリからの OTLP の入口 (otel-collector-opentelemetry-collector.<環境>:4317・4318) のために作る
 service:
+  enabled: true
   type: ClusterIP
 
 presets:
