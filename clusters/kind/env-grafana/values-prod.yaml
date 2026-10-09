@@ -1,3 +1,3 @@
-# prod の Grafana。ホストの localhost:3002 で開く (NodePort 30302 + kind の extraPortMappings。kind-config は Temporal の PR が足す)
+# prod の Grafana。ホストの localhost:3002 で開く (NodePort 30302 + kind の extraPortMappings。kind-config は Temporal の PR #86 が足した)
 service:
   nodePort: 30302

@@ -1,7 +1,7 @@
 # 環境 (dev・prod) ごとの Grafana。同じ環境の Prometheus・Loki・Tempo を見る。ダッシュボードの ConfigMap
 # (clusters/kind/env-grafana/dashboards の kustomization.yaml が repo の JSON から作る) は、chart と同じ Application で同期する。
 # 管理者と Backstage 用の閲覧用ユーザーのパスワードは `just up` が作る Secret を名前で参照する (docs/cluster/backstage-grafana.md)。
-# 画面は NodePort (dev 30301・prod 30302)。ホストのポートは kind-config の extraPortMappings (Temporal の PR が足す)。
+# 画面は NodePort (dev 30301・prod 30302)。ホストのポートは kind-config の extraPortMappings (Temporal の PR #86 が足した)。
 # 規約は docs/cluster/environments.md。values は共通の values.yaml と環境ごとの values-<環境>.yaml。
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet

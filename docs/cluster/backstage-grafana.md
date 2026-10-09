@@ -54,7 +54,7 @@ namespace dev (prod も同じ)
 | 資格情報を Backstage に渡す | `clusters/kind/backstage/values.yaml` の `extraEnvVarsSecrets` | Secret `backstage-grafana-env` (キー `GRAFANA_DEV_BASIC_AUTH`・`GRAFANA_PROD_BASIC_AUTH`) を環境変数にする |
 | Secret を作る | `just/grafana-env-secrets.sh`、`just/observability.just` の `_grafana-env-secrets`、`justfile` の `up` | 下の「資格情報」 |
 | 試験 | `GrafanaView.test.tsx`、`grafanaConfig.test.ts`、`just/test_share_secrets.py` の `GrafanaEnvSecrets` | 環境の切り替えと host の選択、`app-config.yaml` の host・プロキシ・注釈の突き合わせ、Secret を作るスクリプト |
-| 画面のポート | `clusters/kind/kind-config.yaml` | dev 3001 (NodePort 30301)・prod 3002 (30302)。**この変更は Temporal の PR が足す**。足されるまで Service の NodePort は動くが、ホストの `localhost:3001` では開けない (タブの一覧は出る) |
+| 画面のポート | `clusters/kind/kind-config.yaml` | dev 3001 (NodePort 30301)・prod 3002 (30302)。Temporal の PR (#86) が足した (この PR は変えていない)。`extraPortMappings` はクラスタ作成時だけ効くので、`just down && just up` で作り直したクラスタで開ける |
 
 `grafana.hosts` を書くと `grafana.domain` は無視される。既存の `grafana.domain`・`unifiedAlerting` は `hosts` の `default` に移した。
 注釈 `grafana/host-id` を持たないエンティティ (`home-k8s`) は、`defaultHost` の `default` を向くので、既存のカードは変わらない。
@@ -122,7 +122,7 @@ Grafana の横のサイドカー (`backstage-user`、`curlimages/curl`) が、Po
 クラスタでの確認は、マージ後に人が `just up` を打ってから行う。
 
 ```sh
-just up   # 環境の Secret を作り (grafana-env-secrets.sh)、Backstage のイメージを作り直し (0.7.0)、ArgoCD が環境の観測スタックを同期する
+just up   # 環境の Secret を作り (grafana-env-secrets.sh)、Backstage のイメージを作り直し (0.9.0)、ArgoCD が環境の観測スタックを同期する
 ```
 
 読み取りだけで確かめるコマンド:
@@ -154,7 +154,7 @@ kubectl --context $ctx -n dev exec loki-0 -- wget -qO- 'http://localhost:3100/lo
 ```
 
 画面は <http://localhost:7007/catalog/default/component/sample-api/grafana> を開き、`dev`・`prod` を切り替えて、それぞれの Grafana の
-ダッシュボード (`sample-api (この環境)`) の一覧が出ること、リンクが各環境の Grafana (`localhost:3001`・`localhost:3002`、ポートが開いてから) に飛ぶことを確かめる。
+ダッシュボード (`sample-api (この環境)`) の一覧が出ること、リンクが各環境の Grafana (`localhost:3001`・`localhost:3002`) に飛ぶことを確かめる。
 `home-k8s` のページ (<http://localhost:7007/catalog/default/component/home-k8s>) の Dashboards のカードが、いままでと同じ一覧
 (`observability` の Grafana の Claude Code・Kubernetes などのダッシュボード) のままであることも確かめる。
 
@@ -177,5 +177,5 @@ dev と prod の違いが見えるよう、prod の Grafana にだけ「prod 専
 | 一覧が空 | ダッシュボードの JSON の `tags` に `sample-api` があるか。永続化していないので、UI で作ったものは Pod を作り直すと消える |
 | Backstage の Pod が `CreateContainerConfigError` | Secret `backstage-grafana-env` が無い。`just up` の `_grafana-env-secrets` が失敗していないか |
 | Backstage が起動時に落ちる (Grafana の host) | `grafana.hosts` の `proxyPath` が host で重なっている、`defaultHost` の id が `hosts` に無い、`id` が重なっている |
-| ダッシュボードのリンクが開かない | `localhost:3001`・`3002` は kind-config の `extraPortMappings` が要る (Temporal の PR が足す。足したら `just down && just up` で作り直す) |
+| ダッシュボードのリンクが開かない | `localhost:3001`・`3002` は kind-config の `extraPortMappings` (#86 で入った) が効いたクラスタだけで開く。古いクラスタなら `just down && just up` で作り直す |
 | Prometheus の ClusterRole が重なる | `clusterRoleNameOverride` が環境ごとの名前 (`prometheus-server-<環境>`) になっているか |

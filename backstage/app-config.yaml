@@ -88,7 +88,7 @@ argocd:
 
 # Grafana は host ごとに 1 つ。注釈 grafana/host-id で選び、無いエンティティ (home-k8s) は defaultHost の default (いままでの Grafana)。
 # domain はダッシュボードのリンク先 (ブラウザが開く URL)。dev・prod の画面のポート (3001・3002) は kind-config の extraPortMappings
-# (Temporal の PR が足す)。環境のタブ (modules/environments/GrafanaView.tsx) が、環境の注釈から grafana/host-id を重ねて出す
+# (Temporal の PR #86 が足した)。環境のタブ (modules/environments/GrafanaView.tsx) が、環境の注釈から grafana/host-id を重ねて出す
 grafana:
   defaultHost: default
   hosts:
