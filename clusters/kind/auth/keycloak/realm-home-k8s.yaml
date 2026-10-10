@@ -1,0 +1,242 @@
+# realm home-k8s の宣言 (KeycloakRealmImport)。operator が Job で import する。各 UI と kind の API server (単位 3〜6) が使う client を、ここで先に全部定義する。
+# - import は realm が無いときだけ効く。realm がすでにある (DB に残っている) と何もしない。後から変えるときは、
+#   ここを直したうえで Admin Console か kcadm.sh で同じ変更を入れる (docs/cluster/keycloak.md の「realm を後から変える」)
+# - ユーザーはここに置かない (単位 2c で Admin Console から作る)。DB を失ったときに戻るのは、ここに書いた設定だけ
+# - client の secret は Git に置かない。${CLIENT_SECRET_*} は import のときに spec.placeholders が Secret keycloak-clients から埋める
+#   (just up が作る。just/keycloak-secrets.sh)。各 UI の側も、同じホストのファイルから自分の Secret を作る
+# - redirect URI は tailnet の URL (docs/cluster/tailscale.md)。issuer は https://keycloak.taild2b611.ts.net/realms/home-k8s
+apiVersion: k8s.keycloak.org/v2beta1
+kind: KeycloakRealmImport
+metadata:
+  name: home-k8s
+spec:
+  keycloakCRName: keycloak
+  placeholders:
+    CLIENT_SECRET_ARGOCD:
+      secret: {name: keycloak-clients, key: argocd}
+    CLIENT_SECRET_GRAFANA:
+      secret: {name: keycloak-clients, key: grafana}
+    CLIENT_SECRET_GRAFANA_DEV:
+      secret: {name: keycloak-clients, key: grafana-dev}
+    CLIENT_SECRET_GRAFANA_PROD:
+      secret: {name: keycloak-clients, key: grafana-prod}
+    CLIENT_SECRET_TEMPORAL_DEV:
+      secret: {name: keycloak-clients, key: temporal-dev}
+    CLIENT_SECRET_TEMPORAL_PROD:
+      secret: {name: keycloak-clients, key: temporal-prod}
+    CLIENT_SECRET_BACKSTAGE:
+      secret: {name: keycloak-clients, key: backstage}
+    CLIENT_SECRET_HEADLAMP:
+      secret: {name: keycloak-clients, key: headlamp}
+    CLIENT_SECRET_OAUTH2_PROXY:
+      secret: {name: keycloak-clients, key: oauth2-proxy}
+  realm:
+    realm: home-k8s
+    displayName: home-k8s
+    enabled: true
+    sslRequired: external
+    # 人は管理者が Admin Console で作る (idp-options.md の「他の人の入れ方」)。自分での登録・メールの機能は使わない (SMTP が無い)
+    registrationAllowed: false
+    resetPasswordAllowed: false
+    verifyEmail: false
+    loginWithEmailAllowed: true
+    bruteForceProtected: true
+    attributes:
+      # clientScopes を書くと、Keycloak は既定の client scope (basic・profile・email・roles・web-origins・acr など) を作らなくなる。
+      # この属性で既定のものも作らせ、下の groups を足す (Keycloak 26.8.0 の RealmManager.isCreateDefaultClientScopes)
+      CreateDefaultClientScopes: "true"
+    # 権限はグループで分ける。各 UI の RBAC (policy.csv・role_attribute_path・RoleBinding など) はこの名前を書く
+    groups:
+      - name: admins
+      - name: viewers
+    # ID トークン・アクセストークン・userinfo に groups: ["admins", ...] を入れる (full.path=false で先頭の / を付けない)
+    clientScopes:
+      - name: groups
+        description: グループ名 (admins・viewers) を groups クレームに入れる
+        protocol: openid-connect
+        attributes:
+          include.in.token.scope: "true"
+          display.on.consent.screen: "false"
+        protocolMappers:
+          - name: groups
+            protocol: openid-connect
+            protocolMapper: oidc-group-membership-mapper
+            consentRequired: false
+            config:
+              claim.name: groups
+              full.path: "false"
+              id.token.claim: "true"
+              access.token.claim: "true"
+              userinfo.token.claim: "true"
+              introspection.token.claim: "true"
+    # 既定の client scope に足す。下の client はどれも defaultClientScopes を書かないので、作られるときに realm の既定 (groups を含む) が付く
+    defaultDefaultClientScopes:
+      - groups
+    clients:
+      # ArgoCD の UI (単位 3)。oidc.config の issuer・clientID・clientSecret
+      - clientId: argocd
+        name: ArgoCD
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        clientAuthenticatorType: client-secret
+        secret: ${CLIENT_SECRET_ARGOCD}
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        rootUrl: https://argocd.taild2b611.ts.net
+        redirectUris:
+          - https://argocd.taild2b611.ts.net/auth/callback
+        webOrigins: ["+"]
+        attributes:
+          post.logout.redirect.uris: "+"
+      # argocd login --sso (単位 3)。CLI は secret を持てないので public + PKCE。ArgoCD の oidc.config の cliClientID に書く
+      - clientId: argocd-cli
+        name: ArgoCD CLI
+        enabled: true
+        protocol: openid-connect
+        publicClient: true
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        redirectUris:
+          - http://localhost:8085/auth/callback
+        attributes:
+          pkce.code.challenge.method: S256
+      # Grafana ×3 (単位 3)。generic_oauth
+      - clientId: grafana
+        name: Grafana (観測スタック)
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        clientAuthenticatorType: client-secret
+        secret: ${CLIENT_SECRET_GRAFANA}
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        rootUrl: https://grafana.taild2b611.ts.net
+        redirectUris:
+          - https://grafana.taild2b611.ts.net/login/generic_oauth
+        webOrigins: ["+"]
+        attributes:
+          post.logout.redirect.uris: "+"
+      - clientId: grafana-dev
+        name: Grafana (dev)
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        clientAuthenticatorType: client-secret
+        secret: ${CLIENT_SECRET_GRAFANA_DEV}
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        rootUrl: https://grafana-dev.taild2b611.ts.net
+        redirectUris:
+          - https://grafana-dev.taild2b611.ts.net/login/generic_oauth
+        webOrigins: ["+"]
+        attributes:
+          post.logout.redirect.uris: "+"
+      - clientId: grafana-prod
+        name: Grafana (prod)
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        clientAuthenticatorType: client-secret
+        secret: ${CLIENT_SECRET_GRAFANA_PROD}
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        rootUrl: https://grafana-prod.taild2b611.ts.net
+        redirectUris:
+          - https://grafana-prod.taild2b611.ts.net/login/generic_oauth
+        webOrigins: ["+"]
+        attributes:
+          post.logout.redirect.uris: "+"
+      # Temporal UI ×2 (単位 4)。TEMPORAL_AUTH_*。callback は Temporal UI の既定の /auth/sso/callback
+      - clientId: temporal-dev
+        name: Temporal UI (dev)
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        clientAuthenticatorType: client-secret
+        secret: ${CLIENT_SECRET_TEMPORAL_DEV}
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        rootUrl: https://temporal-dev.taild2b611.ts.net
+        redirectUris:
+          - https://temporal-dev.taild2b611.ts.net/auth/sso/callback
+        webOrigins: ["+"]
+        attributes:
+          post.logout.redirect.uris: "+"
+      - clientId: temporal-prod
+        name: Temporal UI (prod)
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        clientAuthenticatorType: client-secret
+        secret: ${CLIENT_SECRET_TEMPORAL_PROD}
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        rootUrl: https://temporal-prod.taild2b611.ts.net
+        redirectUris:
+          - https://temporal-prod.taild2b611.ts.net/auth/sso/callback
+        webOrigins: ["+"]
+        attributes:
+          post.logout.redirect.uris: "+"
+      # Backstage (単位 4)。auth provider の名前 (oidc・keycloak など) で callback のパスが変わるので、/api/auth/ の下を全部許す
+      - clientId: backstage
+        name: Backstage
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        clientAuthenticatorType: client-secret
+        secret: ${CLIENT_SECRET_BACKSTAGE}
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        rootUrl: https://backstage.taild2b611.ts.net
+        redirectUris:
+          - https://backstage.taild2b611.ts.net/api/auth/*
+        webOrigins: ["+"]
+        attributes:
+          post.logout.redirect.uris: "+"
+      # Headlamp (単位 5)。config.oidc。Headlamp が受けた ID トークンを API server に渡すので、API server の audience にもこの名前を書く
+      - clientId: headlamp
+        name: Headlamp
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        clientAuthenticatorType: client-secret
+        secret: ${CLIENT_SECRET_HEADLAMP}
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        rootUrl: https://headlamp.taild2b611.ts.net
+        redirectUris:
+          - https://headlamp.taild2b611.ts.net/oidc-callback
+        webOrigins: ["+"]
+        attributes:
+          post.logout.redirect.uris: "+"
+      # kubectl の kubelogin (単位 6)。手元の端末で動くので secret を持てない。public + PKCE。
+      # kubelogin は localhost:8000 で待ち、使えなければ 18000 を使う。API server の AuthenticationConfiguration の audience にこの名前を書く
+      - clientId: kubernetes
+        name: kubectl (kubelogin)
+        enabled: true
+        protocol: openid-connect
+        publicClient: true
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        redirectUris:
+          - http://localhost:8000
+          - http://localhost:18000
+        attributes:
+          pkce.code.challenge.method: S256
+      # OIDC を持たない UI の前の oauth2-proxy (単位 4)。置くホストは単位 4 で決まる。Keycloak の redirect URI の * は末尾にしか置けないので、
+      # 仮に 1 つのホストを置いておく。単位 4 で変えるときは「realm を後から変える」の手順で入れる
+      - clientId: oauth2-proxy
+        name: oauth2-proxy
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        clientAuthenticatorType: client-secret
+        secret: ${CLIENT_SECRET_OAUTH2_PROXY}
+        standardFlowEnabled: true
+        directAccessGrantsEnabled: false
+        redirectUris:
+          - https://oauth2-proxy.taild2b611.ts.net/oauth2/callback
+        webOrigins: ["+"]
+        attributes:
+          post.logout.redirect.uris: "+"

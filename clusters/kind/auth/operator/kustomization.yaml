@@ -1,0 +1,22 @@
+# 公式の Keycloak Operator (CRD と、operator の Deployment・RBAC)。上流の manifest (keycloak-k8s-resources) をタグで固定して取り込み、
+# namespace を上流の keycloak から auth に替える。operator は自分の namespace の Keycloak・KeycloakRealmImport だけを見る。
+# 版を上げるときは下の URL のタグを全部替える。Keycloak 本体のイメージは operator の既定 (同じ版) なので一緒に上がる。docs/cluster/keycloak.md
+# KeycloakOIDCClient・KeycloakSAMLClient (v2alpha1、preview) の CRD も入れる。operator がこの 2 つの controller も起動するため。使ってはいない
+resources:
+  - https://raw.githubusercontent.com/keycloak/keycloak-k8s-resources/26.8.0/kubernetes/keycloaks.k8s.keycloak.org-v1.yml
+  - https://raw.githubusercontent.com/keycloak/keycloak-k8s-resources/26.8.0/kubernetes/keycloakrealmimports.k8s.keycloak.org-v1.yml
+  - https://raw.githubusercontent.com/keycloak/keycloak-k8s-resources/26.8.0/kubernetes/keycloakoidcclients.k8s.keycloak.org-v1.yml
+  - https://raw.githubusercontent.com/keycloak/keycloak-k8s-resources/26.8.0/kubernetes/keycloaksamlclients.k8s.keycloak.org-v1.yml
+  - https://raw.githubusercontent.com/keycloak/keycloak-k8s-resources/26.8.0/kubernetes/kubernetes.yml
+# 上流の kustomization.yml と同じ変換。`namespace:` の欄だけでは ClusterRoleBinding の subjects の namespace が keycloak のまま残る
+transformers:
+  - |-
+    apiVersion: builtin
+    kind: NamespaceTransformer
+    metadata:
+      name: auth
+      namespace: auth
+    setRoleBindingSubjects: allServiceAccounts
+    fieldSpecs:
+      - path: metadata/namespace
+        create: true

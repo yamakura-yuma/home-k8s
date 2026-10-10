@@ -48,10 +48,10 @@ class Recipes(unittest.TestCase):
 
     def test_up_runs_in_order(self):
         out = just("--dry-run", "up").stderr
-        steps = ["kind create cluster", "observability/{tempo,prometheus,loki,grafana}", "tailscale-secrets.sh",
+        steps = ["kind create cluster", "observability/{tempo,prometheus,loki,grafana,keycloak-postgres,keycloak-postgres-dump}", "tailscale-secrets.sh",
                  "docker build -t home-k8s-backstage:", "kind load docker-image home-k8s-backstage:",
                  "helm upgrade --install argocd", "grafana-secrets.sh", "grafana-env-secrets.sh", "argocd-secrets.sh", "backstage-azure-secret.sh",
-                 "share-relay.sh up", "share-secrets.sh", "argocd/root.yaml", "argocd-wait.sh", "headlamp-token.sh"]
+                 "share-relay.sh up", "share-secrets.sh", "keycloak-secrets.sh", "coredns-tailnet.sh", "argocd/root.yaml", "argocd-wait.sh", "headlamp-token.sh"]
         pos = [out.find(step) for step in steps]
         self.assertNotIn(-1, pos, out)
         self.assertEqual(pos, sorted(pos))
@@ -89,6 +89,17 @@ class Recipes(unittest.TestCase):
         self.assertRegex(up, r'tailscale-secrets\.sh ".*/\.config/home-k8s/tailscale-operator\.env" kind-study-kind\n')
         self.assertLess(up.find("kind create cluster"), up.find("tailscale-secrets.sh"))
         self.assertLess(up.find("tailscale-secrets.sh"), up.find("docker build -t home-k8s-backstage:"))
+
+    def test_keycloak_secrets_and_dns_are_ready_before_argocd_syncs_keycloak(self):
+        # Keycloak・PostgreSQL・realm の import は Secret を名前で読む。ArgoCD の同期 (root.yaml) より前に作る。
+        # 資格情報のファイルは Git の外 (~/.local/share/home-k8s/keycloak)。CoreDNS の読み替え先は egress の Service (clusters/kind/auth/keycloak/tailnet.yaml)
+        up = just("--dry-run", "up").stderr
+        self.assertRegex(up, r'keycloak-secrets\.sh ".*/\.local/share/home-k8s/keycloak" ".+" kind-study-kind\n')
+        self.assertRegex(up, r"coredns-tailnet\.sh keycloak\.taild2b611\.ts\.net keycloak-tailnet\.auth\.svc\.cluster\.local kind-study-kind\n")
+        self.assertLess(up.find("keycloak-secrets.sh"), up.find("argocd/root.yaml"))
+        self.assertNotIn("keycloak", " ".join(just("--list").stdout.split()), "内部用は公開しない")
+        keycloak = (ROOT / "clusters/kind/auth/keycloak/keycloak.yaml").read_text()
+        self.assertIn("hostname: https://keycloak.taild2b611.ts.net\n", keycloak)
 
     def test_backstage_image_tag_matches_values(self):
         # kind load するイメージのタグと、chart が使うタグ (pull しない) がずれると Pod が起動しない

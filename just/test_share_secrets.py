@@ -22,7 +22,7 @@ FAKE_KUBECTL = JUST / "fake_kubectl.py"
 ENTRYPOINT = JUST.parent / "clusters/kind/share/entrypoint.sh"
 VIEWER_VALUE = "viewer-pw-0123456789"
 FAKE_RANDOM = "ab" * 32  # 偽の openssl rand -hex 32 の出力
-SECRET_SCRIPTS = ["argocd-secrets.sh", "backstage-azure-secret.sh", "grafana-env-secrets.sh", "grafana-secrets.sh", "share-relay.sh", "share-secrets.sh", "tailscale-secrets.sh"]
+SECRET_SCRIPTS = ["argocd-secrets.sh", "backstage-azure-secret.sh", "grafana-env-secrets.sh", "grafana-secrets.sh", "keycloak-secrets.sh", "share-relay.sh", "share-secrets.sh", "tailscale-secrets.sh"]
 
 
 def decode(manifest):
@@ -211,7 +211,7 @@ class EverySecretCreatingScript(FakeEnv):
     def test_scripts_pass_only_non_secret_values_with_from_literal(self):
         # 静的な見張り: --from-literal は秘密でない値 (ユーザー名・中継の宛先) だけ。秘密は base64 にしても値なので、
         # --from-file と一時ファイルで渡す (引数に出ると ps に残る。#56)。新しい鍵を足すときは、秘密でないと確かめてここに足す
-        non_secret = {"admin-user", "SHARE_RELAY_ADDR"}
+        non_secret = {"admin-user", "SHARE_RELAY_ADDR", "username"}
         for name in SECRET_SCRIPTS:
             for statement in self.statements((JUST / name).read_text()):
                 for key in re.findall(r"--from-literal=([^=\s]+)=", statement):

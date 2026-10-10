@@ -21,7 +21,7 @@ kind の UI を、tailnet の端末から `https://<名前>.<tailnet>.ts.net` �
 | Temporal UI (dev) | `https://temporal-dev.<tailnet>.ts.net` | dev/temporal-dev | temporal-web:8080 |
 | Temporal UI (prod) | `https://temporal-prod.<tailnet>.ts.net` | prod/temporal-prod | temporal-web:8080 |
 | Headlamp | `https://headlamp.<tailnet>.ts.net` | headlamp/headlamp | headlamp:80 |
-| Keycloak (単位 2b で置く) | `https://keycloak.<tailnet>.ts.net` | auth/keycloak | (単位 2b が決める) |
+| Keycloak | `https://keycloak.<tailnet>.ts.net` | auth/keycloak | keycloak-service:8080 |
 
 ホスト名は Ingress の `tls.hosts` の 1 つ目で決まる (`<名前>.<tailnet>.ts.net`)。
 各ホストの最初のアクセスで Tailscale が Let's Encrypt から証明書を取るので、1 回目は数秒〜数十秒かかる。
@@ -38,7 +38,7 @@ tailnet の端末 ─ HTTPS (Tailscale の証明書) ─▶ proxy Pod (tag:k8s�
   Ingress は L7 で、proxy が HTTPS を終端し Tailscale の証明書を付ける。LoadBalancer (`loadBalancerClass: tailscale`) は L3 の転送で、
   証明書を付けない ([公式] Tailscale の Ingress の説明)。Keycloak の issuer は `https://` で、UI の OIDC も HTTPS を前提にするので Ingress にする。
 - **Ingress ごとに proxy を 1 つ (既定)。ProxyGroup (HA) は使わない**。ProxyGroup は Tailscale Services と autoApprovers の設定が増える。
-  自宅の 1 クラスタで、proxy の再起動中の数秒の断は受け入れる。proxy は 8 つ (Keycloak で 9 つ) で、Personal のタグ付きリソースの上限 50 に収まる
+  自宅の 1 クラスタで、proxy の再起動中の数秒の断は受け入れる。proxy は Ingress の 9 つ (Keycloak を含む) と egress の 1 つで、Personal のタグ付きリソースの上限 50 に収まる
 - **Ingress は UI の chart の外に置く** (`clusters/kind/tailscale/ingress`、各 manifest が namespace を書く)。UI の chart と values を変えずに足し引きでき、
   tailnet に何を出しているかが 1 か所で見える。Ingress は Service と同じ namespace に要るので、namespace は manifest ごとに書く
 - **Temporal UI は iframe 用の proxy (`temporal-ui-embed`) ではなく chart の Web UI (`temporal-web`) につなぐ**。
@@ -50,7 +50,7 @@ tailnet の端末 ─ HTTPS (Tailscale の証明書) ─▶ proxy Pod (tag:k8s�
 | tag | 付く端末 | 付けられる人 (tagOwners) |
 |---|---|---|
 | `tag:k8s-operator` | operator 自身 (端末名 `tailscale-operator`) | `autogroup:admin` (tailnet の管理者) |
-| `tag:k8s` | Ingress ごとの proxy (UI と Keycloak) | `tag:k8s-operator` (operator が proxy に付ける) |
+| `tag:k8s` | Ingress ごとの proxy (UI と Keycloak) と、egress の proxy (Pod → Keycloak) | `tag:k8s-operator` (operator が proxy に付ける) |
 
 ACL は新しい tailnet の既定 (全部許可) のまま残し、`tagOwners` だけを足した。
 自分 1 人の tailnet で、tailnet の外には出ていない (Funnel は使わない) ため。
@@ -63,32 +63,21 @@ ACL は新しい tailnet の既定 (全部許可) のまま残し、`tagOwners` 
 ]
 ```
 
-## Keycloak を出すとき (単位 2b へ)
+絞るときは、egress の proxy (`tag:k8s`) から Keycloak の Ingress の proxy (`tag:k8s`) への 443 も許す。無いとクラスタの中の Pod から issuer に届かなくなる ([keycloak.md](keycloak.md)):
+`{"src":["tag:k8s"],"dst":["tag:k8s"],"ip":["tcp:443"]}`
 
-Keycloak の Service と同じ namespace (`auth`) に、ほかの UI と同じ形の Ingress を足す。
 
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: keycloak
-  namespace: auth
-spec:
-  ingressClassName: tailscale
-  defaultBackend:
-    service:
-      name: <Keycloak の Service>   # Keycloak Operator が作る <CR の名前>-service
-      port:
-        number: <HTTP のポート>
-  tls:
-    - hosts:
-        - keycloak
-```
+## Keycloak を出すとき (単位 2b、実装済み)
+
+単位 2b でほかの UI と同じ形の Ingress を足した ([ingress/keycloak.yaml](../../clusters/kind/tailscale/ingress/keycloak.yaml)、namespace `auth`、
+Service `keycloak-service:8080`)。`https://keycloak.<tailnet>.ts.net` で開ける。設定と理由は [keycloak.md](keycloak.md)。
 
 - ホスト名は `keycloak` で固定する。変えると issuer (`https://keycloak.<tailnet>.ts.net/realms/home-k8s`) が変わり、passkey も登録し直しになる ([idp-options.md](idp-options.md))
-- tag は proxy の既定の `tag:k8s` のまま (`tailscale.com/tags` の注釈は付けない)。tailnet のポリシーは変えなくてよい
-- proxy は TLS を終端して HTTP で Keycloak に渡す。Keycloak 側は `proxy.headers: xforwarded` と `hostname: https://keycloak.<tailnet>.ts.net` を置く想定 [未確認] (proxy が `X-Forwarded-*` を付けるかは 2b で確かめる)
-- Pod と kind の API server から `keycloak.<tailnet>.ts.net` に届かせる方法 (operator の egress、CoreDNS、discoveryURL) は 2b で決める。この単位では入れていない
+- tag は proxy の既定の `tag:k8s` のまま。tailnet のポリシーは変えていない
+- proxy (tailscale serve) は `X-Forwarded-For`・`X-Forwarded-Host`・`X-Forwarded-Proto` を付ける。Keycloak は `proxy.headers: xforwarded` と `hostname: https://keycloak.<tailnet>.ts.net`
+- Pod からは operator の **egress** (Service `auth/keycloak-tailnet`、注釈 `tailscale.com/tailnet-fqdn`) と CoreDNS の rewrite で同じ URL に届く ([keycloak.md](keycloak.md) の「Pod から issuer に届かせる」)。
+  kind の API server からの届かせ方は単位 6
+- proxy の端末は ephemeral ではない。`just down` (`kind delete cluster`) は端末を tailnet に残すので、作り直したクラスタの proxy が同じ名前を取れないことがある [未確認] ([keycloak.md](keycloak.md) の「鶏と卵」)
 
 ## 人の画面操作 (最初の 1 回)
 

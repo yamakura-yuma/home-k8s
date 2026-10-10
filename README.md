@@ -78,6 +78,8 @@ kind自体は試験で問われないためクラスタの起動/削除は just 
 Backstage (localhost:7007) は home-k8s のエンティティのページに Grafana のダッシュボードの一覧を出し、
 home-k8s・knowledge-base・dotfiles の文書を TechDocs で読ませる (`just share add` で渡した資格情報で外からも読める)。
 アプリは `backstage/` にあり、イメージは `just up` が手元で build する。構成と本番への反映手順は `docs/cluster/backstage.md`。
+UI は Tailscale の tailnet の `https://<名前>.<tailnet>.ts.net` にも出る (`docs/cluster/tailscale.md`)。IdP の Keycloak (namespace `auth`、realm `home-k8s`) と
+その DB の PostgreSQL は `docs/cluster/keycloak.md`。
 
 利用可能なrecipe一覧は `just --list` で確認できる。資格取得のロードマップは
 `docs/certification/roadmap.md` を参照。Claude Code のトレース・メトリクス・ログを見る

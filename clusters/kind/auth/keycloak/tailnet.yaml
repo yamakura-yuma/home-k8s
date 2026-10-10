@@ -1,0 +1,19 @@
+# クラスタの中の Pod から https://keycloak.taild2b611.ts.net (issuer) に届かせる egress の Service。
+# Tailscale の operator がこの注釈を見て egress の proxy (namespace tailscale) を立て、spec.externalName をその proxy の Service に書き換える。
+# CoreDNS が keycloak.taild2b611.ts.net をこの Service の名前に読み替える (just/coredns-tailnet.sh)。
+# Pod → egress の proxy → tailnet → Keycloak の Ingress の proxy (TLS の終端) → Keycloak の順に通るので、
+# Pod もブラウザと同じ URL・同じ証明書で issuer を引ける。理由と他の案は docs/cluster/keycloak.md の「Pod から issuer に届かせる」。
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak-tailnet
+  annotations:
+    tailscale.com/tailnet-fqdn: keycloak.taild2b611.ts.net
+spec:
+  type: ExternalName
+  # operator が書き換える (Application keycloak の ignoreDifferences)。最初の値は何でもよい
+  externalName: placeholder
+  ports:
+    - name: https
+      port: 443
+      protocol: TCP

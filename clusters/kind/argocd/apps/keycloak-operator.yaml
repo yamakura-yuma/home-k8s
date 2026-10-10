@@ -1,0 +1,27 @@
+# 公式の Keycloak Operator (namespace auth)。CRD (Keycloak・KeycloakRealmImport など) と operator を入れる (clusters/kind/auth/operator)。
+# Keycloak 本体と realm は Application keycloak、DB は keycloak-postgres。設計は docs/cluster/keycloak.md。
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keycloak-operator
+  namespace: argocd
+  annotations:
+    # CRD を Keycloak の CR (Application keycloak、wave 0) より先に入れる
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/yamakura-yuma/home-k8s
+    targetRevision: main
+    path: clusters/kind/auth/operator
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: auth
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # CRD が大きく (Keycloak・KeycloakRealmImport は 400 KB 超)、client-side apply の注釈の上限 (256 KB) を超える
+      - ServerSideApply=true

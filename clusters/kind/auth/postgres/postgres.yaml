@@ -1,0 +1,109 @@
+# Keycloak の DB。公式の postgres イメージの StatefulSet を 1 つ置く (Bitnami の chart・イメージは使わない。docs/cluster/idp-options.md)。
+# データは静的な local PV keycloak-postgres (clusters/kind/storage) に置くので、just down・just up でも残る (docs/cluster/persistence.md)。
+# パスワードは Git に置かず、just up が Secret keycloak-postgres を作る (just/keycloak-secrets.sh)。DB は ClusterIP だけで、クラスタの外には開けない。
+# 構成とバックアップは docs/cluster/keycloak.md。
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak-postgres
+  labels:
+    app.kubernetes.io/name: keycloak-postgres
+spec:
+  selector:
+    app.kubernetes.io/name: keycloak-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: keycloak-postgres
+  labels:
+    app.kubernetes.io/name: keycloak-postgres
+spec:
+  serviceName: keycloak-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: keycloak-postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: keycloak-postgres
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70
+        runAsGroup: 70
+        # local の PV は fsGroup で所有グループが付け替わる。毎回の再帰的な付け替えは避ける (persistence.md)
+        fsGroup: 70
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgres
+          # 17 に留める。18 からデータの置き場が /var/lib/postgresql/18/docker に変わる (idp-options.md)。Temporal の DB と同じ版
+          image: postgres:17.6-alpine
+          env:
+            # Keycloak は同じ値を Secret keycloak-postgres の username から読む (just/keycloak-secrets.sh が keycloak を入れる)
+            - name: POSTGRES_USER
+              value: keycloak
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-postgres
+                  key: password
+            - name: POSTGRES_DB
+              value: keycloak
+            # PV の直下ではなくサブディレクトリに置く。公式イメージは $PGDATA/PG_VERSION があれば初期化を飛ばし、既存のデータをそのまま開く
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - name: postgres
+              containerPort: 5432
+          readinessProbe:
+            exec:
+              command: [pg_isready, -U, keycloak, -d, keycloak]
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: [pg_isready, -U, keycloak, -d, keycloak]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            # 読み取り専用の root では、unix ソケットの置き場が書けない
+            - name: run
+              mountPath: /var/run/postgresql
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+  # PVC data-keycloak-postgres-0 を作る。PV keycloak-postgres の claimRef がこの名前を指す (事前バインド)
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: home-k8s-local
+        resources:
+          requests:
+            storage: 2Gi

@@ -18,6 +18,8 @@
   exec -i deploy/argocd-server -- sh -c <スクリプト>       FAKE_ARGOCD_EXECS (回数のファイル) が FAKE_ARGOCD_FAILURES より小さい間は 1 で落ち、それ以降は手元の sh で同じスクリプトを動かす
                                                        (PATH の先頭の偽の argocd を呼ぶ。標準入力はそのまま渡る)
   exec -i deploy/share -c auth -- python -B -c <コード>  実物の share_auth を FAKE_AUTH_DIR から読んで、手元の python3 で同じコードを動かす (標準入力はそのまま渡る)
+  get configmap coredns -o jsonpath={.data.Corefile}  FAKE_COREFILE の中身を末尾の改行を除いて出す (実物の jsonpath と同じ)
+  patch configmap coredns --type merge --patch-file F  F の中身 (YAML) をそのまま FAKE_KUBECTL_STDIN に {"verb": "patch-configmap", "patch": <文字列>} で書く
 """
 import base64
 import json
@@ -111,6 +113,12 @@ elif args[:1] == ["exec"] and "deploy/argocd-server" in args:
 elif args[:1] == ["exec"] and "--" in args:
     code = args[args.index("-c", args.index("--")) + 1]
     sys.exit(subprocess.run([sys.executable, "-B", "-c", code], env={**os.environ, "PYTHONPATH": os.environ["FAKE_AUTH_DIR"]}).returncode)
+elif args[:3] == ["get", "configmap", "coredns"]:
+    with open(os.environ["FAKE_COREFILE"], encoding="utf-8") as f:
+        sys.stdout.write(f.read().rstrip("\n"))
+elif args[:3] == ["patch", "configmap", "coredns"]:
+    with open(args[args.index("--patch-file") + 1], encoding="utf-8") as f:
+        record({"verb": "patch-configmap", "patch": f.read()})
 elif args[:2] == ["get", "secret"]:
     sys.exit(0 if args[2] in os.environ.get("FAKE_EXISTING", "").split() else 1)
 elif args[:3] == ["create", "secret", "generic"]:

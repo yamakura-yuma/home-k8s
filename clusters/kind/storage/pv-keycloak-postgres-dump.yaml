@@ -1,0 +1,26 @@
+# Keycloak の PostgreSQL の pg_dump の書き出し先。PVC は clusters/kind/auth/postgres/pg-dump.yaml。
+# 中身は WSL2 ホストの ~/.local/share/home-k8s/observability/keycloak-postgres-dump。DB のデータとは別のディレクトリにする
+# (DB のディレクトリを消したり壊したりしても dump は残る)。
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: keycloak-postgres-dump
+spec:
+  capacity:
+    storage: 2Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: home-k8s-local
+  claimRef:
+    namespace: auth
+    name: keycloak-postgres-dump
+  local:
+    path: /var/local/home-k8s/observability/keycloak-postgres-dump
+  # DB の PV と同じノード。RWO は同じノードの Pod どうしなら同時に使える
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: home-k8s/observability-storage
+              operator: In
+              values: ["true"]
