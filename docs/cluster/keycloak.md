@@ -132,6 +132,7 @@ operator 26.8.0 には、client を CR ごとに作り・更新する `KeycloakO
 
 - 認証の flow は realm の宣言に書かない。`authenticationFlows` を書くと、import で Keycloak の既定の flow (browser など) が作られなくなる。
   同じ理由で `requiredActions` は既定の 14 個を全部並べた (一部だけ書くと、書かなかったものは作られない。scratch の realm に import して確かめた)
+  この 14 個は Keycloak 26.8.0 の既定。Keycloak を上げるときは、新しい版の既定 (`kcadm.sh get authentication/required-actions -r home-k8s`) と見比べて足す
 - passkey を 2 つ目の要素 (パスワード + passkey) に使う形は入れていない。そのためには browser の flow の `WebAuthn Authenticator` を有効にする必要があり、上の理由で flow を宣言に書くことになる
 
 以下の手順は開発用コンテナ (`just devcontainer shell`。kubectl があり、`~/.config/home-k8s` も見える) で打つ。どれも `kcadm.sh` を Keycloak の Pod の中で打つ (管理者のパスワードは Pod の環境変数から読み、コマンドラインに出さない)。
