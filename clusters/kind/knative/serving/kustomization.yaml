@@ -1,0 +1,38 @@
+# Knative Serving (core。CRD も含む) と、ネットワーク層の net-gateway-api。上流の release をタグで固定して取り込む。
+# ネットワーク層は net-istio ではなく net-gateway-api にする。Istio は Gateway API の実装として使い、Knative が作る経路も
+# HTTPRoute にそろえる (net-istio は Istio の VirtualService とサイドカー前提の構成を使う)。理由と経路は docs/cluster/gitops-deployer-platform.md。
+# 版を上げるときは 2 つの URL のタグを同じ版にそろえる。
+resources:
+  - https://github.com/knative/serving/releases/download/knative-v1.23.0/serving-core.yaml
+  - https://github.com/knative-extensions/net-gateway-api/releases/download/knative-v1.23.0/net-gateway-api.yaml
+patches:
+  # 経路を net-gateway-api に作らせる
+  - patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: config-network
+        namespace: knative-serving
+      data:
+        ingress-class: gateway-api.ingress.networking.knative.dev
+  # 経路を付ける Gateway は Application istio-ingress (clusters/kind/istio/gateway) が置く。
+  # service は istiod が Gateway ごとに作る Service (<Gateway 名>-istio)
+  - patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: config-gateway
+        namespace: knative-serving
+      data:
+        external-gateways: |
+          - class: istio
+            gateway: istio-ingress/gateway
+            service: istio-ingress/gateway-istio
+            supported-features:
+            - HTTPRouteRequestTimeout
+        local-gateways: |
+          - class: istio
+            gateway: istio-ingress/knative-local-gateway
+            service: istio-ingress/knative-local-gateway-istio
+            supported-features:
+            - HTTPRouteRequestTimeout

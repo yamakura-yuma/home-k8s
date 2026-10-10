@@ -1,0 +1,25 @@
+# Gateway API の CRD (clusters/kind/gateway-api)。Istio の Gateway・HTTPRoute と Knative Serving (net-gateway-api) が使う。
+# 基盤の全体は docs/cluster/gitops-deployer-platform.md。
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gateway-api
+  namespace: argocd
+  annotations:
+    # CRD を Gateway・HTTPRoute (Application istio-ingress・knative-serving、wave 0) より先に入れる
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/yamakura-yuma/home-k8s
+    targetRevision: main
+    path: clusters/kind/gateway-api
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      # CRD が大きく (HTTPRoute は 256 KB 超)、client-side apply の注釈の上限を超える
+      - ServerSideApply=true

@@ -1,0 +1,64 @@
+# Knative Eventing (core。CRD も含む) と Kafka Broker (eventing-kafka-broker の controller と data plane)。上流の release をタグで固定して取り込む。
+# Broker の既定の class を Kafka にし、Kafka は Strimzi が namespace kafka に立てる 1 ノードのクラスタ (clusters/kind/kafka) を使う。
+# 版を上げるときは 3 つの URL のタグをそろえる (eventing と eventing-kafka-broker は minor をそろえる)。docs/cluster/gitops-deployer-platform.md
+resources:
+  - https://github.com/knative/eventing/releases/download/knative-v1.23.1/eventing-core.yaml
+  - https://github.com/knative-extensions/eventing-kafka-broker/releases/download/knative-v1.23.2/eventing-kafka-controller.yaml
+  - https://github.com/knative-extensions/eventing-kafka-broker/releases/download/knative-v1.23.2/eventing-kafka-broker.yaml
+patches:
+  # Kafka のブローカーは 1 台なので、Broker が作るトピックの複製数は 1。パーティションも 1 で足りる
+  - patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: kafka-broker-config
+        namespace: knative-eventing
+      data:
+        default.topic.partitions: "1"
+        default.topic.replication.factor: "1"
+        bootstrap.servers: kafka-kafka-bootstrap.kafka.svc:9092
+  # class を書かない Broker も Kafka Broker にする
+  - patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: config-br-defaults
+        namespace: knative-eventing
+      data:
+        default-br-config: |
+          clusterDefault:
+            brokerClass: Kafka
+            apiVersion: v1
+            kind: ConfigMap
+            name: kafka-broker-config
+            namespace: knative-eventing
+            delivery:
+              retry: 10
+              backoffPolicy: exponential
+              backoffDelay: PT0.2S
+  # data plane (JVM) の requests は本番向けで大きい (dispatcher は 1 CPU・700Mi)。kind の学習用に下げ、limits を付ける。
+  # dispatcher の JVM はヒープを limits の 70% に取る (上流の JAVA_TOOL_OPTIONS)
+  - target:
+      kind: StatefulSet
+      name: kafka-broker-dispatcher
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            memory: 768Mi
+  - target:
+      kind: Deployment
+      name: kafka-broker-receiver
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 512Mi

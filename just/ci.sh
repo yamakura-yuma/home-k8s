@@ -17,7 +17,8 @@
 #                      URL を引く関数と CLI (just share add/delete/...、just/share.sh) を偽の kubectl で確かめる (注釈・引数に値が残らない作り方、#49・#56。
 #                      CLI は上限超えの --ttl・不正な名前・2 つ目の特権・期限付きへの rotate の拒否と、作った項目を実物の認証サービスに通す往復)。
 #                      稼働中のクラスタ・ホストには触れない。あわせて環境ごとのサンプルの API (services/sample-api) の経路と OpenAPI の突き合わせ、
-#                      Temporal (clusters/kind/temporal) の URL・ポート・CSP・proxy の突き合わせ
+#                      Temporal (clusters/kind/temporal) の URL・ポート・CSP・proxy の突き合わせ、gitops-deployer の基盤 (clusters/kind/gitops-deployer/test_platform.py) の
+#                      ambient に入れる namespace・Gateway と Knative の経路・Kafka と Redis の入口・Dapr の mTLS・APISIX の経路の突き合わせ
 #   8b. Azure の資格情報  just/backstage-azure-secret.sh を偽の kubectl で確かめる (ファイルが無い・空・欠けた項目・CRLF・コメント、値が引数に残らないこと)
 #   8c. Tailscale の OAuth client  just/tailscale-secrets.sh を偽の kubectl で確かめる (ファイルが無ければ止まる・欠けた項目・CRLF、値が引数に残らないこと)
 #   8d. Keycloak       just/keycloak-secrets.sh (ファイルを一度だけ作る・値が引数に残らない) と just/coredns-tailnet.sh (rewrite の挿入・打ち直しで変わらない) を
@@ -140,6 +141,8 @@ echo "== sample-api (環境ごとのサンプルの API の経路と OpenAPI の
 python3 -B -m unittest discover -s services/sample-api -v
 echo "== temporal (環境ごとの UI の URL・ポート・CSP・proxy の突き合わせ) =="
 python3 -B -m unittest discover -s clusters/kind/temporal -v
+echo "== gitops-deployer の基盤 (ambient の namespace・Gateway と Knative・Kafka の入口・Dapr・APISIX の経路の突き合わせ) =="
+python3 -B -m unittest discover -s clusters/kind/gitops-deployer -p 'test_*.py' -v
 
 echo "== share のホスト側 (中継の caddy、Secret を作るスクリプト、URL を引く関数、CLI) =="
 python3 -B -m unittest discover -s just -p 'test_share_*.py' -v

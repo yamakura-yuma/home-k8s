@@ -1,0 +1,16 @@
+# gitops-deployer の namespace (アプリは後続の PR が services/gitops-deployer に置く)。合意書: docs/cluster/gitops-deployer-platform.md
+# gitops-deployer は Istio ambient に入れ、Pod 間の通信を ztunnel の mTLS で包む。外向きの Gateway (istio-ingress/gateway) に
+# HTTPRoute を付けられるよう home-k8s/gateway-access も付ける (Knative Service の外向きの経路)。
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gitops-deployer
+  labels:
+    istio.io/dataplane-mode: ambient
+    home-k8s/gateway-access: "true"
+---
+# Workflow が GitOps でデプロイするアプリの置き場。ambient には入れない (合意書の Pod の構成は gitops-deployer だけを ambient にする)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gitops-deployer-apps

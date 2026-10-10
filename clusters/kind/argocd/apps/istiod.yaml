@@ -1,0 +1,42 @@
+# Istio の control plane (istiod chart、ambient の profile)。ztunnel と istio-cni に設定と証明書を配る。
+# values は clusters/kind/istio/istiod-values.yaml。版は 4 つの chart (istio-base・istiod・istio-cni・ztunnel) でそろえる。
+# 基盤の全体は docs/cluster/gitops-deployer-platform.md。
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: istiod
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://istio-release.storage.googleapis.com/charts
+      chart: istiod
+      targetRevision: 1.30.5
+      helm:
+        releaseName: istiod
+        valueFiles:
+          - $values/clusters/kind/istio/istiod-values.yaml
+    - repoURL: https://github.com/yamakura-yuma/home-k8s
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: istio-system
+  # istiod が自分の webhook の caBundle と failurePolicy を書き換える
+  ignoreDifferences:
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[]?.failurePolicy
+        - .webhooks[]?.clientConfig.caBundle
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[]?.clientConfig.caBundle
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - RespectIgnoreDifferences=true

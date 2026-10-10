@@ -1,0 +1,24 @@
+# 基盤の疎通の試験。testkube の Pod から、Istio の Gateway (istio-ingress/gateway の Service gateway-istio) を通って
+# APISIX の /_platform/ping (clusters/kind/apisix/manifests/routes.yaml) に届き、プラグイン (mocking) が pong を返すことを確かめる。
+# 走らせ方は docs/cluster/gitops-deployer-platform.md (kubectl testkube を使わず、TestWorkflowExecution を作るか API を叩く)
+apiVersion: testworkflows.testkube.io/v1
+kind: TestWorkflow
+metadata:
+  name: platform-smoke
+  namespace: testkube
+spec:
+  container:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+      limits:
+        memory: 64Mi
+  steps:
+    - name: gateway-apisix-ping
+      run:
+        image: curlimages/curl:8.22.0
+        shell: |
+          body=$(curl -sS --fail --max-time 10 http://gateway-istio.istio-ingress.svc.cluster.local/_platform/ping)
+          echo "応答: $body"
+          test "$body" = pong

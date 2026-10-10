@@ -1,0 +1,35 @@
+# Istio の CRD と既定の検証 webhook (base chart、namespace istio-system)。istiod・istio-cni・ztunnel は別の Application。
+# 版は 4 つの chart でそろえる。基盤の全体は docs/cluster/gitops-deployer-platform.md。
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: istio-base
+  namespace: argocd
+  annotations:
+    # CRD を istiod (wave 0) より先に入れる
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: default
+  source:
+    repoURL: https://istio-release.storage.googleapis.com/charts
+    chart: base
+    targetRevision: 1.30.5
+    helm:
+      releaseName: istio-base
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: istio-system
+  # istiod が検証 webhook の failurePolicy を書き換える (起動して CA を配るまでは Ignore にしておくため)
+  ignoreDifferences:
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[]?.failurePolicy
+        - .webhooks[]?.clientConfig.caBundle
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - RespectIgnoreDifferences=true

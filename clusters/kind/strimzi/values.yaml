@@ -1,0 +1,8 @@
+# Strimzi の operator (strimzi-kafka-operator chart、namespace kafka)。自分の namespace の Kafka・KafkaNodePool・KafkaTopic だけを見る
+# (watchNamespaces を空、watchAnyNamespace を false のまま)。Kafka 本体は clusters/kind/kafka/kafka.yaml (Application kafka)。docs/cluster/gitops-deployer-platform.md
+resources:
+  requests:
+    cpu: 100m
+    memory: 384Mi
+  limits:
+    memory: 512Mi

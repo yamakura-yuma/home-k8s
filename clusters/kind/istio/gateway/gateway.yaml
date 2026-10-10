@@ -1,0 +1,49 @@
+# Istio が実装する Gateway API の Gateway。gatewayClassName istio の Gateway を置くと、istiod が同じ namespace に
+# Envoy の Deployment と Service (<Gateway 名>-istio) を作る。kind に LoadBalancer は無いので Service は ClusterIP にする
+# (ホストへの公開は extraPortMappings の追加とクラスタの作り直しが要るので、まだしない)。docs/cluster/gitops-deployer-platform.md
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: istio-ingress
+---
+# 外向きの入口。経路は「Gateway (HTTPRoute) → APISIX → アプリ」。HTTPRoute を付けられるのは
+# ラベル home-k8s/gateway-access=true を持つ namespace だけ (apisix と、Knative Service を置く gitops-deployer)
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: gateway
+  namespace: istio-ingress
+  annotations:
+    networking.istio.io/service-type: ClusterIP
+spec:
+  gatewayClassName: istio
+  listeners:
+    - name: http
+      port: 80
+      protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              home-k8s/gateway-access: "true"
+---
+# Knative Serving (net-gateway-api) のクラスタ内向けの入口。Knative Service の <名前>.<namespace>.svc.cluster.local は
+# ここを指す ExternalName になり、HTTPRoute は Knative が Service の namespace に作る。どの namespace の Knative Service も
+# クラスタ内からは呼べるよう、HTTPRoute はどこからでも付けられる (外には出ない)
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: knative-local-gateway
+  namespace: istio-ingress
+  annotations:
+    networking.istio.io/service-type: ClusterIP
+spec:
+  gatewayClassName: istio
+  listeners:
+    - name: http
+      port: 80
+      protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: All

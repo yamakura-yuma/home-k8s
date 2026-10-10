@@ -1,0 +1,9 @@
+# APISIX の namespace。Istio ambient に入れ (後段の bff への通信を ztunnel の mTLS で包む)、
+# 外向きの Gateway (istio-ingress/gateway) に HTTPRoute を付けられるよう home-k8s/gateway-access を付ける
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: apisix
+  labels:
+    istio.io/dataplane-mode: ambient
+    home-k8s/gateway-access: "true"

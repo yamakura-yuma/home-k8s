@@ -1,0 +1,44 @@
+# Knative Eventing (namespace knative-eventing)。上流の release を kustomize で取り込む (clusters/kind/knative/eventing)。
+# Broker は Kafka Broker (Kafka は Application kafka)。基盤の全体は docs/cluster/gitops-deployer-platform.md。
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: knative-eventing
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/yamakura-yuma/home-k8s
+    targetRevision: main
+    path: clusters/kind/knative/eventing
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: knative-eventing
+  # Knative の webhook が自分の証明書 (Secret) と webhook の設定 (caBundle・rules)、CRD の変換 webhook の caBundle を書き換える
+  ignoreDifferences:
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[]?.clientConfig.caBundle
+        - .webhooks[]?.rules
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[]?.clientConfig.caBundle
+        - .webhooks[]?.rules
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      jqPathExpressions:
+        - .spec.conversion.webhook.clientConfig.caBundle
+    - kind: Secret
+      jqPathExpressions:
+        - .data
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # CRD が大きく、client-side apply の注釈の上限を超える
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true

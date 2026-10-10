@@ -1,0 +1,9 @@
+# istio-cni (cni chart)。ambient の Pod の通信を、Pod の network namespace の中でノードの ztunnel へ向け替える。
+# kind の kindnet のままで動く (CNI の設定ファイルに chained plugin として足す)。docs/cluster/gitops-deployer-platform.md
+profile: ambient
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi

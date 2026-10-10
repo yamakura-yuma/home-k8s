@@ -1,0 +1,29 @@
+# Redis (1 Pod、namespace redis、Istio ambient)。Dapr の state store の置き場。clusters/kind/redis。
+# 基盤の全体は docs/cluster/gitops-deployer-platform.md。
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: redis
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/yamakura-yuma/home-k8s
+    targetRevision: main
+    path: clusters/kind/redis
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: redis
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    # AuthorizationPolicy の CRD (Application istio-base) が先に要る。無い間は失敗するので再試行する
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m
+    syncOptions:
+      - SkipDryRunOnMissingResource=true
