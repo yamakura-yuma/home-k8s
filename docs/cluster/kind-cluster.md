@@ -25,6 +25,7 @@ k3d/minikube も検討したが、複数方式を並行維持するコストが�
 | control-plane の `extraPortMappings` | 4318/4317/3000 → NodePort 30318/30317/30300 | 観測スタックの OTLP 受け口と Grafana を WSL2 ホストの `127.0.0.1` に出す (`docs/observability/claude-code-traces.md`) |
 | 〃 (画面) | 8080/4466/7007 → NodePort 30080/30466/30707 | ArgoCD・Headlamp・Backstage の画面を `127.0.0.1` に出す (`docs/cluster/argocd.md`・`docs/cluster/backstage.md`) |
 | 〃 (環境ごとの画面) | 3001/3002/8233/8234 → NodePort 30301/30302/30233/30234 | dev・prod の Grafana (3001/3002、使うのは Grafana の PR) と Temporal UI (8233/8234) を `127.0.0.1` に出す (`docs/cluster/temporal.md`)。足したので作り直しが要る |
+| control-plane の `extraMounts` / `kubeadmConfigPatches` | `${HOME}/.local/share/home-k8s/kube-apiserver` → `/etc/kubernetes/home-k8s`、`--authentication-config`、kube-apiserver の `dnsPolicy` の patch | API server が Keycloak の OIDC の ID トークンを受け入れる (`docs/cluster/kube-oidc.md`)。中身 (`clusters/kind/kube-apiserver`) は `just up` がクラスタを作る前にコピーする。今のクラスタは作り直さずに入れた |
 | worker (1台目) の `extraMounts` / `labels` | `${HOME}/.local/share/home-k8s/observability` | Tempo の保存先。クラスタを作り直してもトレースを残す。`${HOME}` は `just up` が展開する |
 | `networking.apiServerAddress` | `127.0.0.1` | 開発用コンテナ (`just devcontainer up`) を `--network=host` で起動しているため、WSL2ホストの `127.0.0.1` にそのままbindされ、他リポジトリ/別プロセスからも到達可能 (`README.md` 参照) |
 

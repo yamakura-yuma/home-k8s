@@ -5,7 +5,7 @@ kind のクラスタの namespace `auth` に、IdP の Keycloak と、その DB 
 
 - issuer: **`https://keycloak.taild2b611.ts.net/realms/home-k8s`** (ブラウザからも Pod からも同じ URL)
 - Admin Console: `https://keycloak.taild2b611.ts.net/admin/` (realm `master`、ユーザー `admin`。パスワードは下の「Secret」)
-- ユーザーは `yamakura-yuma` (グループ `admins`、TOTP 必須、passkey も登録できる。下の「人のユーザーと MFA」。単位 2c)。各 UI と API server を OIDC につなぐのは単位 3〜6。ArgoCD と Grafana ×3 は単位 3 でつないだ (下の「各 UI の OIDC」)
+- ユーザーは `yamakura-yuma` (グループ `admins`、TOTP 必須、passkey も登録できる。下の「人のユーザーと MFA」。単位 2c)。各 UI と API server を OIDC につなぐのは単位 3〜6。ArgoCD と Grafana ×3 は単位 3、Temporal UI ×2 と Backstage は単位 4、Headlamp と kind の API server (kubectl) は単位 5 でつないだ (下の「各 UI の OIDC」と [kube-oidc.md](kube-oidc.md))
 
 ## 構成
 
@@ -64,9 +64,8 @@ Pod からも `https://keycloak.taild2b611.ts.net` で、同じ証明書で届�
 
 - egress の proxy は tailnet の端末 (tag `tag:k8s`) で、Keycloak の Ingress の proxy (同じ `tag:k8s`) に 443 でつなぐ。tailnet のポリシーは既定 (全部許可) のままでよい
 - egress の proxy は初回に 3 回再起動してから安定した。Keycloak の Ingress の端末が tailnet に出るのを待っていたと見ている [未確認]
-- **kind の API server (単位 6) はこの経路を使えない**。API server は control-plane のホストのネットワークで動き、CoreDNS を引かない。
-  AuthenticationConfiguration の `issuer.url` には上の issuer を書き、`issuer.discoveryURL` でクラスタ内の別の URL を指す形になる
-  ([access-control.md](access-control.md) の注意点)。ただし discoveryURL の先も、issuer と同じ値を返す HTTPS で、API server が信頼する証明書が要る。単位 6 で決める
+- **kind の API server もこの経路を使う**。API server は control-plane のホストのネットワークで動き、既定ではノードの resolv.conf を引く (CoreDNS を引かない)。
+  kube-apiserver の static Pod を `dnsPolicy: ClusterFirstWithHostNet` にして CoreDNS を引かせた。理由と他の案 (discoveryURL など) は [kube-oidc.md](kube-oidc.md) の「API server から issuer に届かせる」
 
 ## realm home-k8s
 
@@ -207,7 +206,7 @@ kc "kcadm update realms/home-k8s -s otpPolicyType=totp -s otpPolicyAlgorithm=Hma
 
 ## 各 UI の OIDC
 
-単位 3 で ArgoCD と Grafana ×3 を、単位 4 で Temporal UI ×2 と Backstage を realm `home-k8s` につないだ。どれも issuer の URL を Pod からも引く (上の「Pod から issuer に届かせる」)。
+単位 3 で ArgoCD と Grafana ×3 を、単位 4 で Temporal UI ×2 と Backstage を、単位 5 で Headlamp と kind の API server (kubectl) を realm `home-k8s` につないだ。どれも issuer の URL を Pod からも引く (上の「Pod から issuer に届かせる」。API server も同じ経路)。
 グループと権限は各 UI の設定に書く (Keycloak の側ではグループに入れるだけ)。例外は Temporal で、サーバーがグループを読めないので、
 client `temporal-<環境>` の client role をグループに付け、`permissions` クレームにしている ([temporal.md](temporal.md) の「ログインと権限」)。
 
@@ -218,6 +217,8 @@ client `temporal-<環境>` の client role をグループに付け、`permissio
 | Grafana (dev・prod) | `https://grafana-dev.…`・`https://grafana-prod.…` | `grafana-dev`・`grafana-prod` | [env-grafana/values.yaml](../../clusters/kind/env-grafana/values.yaml) (共通) と `values-<環境>.yaml` (`client_id`・`root_url`) | Admin | Viewer | 同上 |
 | Temporal UI (dev・prod) | `https://temporal-dev.…`・`https://temporal-prod.…` | `temporal-dev`・`temporal-prod` | [temporal/values-<環境>.yaml](../../clusters/kind/temporal/values-dev.yaml) の `web.additionalEnv` (`TEMPORAL_AUTH_*`)、[values.yaml](../../clusters/kind/temporal/values.yaml) の `server.config.authorization` | `temporal-system:admin` (すべて) | `temporal-system:read` (読むだけ) | ログインはできるが、どの API も 403 |
 | Backstage | `https://backstage.taild2b611.ts.net` | `backstage` | [app-config.yaml](../../backstage/app-config.yaml) の `auth.providers.oidc`、sign-in resolver とポリシー (`packages/backend/src/keycloakAuth.ts`・`permissionPolicy.ts`) | 何でもできる | 読むだけ (登録・削除・再読み込みは拒否) | サインインを断る |
+| Headlamp | `https://headlamp.taild2b611.ts.net` | `headlamp` | [headlamp/values.yaml](../../clusters/kind/headlamp/values.yaml) の `config.oidc`・`env`。権限は Kubernetes の RBAC ([kube-oidc.md](kube-oidc.md)) | `cluster-admin` | `view` + 読み取りの ClusterRole (Secret は読めない) | ログインはできるが、どの API も 403 |
+| kubectl (kind の API server) | — (kubelogin、`localhost:8000`) | `kubernetes` (public + PKCE) | [authentication-config.yaml](../../clusters/kind/kube-apiserver/authentication-config.yaml)、context `oidc@study-kind` (`just up` の `_kube-oidc-context`) | 同上 | 同上 | 同上 |
 
 - **ArgoCD は Keycloak を直に見る**。同梱の Dex は使わない (`dex.enabled: false` のまま)。groups は realm の既定の client scope `groups` で ID トークンに入り、ArgoCD は既定の `scopes: [groups]` で読む。
   ArgoCD のユーザー名はメールアドレスになる (`test-admin@example.invalid` など)。グループはログインのときにだけ読まれるので、グループを変えたらログインし直す
@@ -237,14 +238,15 @@ client `temporal-<環境>` の client role をグループに付け、`permissio
 | `dev/temporal-oidc`・`prod/temporal-oidc` | `client-secret` | `temporal-dev`・`temporal-prod` | Temporal Web UI の環境変数 `TEMPORAL_AUTH_CLIENT_SECRET` (chart の `web.additionalEnv`) |
 | `backstage/backstage-oidc` | `AUTH_OIDC_CLIENT_SECRET` | `backstage` | Backstage の環境変数 (chart の `extraEnvVarsSecrets`)。`auth.providers.oidc.production.clientSecret` |
 | `backstage/backstage-session` | `AUTH_SESSION_SECRET` | (無し。無いときだけ乱数で作る) | `auth.session.secret` (OIDC のログインの途中の state・nonce を持つ session の cookie の署名鍵) |
+| `headlamp/headlamp-oidc` | `OIDC_CLIENT_SECRET` | `headlamp` | Headlamp の環境変数 (chart の `config.oidc.externalSecret`、envFrom) |
 
 ファイルは作らない (realm の側の secret とずれるので、無ければ止まる)。client の secret を変えたら (上の「Secret」)、`just up` を打ち、Grafana・Temporal Web UI・Backstage の Pod を作り直す
-(`kubectl -n <namespace> rollout restart deploy/grafana`、`deploy/temporal-web`、`deploy/backstage`)。ArgoCD は Secret の変更を Pod の作り直しなしで読み直す [未確認]。
+(`kubectl -n <namespace> rollout restart deploy/grafana`、`deploy/temporal-web`、`deploy/backstage`、`deploy/headlamp`)。ArgoCD は Secret の変更を Pod の作り直しなしで読み直す [未確認]。
 
 ### OIDC を持たない UI と oauth2-proxy
 
 **oauth2-proxy は置いていない** (単位 4 で決めた)。tailnet に出している UI (ArgoCD・Grafana ×3・Temporal UI ×2・Backstage・Headlamp・Keycloak、
-[tailscale.md](tailscale.md)) は、どれも自分で OIDC を持つ (Headlamp は単位 5)。OIDC を持たない UI は、どれも tailnet に出していない。
+[tailscale.md](tailscale.md)) は、どれも自分で OIDC を持つ。OIDC を持たない UI は、どれも tailnet に出していない。
 
 | OIDC を持たない UI | 届き方 | oauth2-proxy を置かない理由 |
 |---|---|---|
@@ -263,7 +265,8 @@ argocd login argocd.taild2b611.ts.net --sso --grpc-web
 - tailnet の Ingress は HTTP の proxy なので `--grpc-web` を付ける
 - CLI は `localhost:8085` で待ち、ブラウザで Keycloak に入ると `http://localhost:8085/auth/callback` に戻る (client `argocd-cli` の redirect URI)。
   ブラウザと CLI が同じ端末で動いている必要がある。WSL2 では Windows のブラウザから WSL の `localhost:8085` に届かないことがある (単位 2c で kubelogin の callback が届かなかった)。
-  そのときは CLI が出す URL を WSL の中のブラウザで開くか、Windows 側の argocd CLI を使う
+  単位 5 では、mirrored networking の今の WSL で Windows の `curl.exe` から WSL の kubelogin の `localhost:8000` に callback が届いた ([kube-oidc.md](kube-oidc.md))。
+  届かないときは CLI が出す URL を WSL の中のブラウザで開くか、Windows 側の argocd CLI を使う
 
 ### 人を外したとき
 
@@ -373,7 +376,7 @@ tailnet の端末のブラウザで `https://keycloak.taild2b611.ts.net/realms/h
 | 動いている realm | 上の「realm の MFA の設定を動いている Keycloak に入れる」を打ち、`kcadm.sh` で値が入ったことを確かめた |
 | ユーザー | `yamakura-yuma` をグループ `admins`、必須アクション `UPDATE_PASSWORD`・`CONFIGURE_TOTP`、一時パスワード (本人だけが読めるホストのファイル) で作った |
 | 人のログイン | 本人が tailnet の端末で Account Console に入り、OTP の設定とパスワードの変更、passkey の登録、サインアウトしてからの passkey でのログインまでできた。ユーザーの credential は `password`・`otp`・`webauthn-passwordless`、必須アクションは空 |
-| groups | Admin Console の client の「Client scopes → Evaluate」と同じ API (`evaluate-scopes/generate-example-id-token`) で、client `kubernetes`・`argocd-cli` の ID トークンに `groups: ["admins"]`・`preferred_username`・`aud` (client 名)・issuer が入る。実際のログインで取った ID トークンでは見ていない [未確認] (kubelogin の localhost の callback に Windows のブラウザから WSL へ届かなかった。単位 3・6 で確かめる) |
+| groups | Admin Console の client の「Client scopes → Evaluate」と同じ API (`evaluate-scopes/generate-example-id-token`) で、client `kubernetes`・`argocd-cli` の ID トークンに `groups: ["admins"]`・`preferred_username`・`aud` (client 名)・issuer が入る。実際のログインで取った ID トークンでは見ていない [未確認] (kubelogin の localhost の callback に Windows のブラウザから WSL へ届かなかった。単位 3・6 で確かめる)。→ 単位 5 で、kubelogin (client `kubernetes`) で取った ID トークンの groups を API server が `oidc:admins` と読むことを確かめた ([kube-oidc.md](kube-oidc.md) の「確かめた結果」) |
 
 単位 3 (ArgoCD と Grafana の OIDC) は 2026-10-11 (JST) に確かめた。ログインは使い捨てのテスト用ユーザー (`test-admin` は admins、`test-viewer` は viewers、`test-nogroup` はグループなし。
 OTP の必須アクションを外して作り、確かめた後に消した) で、ブラウザを使わずに authorization code flow を流した (Python の標準ライブラリで Keycloak のログインフォームに送る)。
@@ -386,6 +389,8 @@ OTP の必須アクションを外して作り、確かめた後に消した) �
 
 実際のログインで取ったトークンにも `groups` が入ることを、ArgoCD の userinfo (ID トークンから) で確かめた (上の単位 2c の [未確認] のうち `argocd-cli` の分)。
 非常用の admin (ArgoCD の `/api/v1/session`、Grafana 3 つの `/api/user` の Basic 認証) と、Backstage のプロキシ (Grafana ×3 と ArgoCD)・`just share test-smoke` (share Pod の Grafana の経路) も通った。
+
+単位 5 (Headlamp と kind の API server・kubectl) の確かめた結果は [kube-oidc.md](kube-oidc.md) の「確かめた結果」。
 
 ## 出典
 

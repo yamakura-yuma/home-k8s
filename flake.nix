@@ -13,6 +13,8 @@
         tools = with pkgs; [
           just
           kubectl
+          # kubectl の OIDC のログイン (kubectl oidc-login、exec plugin)。docs/cluster/kube-oidc.md
+          kubelogin-oidc
           kind
           kubernetes-helm
           cloudflared

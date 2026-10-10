@@ -1,0 +1,25 @@
+# kind の API server が Keycloak (realm home-k8s) の ID トークンを受け入れる設定 (Structured Authentication Configuration)。
+# kubectl (kubelogin、client kubernetes) と Headlamp (client headlamp) が、Keycloak の ID トークンを Bearer で渡してくる。
+# 置き場所と読ませ方は kind-config.yaml の control-plane (extraMounts・kubeadmConfigPatches)。理由は docs/cluster/kube-oidc.md。
+# API server はこのファイルの変更を読み直すので、書き換えても再起動は要らない (just up が置き直す)。
+apiVersion: apiserver.config.k8s.io/v1
+kind: AuthenticationConfiguration
+jwt:
+  - issuer:
+      # トークンの iss と同じ文字列。discovery と JWKS もこの URL から引く (control-plane の Pod の DNS を CoreDNS にした。patches/)
+      url: https://keycloak.taild2b611.ts.net/realms/home-k8s
+      # ID トークンの aud は client の名前。kubectl と Headlamp の 2 つ
+      audiences:
+        - kubernetes
+        - headlamp
+      audienceMatchPolicy: MatchAny
+    claimMappings:
+      # Keycloak のユーザー名 (人は名前を変えられない: realm の editUsernameAllowed は既定の false)。
+      # 接頭辞で ServiceAccount や system: の名前とぶつからないようにする
+      username:
+        claim: preferred_username
+        prefix: "oidc:"
+      # groups: ["admins"] の形 (realm の client scope groups)。RBAC は oidc:admins・oidc:viewers に結ぶ (clusters/kind/auth/rbac)
+      groups:
+        claim: groups
+        prefix: "oidc:"

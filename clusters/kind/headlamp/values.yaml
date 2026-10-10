@@ -1,10 +1,34 @@
 # kubernetes-sigs/headlamp chart の values。
-# ホストの localhost:4466 で開く (NodePort + kind の extraPortMappings)。
+# ホストの localhost:4466 で開く (NodePort + kind の extraPortMappings)。tailnet からは https://headlamp.taild2b611.ts.net
 service:
   type: NodePort
   nodePort: 30466
 
 # chart の既定は ServiceAccount headlamp に cluster-admin を付ける。眺める用途なので
-# 読み取りの権限だけにする (manifests/rbac.yaml)。ログインはこの ServiceAccount のトークンで行う
+# 読み取りの権限だけにする (manifests/rbac.yaml)。このトークン (just show headlamp) でのログインは非常用に残す
 clusterRoleBinding:
   create: false
+
+# Keycloak (realm home-k8s、client headlamp) の OIDC でログインする。Headlamp は受け取った ID トークンを
+# そのまま API server に渡すので、権限は Kubernetes の RBAC (グループ oidc:admins・oidc:viewers。clusters/kind/auth/rbac) で決まる。
+# API server の audiences に headlamp を書いてある (clusters/kind/kube-apiserver/authentication-config.yaml)。docs/cluster/kube-oidc.md
+config:
+  oidc:
+    secret:
+      create: false
+    # client の secret だけを Secret headlamp-oidc (キー OIDC_CLIENT_SECRET。just up の _oidc-secrets が作る) から環境変数にする。
+    # それ以外は下の env に書く (envFrom と env の両方が入る)
+    externalSecret:
+      enabled: true
+      name: headlamp-oidc
+env:
+  - name: OIDC_CLIENT_ID
+    value: headlamp
+  # Headlamp の Pod は CoreDNS の rewrite と Tailscale の egress で、ブラウザと同じ URL の issuer を引く (docs/cluster/keycloak.md)
+  - name: OIDC_ISSUER_URL
+    value: https://keycloak.taild2b611.ts.net/realms/home-k8s
+  # callback は tailnet の URL だけ (realm の client headlamp の redirect URI)。localhost:4466 から OIDC でログインしても戻り先は tailnet になる
+  - name: OIDC_CALLBACK_URL
+    value: https://headlamp.taild2b611.ts.net/oidc-callback
+  - name: OIDC_USE_PKCE
+    value: "true"

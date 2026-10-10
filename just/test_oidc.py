@@ -1,4 +1,5 @@
-"""ArgoCD・Grafana ×3・Temporal UI ×2・Backstage の OIDC (Keycloak) の試験。Secret を作るスクリプト (oidc-secrets.sh) と、各 UI の values と realm の突き合わせ。
+"""ArgoCD・Grafana ×3・Temporal UI ×2・Backstage・Headlamp・kind の API server の OIDC (Keycloak) の試験。
+Secret を作るスクリプト (oidc-secrets.sh) と、各 UI の values・API server の設定・RBAC と realm の突き合わせ。
 
 標準ライブラリだけ: python3 -B -m unittest discover -s just -p test_oidc.py
 スクリプトは PATH の先頭に置いた偽の kubectl (fake_kubectl.py) で、引数と標準入力だけを見る。稼働中のクラスタには触れない。
@@ -26,6 +27,7 @@ SECRETS = {
     "dev/temporal-oidc": ("client-secret", "temporal-dev"),
     "prod/temporal-oidc": ("client-secret", "temporal-prod"),
     "backstage/backstage-oidc": ("AUTH_OIDC_CLIENT_SECRET", "backstage"),
+    "headlamp/headlamp-oidc": ("OIDC_CLIENT_SECRET", "headlamp"),
 }
 # Backstage の session の署名鍵。client のファイルからではなく、無いときだけ乱数で作る
 SESSION = "backstage/backstage-session"
@@ -82,7 +84,7 @@ class OidcSecrets(FakeEnv):
         self.assertNotIn("labels", made["observability/grafana-oidc"]["manifest"]["metadata"])
 
     def test_existing_secrets_are_replaced(self):
-        r = self.run_oidc(FAKE_EXISTING="argocd-oidc-keycloak grafana-oidc temporal-oidc backstage-oidc backstage-session")
+        r = self.run_oidc(FAKE_EXISTING="argocd-oidc-keycloak grafana-oidc temporal-oidc backstage-oidc headlamp-oidc backstage-session")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual({e["verb"] for e in self.entries() if e["manifest"].get("kind") == "Secret"}, {"replace"})
 
@@ -248,6 +250,90 @@ class Backstage(unittest.TestCase):
         self.assertIn("      name: backstage-tailnet\n      port:\n        number: 80\n", ingress)
         app = (ROOT / "clusters/kind/argocd/apps/backstage.yaml").read_text()
         self.assertIn("      path: clusters/kind/backstage/tailnet-proxy\n", app)
+
+
+class Headlamp(unittest.TestCase):
+    def setUp(self):
+        self.values = (ROOT / "clusters/kind/headlamp/values.yaml").read_text()
+
+    def env_value(self, name):
+        m = re.search(rf"  - name: {name}\n    value: (.+)\n", self.values)
+        return m.group(1).strip('"') if m else None
+
+    def test_logs_in_with_the_headlamp_client_and_its_callback(self):
+        self.assertEqual(self.env_value("OIDC_CLIENT_ID"), "headlamp")
+        self.assertEqual(self.env_value("OIDC_ISSUER_URL"), ISSUER)
+        self.assertEqual(self.env_value("OIDC_USE_PKCE"), "true")
+        callback = self.env_value("OIDC_CALLBACK_URL")
+        self.assertEqual(callback, "https://headlamp.taild2b611.ts.net/oidc-callback")
+        self.assertIn(f"          - {callback}\n", realm_client("headlamp"))
+
+    def test_secret_comes_from_the_secret_oidc_secrets_makes(self):
+        # chart の externalSecret は envFrom。キーの名前がそのまま環境変数 (OIDC_CLIENT_SECRET) になる
+        self.assertIn("    externalSecret:\n      enabled: true\n      name: headlamp-oidc\n", self.values)
+        self.assertIn("    secret:\n      create: false\n", self.values)
+        self.assertEqual(SECRETS["headlamp/headlamp-oidc"], ("OIDC_CLIENT_SECRET", "headlamp"))
+        self.assertNotIn("clientSecret", self.values)
+
+
+class KubeApiserver(unittest.TestCase):
+    """kind の API server の AuthenticationConfiguration と、それを読ませる kind-config・RBAC・kubelogin の context。"""
+    def setUp(self):
+        self.authn = (ROOT / "clusters/kind/kube-apiserver/authentication-config.yaml").read_text()
+        self.kind = (ROOT / "clusters/kind/kind-config.yaml").read_text()
+        self.rbac = (ROOT / "clusters/kind/auth/rbac/oidc-groups.yaml").read_text()
+
+    def test_issuer_and_audiences_are_the_realm_and_its_clients(self):
+        self.assertIn(f"      url: {ISSUER}\n", self.authn)
+        self.assertIn("      audiences:\n        - kubernetes\n        - headlamp\n      audienceMatchPolicy: MatchAny\n", self.authn)
+        # ID トークンの aud は client の名前。どちらも realm にある
+        realm_client("kubernetes")
+        realm_client("headlamp")
+
+    def test_claims_get_a_prefix(self):
+        # 接頭辞が無いと、Keycloak のユーザー名で system: や ServiceAccount の名前を名乗れる
+        self.assertIn('      username:\n        claim: preferred_username\n        prefix: "oidc:"\n', self.authn)
+        self.assertIn('      groups:\n        claim: groups\n        prefix: "oidc:"\n', self.authn)
+
+    def test_rbac_binds_the_prefixed_groups(self):
+        docs = self.rbac.split("\n---\n")
+        binds = {re.search(r"\n  name: (\S+)\n", d).group(1): (re.search(r"kind: ClusterRole\n  name: (\S+)", d).group(1),
+                                                                  re.search(r"kind: Group\n    name: (\S+)", d).group(1))
+                 for d in docs}
+        self.assertEqual(binds, {
+            "oidc-admins": ("cluster-admin", "oidc:admins"),
+            "oidc-viewers": ("view", "oidc:viewers"),
+            "oidc-viewers-cluster-read": ("headlamp-cluster-read", "oidc:viewers"),
+        })
+        # viewers に足す ClusterRole は読むだけ (Secret も無い)
+        read = (ROOT / "clusters/kind/headlamp/manifests/rbac.yaml").read_text().split("name: headlamp-cluster-read\nrules:\n")[1].split("\n---\n")[0]
+        self.assertEqual(set(re.findall(r"verbs: \[(.+)\]", read)), {"get, list, watch"})
+        self.assertNotIn("secrets", read)
+
+    def test_kind_config_mounts_the_directory_and_points_at_the_file(self):
+        # just up (_kind-up) が clusters/kind/kube-apiserver をこのホストのディレクトリに置く
+        self.assertIn("      - hostPath: ${HOME}/.local/share/home-k8s/kube-apiserver\n        containerPath: /etc/kubernetes/home-k8s\n", self.kind)
+        self.assertIn("              value: /etc/kubernetes/home-k8s/authentication-config.yaml\n", self.kind)
+        self.assertIn("          directory: /etc/kubernetes/home-k8s/patches\n", self.kind)
+        self.assertTrue((ROOT / "clusters/kind/kube-apiserver/patches/kube-apiserver+strategic.yaml").exists())
+        kind_just = (ROOT / "just/kind.just").read_text()
+        self.assertIn('cp -r clusters/kind/kube-apiserver/. "$HOME/.local/share/home-k8s/kube-apiserver/"', kind_just)
+
+    def test_apiserver_resolves_the_issuer_through_coredns(self):
+        patch = (ROOT / "clusters/kind/kube-apiserver/patches/kube-apiserver+strategic.yaml").read_text()
+        self.assertIn("spec:\n  dnsPolicy: ClusterFirstWithHostNet\n", patch)
+
+    def test_kubelogin_context_uses_the_public_client_and_its_callbacks(self):
+        recipe = (ROOT / "just/keycloak.just").read_text().split("_kube-oidc-context:\n")[1]
+        self.assertIn("--exec-arg=--oidc-issuer-url=https://{{keycloak_host}}/realms/home-k8s", recipe)
+        self.assertIn("--exec-arg=--oidc-client-id=kubernetes", recipe)
+        self.assertIn("--exec-arg=--oidc-pkce-method=S256", recipe)
+        self.assertNotIn("client-secret", recipe)
+        # kubelogin は既定で 127.0.0.1:8000、だめなら 18000 で待つ。realm の redirect URI と同じ
+        client = realm_client("kubernetes")
+        self.assertIn("          - http://localhost:8000\n          - http://localhost:18000\n", client)
+        self.assertIn("        publicClient: true\n", client)
+        self.assertIn("          pkce.code.challenge.method: S256", client)
 
 
 if __name__ == "__main__":
