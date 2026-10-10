@@ -134,7 +134,7 @@ operator 26.8.0 には、client を CR ごとに作り・更新する `KeycloakO
   同じ理由で `requiredActions` は既定の 14 個を全部並べた (一部だけ書くと、書かなかったものは作られない。scratch の realm に import して確かめた)
 - passkey を 2 つ目の要素 (パスワード + passkey) に使う形は入れていない。そのためには browser の flow の `WebAuthn Authenticator` を有効にする必要があり、上の理由で flow を宣言に書くことになる
 
-以下の手順は、どれも `kcadm.sh` を Keycloak の Pod の中で打つ (管理者のパスワードは Pod の環境変数から読み、コマンドラインに出さない)。
+以下の手順は開発用コンテナ (`just devcontainer shell`。kubectl があり、`~/.config/home-k8s` も見える) で打つ。どれも `kcadm.sh` を Keycloak の Pod の中で打つ (管理者のパスワードは Pod の環境変数から読み、コマンドラインに出さない)。
 Admin Console (`https://keycloak.taild2b611.ts.net/admin/` → realm `home-k8s` → Users) でも同じことができる。
 
 ```sh
@@ -156,12 +156,11 @@ kc() {
 ```sh
 user=<ユーザー名>; group=admins   # または viewers
 f=~/.config/home-k8s/keycloak-initial-password
-(umask 077; python3 -c 'import secrets; print(secrets.token_urlsafe(18))' > "$f")
+(umask 077; head -c 18 /dev/urandom | base64 | tr '+/' '-_' > "$f")   # 英数字と - _ だけ (JSON に入れても崩れない)
 id=$(kc "kcadm create users -r home-k8s -s username=$user -s enabled=true -s 'groups=[\"/$group\"]' \
   -s 'requiredActions=[\"UPDATE_PASSWORD\",\"CONFIGURE_TOTP\"]' -i")
 # パスワードは標準入力で渡す (Pod のプロセスの引数に出さない)
-python3 -c 'import json,sys; print(json.dumps({"type": "password", "temporary": True, "value": open(sys.argv[1]).read().strip()}))' "$f" |
-  kc "kcadm update users/$id/reset-password -r home-k8s -f -"
+printf '{"type": "password", "temporary": true, "value": "%s"}' "$(cat "$f")" | kc "kcadm update users/$id/reset-password -r home-k8s -f -"
 kc "kcadm get users/$id/groups -r home-k8s --fields name"   # [{"name":"admins"}]
 ```
 
