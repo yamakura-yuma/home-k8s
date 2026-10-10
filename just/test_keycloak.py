@@ -134,6 +134,32 @@ class Realm(unittest.TestCase):
         for uri in re.findall(r"^          - (https?://\S+)$", self.realm, re.M):
             self.assertTrue(uri.startswith("https://") and ".taild2b611.ts.net/" in uri or uri.startswith("http://localhost:"), uri)
 
+    def test_totp_is_a_default_required_action(self):
+        # 新しいユーザーはどれも最初のログインで OTP を設定させられる
+        actions = dict(re.findall(r"^      - \{alias: ([\w-]+), .*defaultAction: (true|false)", self.realm, re.M))
+        self.assertEqual([a for a, d in actions.items() if d == "true"], ["CONFIGURE_TOTP"])
+        self.assertIn("otpPolicyType: totp\n", self.realm)
+
+    def test_required_actions_keep_the_keycloak_defaults(self):
+        # requiredActions を書くと、無いものは import で作られない (UPDATE_PASSWORD が無いと一時パスワードが使えない)。
+        # Keycloak 26.8.0 の realm home-k8s にあった 14 個
+        aliases = re.findall(r"^      - \{alias: ([\w-]+),", self.realm, re.M)
+        self.assertEqual(aliases, [
+            "TERMS_AND_CONDITIONS", "UPDATE_PROFILE", "VERIFY_EMAIL", "CONFIGURE_TOTP", "UPDATE_PASSWORD", "delete_account", "UPDATE_EMAIL",
+            "webauthn-register", "webauthn-register-passwordless", "VERIFY_PROFILE", "delete_credential", "idp_link",
+            "CONFIGURE_RECOVERY_AUTHN_CODES", "update_user_locale",
+        ])
+        for alias in ["CONFIGURE_TOTP", "UPDATE_PASSWORD", "webauthn-register", "webauthn-register-passwordless"]:
+            self.assertRegex(self.realm, rf"alias: {alias}, .*enabled: true,", alias)
+
+    def test_passkeys_use_the_issuer_host_as_rp_id(self):
+        # Relying Party の ID はブラウザが開くホスト名と合わないと登録できない。変えると登録済みの passkey が使えなくなる
+        self.assertIn(f"webAuthnPolicyRpId: {HOST}\n", self.realm)
+        self.assertIn(f"webAuthnPolicyPasswordlessRpId: {HOST}\n", self.realm)
+        self.assertIn("webAuthnPolicyPasswordlessPasskeysEnabled: true\n", self.realm)
+        # 認証の flow を書くと既定の flow (browser など) が作られなくなる
+        self.assertNotIn("authenticationFlows:", self.realm)
+
 
 class CorednsTailnet(FakeEnv):
     def setUp(self):
