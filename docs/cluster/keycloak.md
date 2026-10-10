@@ -299,6 +299,16 @@ tailnet の端末のブラウザで `https://keycloak.taild2b611.ts.net/realms/h
 | pg_dump | 手で走らせた Job でホストに `keycloak-<時刻>.sql.gz` (約 74 KB) ができた。別の DB に流し込んで realm 2 つ (home-k8s・master) が戻ることを確かめ、その DB は消した |
 | 作り直し | StatefulSet・PVC・PV を消して作り直した (`just down` で起きることと同じ) → 新しい PVC が同じ PV に結ばれ、PostgreSQL は初期化を飛ばし、realm の id が前と同じ。Keycloak の Pod も作り直し、admin で入れた |
 
+単位 2c (人のユーザーと MFA) は 2026-10-11 (JST) に確かめた。
+
+| 確認 | 結果 |
+|---|---|
+| realm の宣言 | `realm-home-k8s.yaml` の realm を名前だけ替えて scratch の realm に import → 必須アクション 14 個 (`CONFIGURE_TOTP` だけ defaultAction)、RP ID、passkey、既定の browser の flow、client 11 個、既定の client scope が今の realm と同じ。確かめた後に消した |
+| 動いている realm | 上の「realm の MFA の設定を動いている Keycloak に入れる」を打ち、`kcadm.sh` で値が入ったことを確かめた |
+| ユーザー | `yamakura-yuma` をグループ `admins`、必須アクション `UPDATE_PASSWORD`・`CONFIGURE_TOTP`、一時パスワード (本人だけが読めるホストのファイル) で作った |
+| 人のログイン | 本人が tailnet の端末で Account Console に入り、OTP の設定とパスワードの変更、passkey の登録、サインアウトしてからの passkey でのログインまでできた。ユーザーの credential は `password`・`otp`・`webauthn-passwordless`、必須アクションは空 |
+| groups | Admin Console の client の「Client scopes → Evaluate」と同じ API (`evaluate-scopes/generate-example-id-token`) で、client `kubernetes`・`argocd-cli` の ID トークンに `groups: ["admins"]`・`preferred_username`・`aud` (client 名)・issuer が入る。実際のログインで取った ID トークンでは見ていない [未確認] (kubelogin の localhost の callback に Windows のブラウザから WSL へ届かなかった。単位 3・6 で確かめる) |
+
 ## 出典
 
 - Keycloak Operator のインストール・基本の導入・Realm Import (realm があれば上書きしない、placeholders)・Managing Clients (preview)・Advanced configuration (bootstrapAdmin) (確認):
@@ -310,3 +320,6 @@ tailnet の端末のブラウザで `https://keycloak.taild2b611.ts.net/realms/h
 - tailscale serve が付けるヘッダー (確認): `ipn/ipnlocal/serve.go` (<https://github.com/tailscale/tailscale>、v1.102.4)
 - operator の proxy の auth key が ephemeral でないこと (確認): `cmd/k8s-operator/sts.go` の `newAuthKey` (v1.102.4)
 - CoreDNS の rewrite (確認): <https://coredns.io/plugins/rewrite/>
+- 単位 2c の MFA (観測): feature `PASSKEYS` が既定で有効なこと (`kcadm.sh get serverinfo`)、`RealmRepresentation` に `webAuthnPolicyPasswordlessPasskeysEnabled` があること (keycloak-core 26.8.0 の jar)、
+  `requiredActions` を一部だけ書くと残りが作られないこと (scratch の realm への import)。いずれも Keycloak 26.8.0 の Pod で確かめた。
+  passkey と必須アクションの説明 (未確認: 読んでいない): <https://www.keycloak.org/docs/latest/server_admin/#passkeys>
