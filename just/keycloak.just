@@ -14,3 +14,8 @@ _keycloak-secrets:
 # CoreDNS で keycloak の tailnet の名前を egress の Service (clusters/kind/auth/keycloak/tailnet.yaml) に読み替える
 _coredns-tailnet:
     bash just/coredns-tailnet.sh {{keycloak_host}} keycloak-tailnet.auth.svc.cluster.local {{kube_context}}
+
+# ArgoCD と Grafana ×3 の OIDC の client の secret を、上のディレクトリの clients/<clientId> から各 namespace の Secret にする
+# (argocd/argocd-oidc-keycloak、observability・dev・prod/grafana-oidc。docs/cluster/keycloak.md の「各 UI の OIDC」)。_keycloak-secrets の後に打つ
+_oidc-secrets:
+    bash just/oidc-secrets.sh "{{keycloak_secret_dir}}/clients" {{kube_context}}

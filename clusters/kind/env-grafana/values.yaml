@@ -90,6 +90,28 @@ extraContainers: |
 grafana.ini:
   auth.anonymous:
     enabled: false
+  # Keycloak (realm home-k8s) の OIDC でログインする (generic_oauth)。グループ admins は Admin、viewers は Viewer、どちらでもなければ
+  # role_attribute_strict でログインを断る。ロールはログインのたびに groups から付け直す。
+  # ログインフォームと Basic 認証 (admin・backstage) は残す: admin は非常用、backstage は Backstage のプロキシが使う。
+  # client_secret は環境変数 GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET (下の envValueFrom。Secret grafana-oidc は `just up` の _oidc-secrets が作る)。
+  # token_url と api_url は Pod から引く。CoreDNS の読み替えでブラウザと同じ URL・証明書で届く (docs/cluster/keycloak.md)
+  # client_id と server.root_url は環境ごと (values-<環境>.yaml)
+  auth.generic_oauth:
+    enabled: true
+    name: Keycloak
+    scopes: openid profile email groups
+    auth_url: https://keycloak.taild2b611.ts.net/realms/home-k8s/protocol/openid-connect/auth
+    token_url: https://keycloak.taild2b611.ts.net/realms/home-k8s/protocol/openid-connect/token
+    api_url: https://keycloak.taild2b611.ts.net/realms/home-k8s/protocol/openid-connect/userinfo
+    signout_redirect_url: https://keycloak.taild2b611.ts.net/realms/home-k8s/protocol/openid-connect/logout
+    use_pkce: true
+    allow_sign_up: true
+    login_attribute_path: preferred_username
+    name_attribute_path: name
+    email_attribute_path: email
+    groups_attribute_path: groups
+    role_attribute_path: "contains(groups[*], 'admins') && 'Admin' || contains(groups[*], 'viewers') && 'Viewer'"
+    role_attribute_strict: true
   users:
     auto_assign_org_role: Viewer
   analytics:
@@ -98,6 +120,13 @@ grafana.ini:
   # ログイン直後のホームを sample-api のダッシュボードにする (下の provisioning で置かれるファイル)
   dashboards:
     default_home_dashboard_path: /var/lib/grafana/dashboards/default/sample-api.json
+
+# Keycloak の client の secret (auth.generic_oauth、`just up` の _oidc-secrets が Git の外のファイルから作る)
+envValueFrom:
+  GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
+    secretKeyRef:
+      name: grafana-oidc
+      key: client-secret
 
 # 同じ環境 (namespace) の Prometheus・Loki・Tempo。Service 名は namespace の中の名前で引ける
 datasources:

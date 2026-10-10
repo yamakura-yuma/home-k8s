@@ -1,6 +1,6 @@
 # 環境へのアクセス権の一元管理 — 比較と推奨
 
-状態: 調査 (実装はしていない。下の「移行の段取り」の単位ごとに別の話題で行う)。調べた日は 2026-10-10。
+状態: 調査。実装は下の「移行の段取り」の単位ごとに別の話題で行っている (単位 1・2・3 は実装済み)。調べた日は 2026-10-10。
 
 > **IdP の推奨は差し替えた (2026-10-10)**: 下の Dex + GitHub に代えて、Keycloak (DB は PostgreSQL) を唯一の issuer にする。
 > 比較と移行の段取りは [idp-options.md](idp-options.md)。到達経路・各 UI の OIDC の設定・ワーカーと Azure の権限は、この文書のまま。
@@ -193,7 +193,7 @@ Dex の上流の IdP は **GitHub** に決めた (アクセス管理専用の or
 |---|---|---|---|
 | 1 | 到達経路 (Tailscale) | Tailscale の Kubernetes operator を入れ、UI と後で置く Dex を `*.<tailnet>.ts.net` に出す。認証はまだ変えない。**実装済み** ([tailscale.md](tailscale.md)。Dex ではなく Keycloak を置く。[idp-options.md](idp-options.md)) | tailnet の別の端末から固定の URL で開ける |
 | 2 | Dex | namespace `auth` に Dex を置き、GitHub connector (org と team) を設定する。クラスタ内から issuer に届かせる方法を決める (上の注意点)。**Keycloak に差し替えて実装済み** ([idp-options.md](idp-options.md) の単位 2a・2b・2c、[keycloak.md](keycloak.md)) | `/.well-known/openid-configuration` がブラウザからも Pod からも引ける |
-| 3 | ArgoCD・Grafana の OIDC | `oidc.config` と policy.csv、3 つの Grafana の generic_oauth と role_attribute_path。admin のパスワードは非常用として残す | 管理の team の人は Admin、それ以外は Viewer になる |
+| 3 | ArgoCD・Grafana の OIDC | `oidc.config` と policy.csv、3 つの Grafana の generic_oauth と role_attribute_path。admin のパスワードは非常用として残す。**Keycloak で実装済み** ([keycloak.md](keycloak.md) の「各 UI の OIDC」。グループは `admins`・`viewers`) | 管理の team の人は Admin、それ以外は Viewer になる |
 | 4 | Backstage の OIDC と permission framework | oidc provider、GitHub org のユーザーとチームの取り込み、ポリシーを入れる。ゲストは 127.0.0.1 の開発用に限る | org の外の人は入れない。管理の team 以外は書き込みが拒否される |
 | 5 | kind の API server と Headlamp | AuthenticationConfiguration (kind-config)、kubelogin、Headlamp の `config.oidc`、Group の RBAC | `kubectl auth whoami` が `oidc:` の Group を返す。Headlamp の権限が RBAC どおりになる |
 | 6 | Temporal UI・oauth2-proxy・share の扱い | `TEMPORAL_AUTH_*` を設定し、headroom の前に oauth2-proxy を置く。`just share` を残すか廃止するかを決める | どの UI も Dex のログインを経ないと開けない |
