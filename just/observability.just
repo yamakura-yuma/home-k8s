@@ -5,11 +5,11 @@
 
 observe_ns := "observability"
 # Grafana の admin パスワード。リポジトリの外 (WSL2 ホスト側) に置き、2 回目以降は再利用する
-grafana_password_file := env_var("HOME") + "/.local/share/home-k8s/observability/grafana-admin-password"
+grafana_password_file := "/tmp/claude-1000/-home-yyamakura-k8s-workspace-home-k8s-gitops-deployer-platform/0672a78f-2795-41c8-9f24-1ef269a3e538/scratchpad/verify-share/observability/grafana-admin-password"
 # 閲覧用ユーザー viewer のパスワード。無ければ `just up` が作り、以後は再利用する。share Pod が写しを持つ (Secret share-grafana)。共有相手には渡さない
-grafana_viewer_password_file := env_var("HOME") + "/.local/share/home-k8s/observability/grafana-viewer-password"
+grafana_viewer_password_file := "/tmp/claude-1000/-home-yyamakura-k8s-workspace-home-k8s-gitops-deployer-platform/0672a78f-2795-41c8-9f24-1ef269a3e538/scratchpad/verify-share/observability/grafana-viewer-password"
 # Backstage が Grafana を読む閲覧用ユーザー backstage のパスワード。無ければ `just up` が作り、以後は再利用する
-grafana_backstage_password_file := env_var("HOME") + "/.local/share/home-k8s/observability/grafana-backstage-password"
+grafana_backstage_password_file := "/tmp/claude-1000/-home-yyamakura-k8s-workspace-home-k8s-gitops-deployer-platform/0672a78f-2795-41c8-9f24-1ef269a3e538/scratchpad/verify-share/observability/grafana-backstage-password"
 
 # admin・viewer・backstage のパスワードを (無ければ生成して) Secret grafana-admin・grafana-viewer・grafana-backstage と
 # backstage-grafana (Backstage 側) に入れる。
@@ -20,6 +20,6 @@ _grafana-secrets:
 # 環境 (dev・prod) ごとの Grafana (clusters/kind/env-grafana) の Secret を作る。各環境の namespace に grafana-admin・grafana-backstage、
 # Backstage 側に backstage-grafana-env (docs/cluster/backstage-grafana.md)。パスワードはリポジトリの外のファイルに置き、無ければ作って以後は再利用する。
 # `just up` が _grafana-secrets の後に打つ
-grafana_env_dir := env_var("HOME") + "/.local/share/home-k8s/observability/env-grafana"
+grafana_env_dir := "/tmp/claude-1000/-home-yyamakura-k8s-workspace-home-k8s-gitops-deployer-platform/0672a78f-2795-41c8-9f24-1ef269a3e538/scratchpad/verify-share/observability/env-grafana"
 _grafana-env-secrets:
-    bash just/grafana-env-secrets.sh "{{grafana_env_dir}}" "{{justfile_directory()}}" {{kube_context}} dev prod
+    bash just/grafana-env-secrets.sh "{{grafana_env_dir}}" "{{justfile_directory()}}" {{kube_context}} dev

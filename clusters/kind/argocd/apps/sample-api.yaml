@@ -14,7 +14,6 @@ spec:
     - list:
         elements:
           - env: dev
-          - env: prod
   template:
     metadata:
       name: 'sample-api-{{.env}}'
@@ -22,7 +21,7 @@ spec:
       project: default
       source:
         repoURL: https://github.com/yamakura-yuma/home-k8s
-        targetRevision: main
+        targetRevision: verify/gitops-deployer-platform
         path: services/sample-api
       destination:
         server: https://kubernetes.default.svc

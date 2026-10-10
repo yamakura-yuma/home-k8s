@@ -3,7 +3,7 @@
 
 # DB・初期の管理者・各 client の secret のファイル。無ければ `just up` が作り、以後は再利用する (DB はホストに残るので、作り直すとずれる)。
 # 各 UI (単位 3〜6) も clients/<clientId> から自分の Secret を作る
-keycloak_secret_dir := env_var("HOME") + "/.local/share/home-k8s/keycloak"
+keycloak_secret_dir := "/tmp/claude-1000/-home-yyamakura-k8s-workspace-home-k8s-gitops-deployer-platform/0672a78f-2795-41c8-9f24-1ef269a3e538/scratchpad/verify-share/keycloak"
 # Keycloak の tailnet の名前 (issuer は https://<これ>/realms/home-k8s)。clusters/kind/auth/keycloak/keycloak.yaml の hostname と同じ
 keycloak_host := "keycloak.taild2b611.ts.net"
 

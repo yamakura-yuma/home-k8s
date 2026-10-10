@@ -3,7 +3,7 @@
 # 状態の確認は docker を素手で叩くこと (`docker ps --filter name=home-k8s-share-relay`)。
 
 # 中継の共有トークン。リポジトリの外 (WSL2 ホスト側) に置き、2 回目以降は再利用する。値は Secret share/share-host にも入る
-share_relay_token_file := env_var("HOME") + "/.local/share/home-k8s/share/relay-token"
+share_relay_token_file := "/tmp/claude-1000/-home-yyamakura-k8s-workspace-home-k8s-gitops-deployer-platform/0672a78f-2795-41c8-9f24-1ef269a3e538/scratchpad/verify-share/share/relay-token"
 # 中継が bridge のゲートウェイで待ち受けるポート。Pod へは Secret share-host の SHARE_RELAY_ADDR (ゲートウェイ:このポート) で渡る
 share_relay_port := "8788"
 

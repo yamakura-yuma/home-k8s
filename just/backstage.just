@@ -14,7 +14,7 @@ _backstage-image:
 
 # Azure のタブの資格情報 (読み取り用のサービスプリンシパル) のファイル。Git の外 (WSL2 ホスト側) に置く。
 # 無くても `just up` は失敗しない (Azure のタブは「資格情報が無い」を出す)。置き方は docs/cluster/backstage-azure.md
-backstage_azure_file := env_var("HOME") + "/.local/share/home-k8s/backstage/azure.env"
+backstage_azure_file := "/tmp/claude-1000/-home-yyamakura-k8s-workspace-home-k8s-gitops-deployer-platform/0672a78f-2795-41c8-9f24-1ef269a3e538/scratchpad/verify-share/backstage/azure.env"
 
 # 上のファイルから Secret backstage-azure (namespace backstage) を作る。ファイルが無ければ作らず (あれば消し)、失敗しない。
 # `just up` が観測スタックの Secret の後に打つ。Backstage の chart が環境変数 AZURE_* にする (optional)

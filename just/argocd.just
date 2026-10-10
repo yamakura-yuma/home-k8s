@@ -5,9 +5,9 @@
 argocd_ns := "argocd"
 argocd_chart_version := "10.9.6" # clusters/kind/argocd/apps/argocd.yaml の targetRevision と揃える
 # Headlamp にログインするトークンの置き場所。Git の外に置き、`just show headlamp` が表示する
-headlamp_token_file := env_var("HOME") + "/.local/share/home-k8s/headlamp/token"
+headlamp_token_file := "/tmp/claude-1000/-home-yyamakura-k8s-workspace-home-k8s-gitops-deployer-platform/0672a78f-2795-41c8-9f24-1ef269a3e538/scratchpad/verify-share/headlamp/token"
 # Backstage が ArgoCD の API を読むトークン (読み取り専用のアカウント backstage の API トークン)。Git の外に置き、無ければ作る
-argocd_backstage_token_file := env_var("HOME") + "/.local/share/home-k8s/argocd/backstage-token"
+argocd_backstage_token_file := "/tmp/claude-1000/-home-yyamakura-k8s-workspace-home-k8s-gitops-deployer-platform/0672a78f-2795-41c8-9f24-1ef269a3e538/scratchpad/verify-share/argocd/backstage-token"
 
 # トークンは ServiceAccount headlamp (Application headlamp が作る) に結び付いた Secret から取る
 # Headlamp (localhost:4466) にログインするトークンを作り、ファイルに書いて表示する
