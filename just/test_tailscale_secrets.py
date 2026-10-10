@@ -12,7 +12,7 @@ sys.dont_write_bytecode = True  # __pycache__ をリポジトリに作らない
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from test_share_secrets import FakeEnv  # noqa: E402
 
-FULL = {"client_id": "kXyZ123CNTRL", "client_secret": "tskey-client-kXyZ123CNTRL-s3cr3t=x"}
+FULL = {"client_id": "FAKE-client-id", "client_secret": "FAKE-client-secret-for-test=x"}
 SECRET = dict(FULL)
 
 
