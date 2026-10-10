@@ -175,7 +175,8 @@ Dex の上流の IdP は **GitHub** に決めた (アクセス管理専用の or
 
 ### 推奨構成の注意点 (実装の話題で解く)
 
-- **クラスタの中から issuer に届くか** [未確認]: Backstage・ArgoCD・Grafana のバックエンドは、トークンを検証するために issuer の discovery と JWKS を取りに行く。Pod から `dex.<tailnet>.ts.net` に届かせる方法は 2 つある。どちらにするかは単位 2 で決める
+- **クラスタの中から issuer に届くか**: Backstage・ArgoCD・Grafana のバックエンドは、トークンを検証するために issuer の discovery と JWKS を取りに行く。Pod から `dex.<tailnet>.ts.net` に届かせる方法は 2 つある。どちらにするかは単位 2 で決める。
+  **決定** (Keycloak の単位 2b): operator の egress と CoreDNS の rewrite ([keycloak.md](keycloak.md) の「Pod から issuer に届かせる」)
   - CoreDNS の rewrite でクラスタ内の Dex に向け、Dex に同じ名前の証明書を持たせる
   - operator の egress を使う
 
@@ -191,7 +192,7 @@ Dex の上流の IdP は **GitHub** に決めた (アクセス管理専用の or
 | # | 話題 | やること | 完了の確かめ方 |
 |---|---|---|---|
 | 1 | 到達経路 (Tailscale) | Tailscale の Kubernetes operator を入れ、UI と後で置く Dex を `*.<tailnet>.ts.net` に出す。認証はまだ変えない。**実装済み** ([tailscale.md](tailscale.md)。Dex ではなく Keycloak を置く。[idp-options.md](idp-options.md)) | tailnet の別の端末から固定の URL で開ける |
-| 2 | Dex | namespace `auth` に Dex を置き、GitHub connector (org と team) を設定する。クラスタ内から issuer に届かせる方法を決める (上の注意点) | `/.well-known/openid-configuration` がブラウザからも Pod からも引ける |
+| 2 | Dex | namespace `auth` に Dex を置き、GitHub connector (org と team) を設定する。クラスタ内から issuer に届かせる方法を決める (上の注意点)。**Keycloak に差し替えて実装済み** ([idp-options.md](idp-options.md) の単位 2a・2b、[keycloak.md](keycloak.md)) | `/.well-known/openid-configuration` がブラウザからも Pod からも引ける |
 | 3 | ArgoCD・Grafana の OIDC | `oidc.config` と policy.csv、3 つの Grafana の generic_oauth と role_attribute_path。admin のパスワードは非常用として残す | 管理の team の人は Admin、それ以外は Viewer になる |
 | 4 | Backstage の OIDC と permission framework | oidc provider、GitHub org のユーザーとチームの取り込み、ポリシーを入れる。ゲストは 127.0.0.1 の開発用に限る | org の外の人は入れない。管理の team 以外は書き込みが拒否される |
 | 5 | kind の API server と Headlamp | AuthenticationConfiguration (kind-config)、kubelogin、Headlamp の `config.oidc`、Group の RBAC | `kubectl auth whoami` が `oidc:` の Group を返す。Headlamp の権限が RBAC どおりになる |

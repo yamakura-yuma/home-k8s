@@ -20,6 +20,8 @@
 #                      Temporal (clusters/kind/temporal) の URL・ポート・CSP・proxy の突き合わせ
 #   8b. Azure の資格情報  just/backstage-azure-secret.sh を偽の kubectl で確かめる (ファイルが無い・空・欠けた項目・CRLF・コメント、値が引数に残らないこと)
 #   8c. Tailscale の OAuth client  just/tailscale-secrets.sh を偽の kubectl で確かめる (ファイルが無ければ止まる・欠けた項目・CRLF、値が引数に残らないこと)
+#   8d. Keycloak       just/keycloak-secrets.sh (ファイルを一度だけ作る・値が引数に残らない) と just/coredns-tailnet.sh (rewrite の挿入・打ち直しで変わらない) を
+#                      偽の kubectl で確かめ、realm の client と Secret keycloak-clients のキーを突き合わせる
 #   9. backstage       yarn install --immutable (yarn.lock のとおりに入れ、ずれていたら落とす) のあと、backend・app の jest (yarn workspace backend/app test) と
 #                      型検査 (yarn tsc)。node_modules は backstage/ に入る (git の管理外・.dockerignore 済み)
 set -euo pipefail
@@ -145,6 +147,8 @@ echo "== Azure のタブの資格情報の Secret (ファイルが無くても�
 python3 -B -m unittest discover -s just -p 'test_backstage_azure_secret.py' -v
 echo "== Tailscale の operator の OAuth client の Secret (ファイルが無ければ止まる、値が引数に残らない) =="
 python3 -B -m unittest discover -s just -p 'test_tailscale_secrets.py' -v
+echo "== Keycloak の Secret (ファイルを一度だけ作る、値が引数に残らない)・realm の client と Secret のキー・CoreDNS の読み替え =="
+python3 -B -m unittest discover -s just -p 'test_keycloak.py' -v
 
 # backstage の試験と型検査。node と yarn が無いと飛ばされるのではなく失敗にする
 command -v node >/dev/null && command -v yarn >/dev/null || { echo "node か yarn が無い (devShells.ci に入っているはず)" >&2; exit 1; }

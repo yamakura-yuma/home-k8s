@@ -1,6 +1,6 @@
 # 自前でホストする IdP (Keycloak など) — 比較と推奨
 
-状態: 調査 (実装はしていない。下の「移行の段取り」の単位ごとに別の話題で行う)。調べた日は 2026-10-10。
+状態: 調査は 2026-10-10。実装は下の「移行の段取り」の単位ごとに進めている (単位 1・2a・2b は実装済み。Keycloak と PostgreSQL は [keycloak.md](keycloak.md))。
 
 [access-control.md](access-control.md) は、Dex + GitHub を唯一の OIDC issuer にする構成を推奨した。
 そのとき Keycloak・Authentik は「重い」という理由で外したが、重さは確かめていなかった ([未確認])。
@@ -211,8 +211,8 @@ Dex をまだ入れていない (2026-10-10 時点で未実装 [観測]) ので�
 | # | 話題 | やること | 完了の確かめ方 |
 |---|---|---|---|
 | 1 | 到達経路 (Tailscale) | access-control.md の単位 1 のまま。Keycloak のホスト名 (`keycloak.<tailnet>.ts.net`) もここで決める。**実装済み** ([tailscale.md](tailscale.md)。公開は Ingress、proxy の tag は `tag:k8s`、Keycloak の Ingress の形も同じ文書) | tailnet の別の端末から固定の URL で開ける |
-| 2a | PostgreSQL | namespace `auth` に StatefulSet、静的 PV `keycloak-postgres`、`pg_dump` の CronJob を置く。[persistence.md](persistence.md) の「未決の論点」(ラベルとディレクトリの名前を一般的なものに替えるか) をここで決める | `just down`・`just up` のあとも DB のデータが残る。dump のファイルがホストにできる |
-| 2b | Keycloak | Keycloak Operator と `Keycloak` の CR を置き、PostgreSQL につなぐ。realm `home-k8s`、グループ、client scope (Group Membership mapper、`full.path: false`)、各 UI の client を KeycloakRealmImport で Git に置く。クラスタ内から issuer に届かせる方法を決める (access-control.md の注意点と同じ) | `/realms/home-k8s/.well-known/openid-configuration` がブラウザからも Pod からも引ける |
+| 2a | PostgreSQL | namespace `auth` に StatefulSet、静的 PV `keycloak-postgres`、`pg_dump` の CronJob を置く。[persistence.md](persistence.md) の「未決の論点」(ラベルとディレクトリの名前を一般的なものに替えるか) をここで決める。**実装済み** ([keycloak.md](keycloak.md)。名前は替えず、観測スタックと同じ extraMounts の下に置いた。作り直しは tailnet の端末の名前に当たるため) | `just down`・`just up` のあとも DB のデータが残る。dump のファイルがホストにできる |
+| 2b | Keycloak | Keycloak Operator と `Keycloak` の CR を置き、PostgreSQL につなぐ。realm `home-k8s`、グループ、client scope (Group Membership mapper、`full.path: false`)、各 UI の client を KeycloakRealmImport で Git に置く。クラスタ内から issuer に届かせる方法を決める (access-control.md の注意点と同じ)。**実装済み** ([keycloak.md](keycloak.md)。Pod からは Tailscale の operator の egress と CoreDNS の rewrite で、ブラウザと同じ URL に届く。KeycloakRealmImport は realm が無いときしか効かないので、後からの変更は Admin Console か kcadm.sh でも入れる) | `/realms/home-k8s/.well-known/openid-configuration` がブラウザからも Pod からも引ける |
 | 2c | ユーザーの登録と MFA | 自分のユーザーを作り、必須アクション (パスワードの変更、OTP の設定) を通す。必要なら GitHub などの Identity Provider を足す | 一時パスワードから TOTP の登録を経てログインでき、ID トークンの `groups` にグループ名が入る |
 | 3〜6 | 各 UI と API server | access-control.md の単位 3〜6 と同じ。issuer を Keycloak にし、policy.csv や RoleBinding には Keycloak のグループ名を書く。Backstage のカタログのユーザーとグループは、GitHub の org からではなく Keycloak から取り込む (Backstage の Keycloak のプラグインを使う [未確認]) | access-control.md の確かめ方と同じ |
 | 7・8 | ワーカーと Azure | access-control.md のまま (IdP と関係しない) | 同じ |

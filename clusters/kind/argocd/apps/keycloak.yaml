@@ -1,0 +1,29 @@
+# Keycloak 本体 (CR Keycloak)、realm home-k8s (KeycloakRealmImport)、Pod から issuer に届かせる egress の Service (clusters/kind/auth/keycloak)。
+# operator と CRD は Application keycloak-operator (wave -1)。tailnet への公開は Application tailscale-ingress。設計は docs/cluster/keycloak.md。
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keycloak
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/yamakura-yuma/home-k8s
+    targetRevision: main
+    path: clusters/kind/auth/keycloak
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: auth
+  # Tailscale の operator が egress の Service の externalName を自分の proxy の Service に書き換える。selfHeal で戻さない
+  ignoreDifferences:
+    - kind: Service
+      name: keycloak-tailnet
+      jsonPointers:
+        - /spec/externalName
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - RespectIgnoreDifferences=true

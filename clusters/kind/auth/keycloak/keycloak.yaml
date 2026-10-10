@@ -1,0 +1,49 @@
+# Keycloak 本体 (公式の Keycloak Operator の CR。operator は Application keycloak-operator)。構成と理由は docs/cluster/keycloak.md。
+# - DB は同じ namespace の PostgreSQL (clusters/kind/auth/postgres)
+# - tailnet には Tailscale の Ingress (clusters/kind/tailscale/ingress/keycloak.yaml) で https://keycloak.taild2b611.ts.net に出す。
+#   proxy が TLS を終端し、HTTP の 8080 (Service keycloak-service) に渡す
+# - issuer は https://keycloak.taild2b611.ts.net/realms/home-k8s の 1 つだけ。ブラウザも Pod も同じ URL で引く
+#   (Pod からは CoreDNS が egress の Service keycloak-tailnet に向ける。tailnet.yaml)
+# - 資格情報 (DB・初期の管理者) は Git に置かず、just up が Secret を作る (just/keycloak-secrets.sh)
+apiVersion: k8s.keycloak.org/v2beta1
+kind: Keycloak
+metadata:
+  name: keycloak
+spec:
+  instances: 1
+  db:
+    vendor: postgres
+    host: keycloak-postgres
+    port: 5432
+    database: keycloak
+    usernameSecret:
+      name: keycloak-postgres
+      key: username
+    passwordSecret:
+      name: keycloak-postgres
+      key: password
+  # 非常用の管理者 (realm master)。DB が空のときの最初の起動で一度だけ作られる。DB が残る限り、この Secret の値を替えても DB の側は替わらない
+  bootstrapAdmin:
+    user:
+      secret: keycloak-bootstrap-admin
+  # TLS は Tailscale の proxy が終端する。Keycloak は HTTP で受ける
+  http:
+    httpEnabled: true
+  # フロントの URL を固定する。ブラウザ向けの URL も backchannel (token・userinfo・jwks) の URL も、この 1 つにそろえる
+  # (backchannelDynamic は既定の false)。Pod も同じ名前で届くので、内向きの別の URL は要らない
+  hostname:
+    hostname: https://keycloak.taild2b611.ts.net
+  # Tailscale の proxy (tailscale serve) は X-Forwarded-For・X-Forwarded-Host・X-Forwarded-Proto を付ける (Forwarded は付けない)。
+  # クライアントの IP (イベント・セッション) はここから取る
+  proxy:
+    headers: xforwarded
+  # operator の既定の Ingress (ingressClassName なし) は作らない。公開は Tailscale の Ingress だけ
+  ingress:
+    enabled: false
+  # operator の既定は requests 1700Mi・limits 2Gi。kind の学習用なので requests を下げ、上限は既定のまま
+  resources:
+    requests:
+      cpu: 100m
+      memory: 1Gi
+    limits:
+      memory: 2Gi

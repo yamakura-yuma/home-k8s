@@ -10,7 +10,7 @@ _kind-up:
     if kind get clusters | grep -qx {{kind_cluster}}; then echo "kind のクラスタ {{kind_cluster}} は作成済み"; else sed 's|${HOME}|'"$HOME"'|g' clusters/kind/kind-config.yaml | kind create cluster --name {{kind_cluster}} --config -; fi
     # local の PV (clusters/kind/storage) はディレクトリが先にあることを前提にする (無いと Pod が起動しない)。
     # extraMounts の下に作れば、作り直さずにノードからも見える (docs/cluster/persistence.md)
-    mkdir -p "$HOME"/.local/share/home-k8s/observability/{tempo,prometheus,loki,grafana}
+    mkdir -p "$HOME"/.local/share/home-k8s/observability/{tempo,prometheus,loki,grafana,keycloak-postgres,keycloak-postgres-dump}
     # 開発用コンテナはrootで動いており kubeconfig も root:root/600 で書かれるため、
     # ホスト側ユーザー(や他リポジトリ)からも読めるように緩める。
     chmod 644 "$HOME/.kube/config"

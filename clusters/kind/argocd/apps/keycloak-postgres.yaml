@@ -1,0 +1,22 @@
+# Keycloak の DB (PostgreSQL の StatefulSet と pg_dump の CronJob。clusters/kind/auth/postgres)。
+# PV は Application storage (clusters/kind/storage/pv-keycloak-postgres*.yaml)。パスワードは just up が Secret keycloak-postgres を作る。
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keycloak-postgres
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/yamakura-yuma/home-k8s
+    targetRevision: main
+    path: clusters/kind/auth/postgres
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: auth
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

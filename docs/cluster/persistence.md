@@ -239,11 +239,12 @@ kubectl --context kind-study-kind -n observability delete pod -l app.kubernetes.
 
 ## 未決の論点
 
-- ラベル名 `home-k8s/observability-storage` とホストのディレクトリ `observability/` を、Backstage の DB などを
-  載せるときに一般的な名前 (例: `home-k8s/storage`、`~/.local/share/home-k8s/volumes`) に替えるか。
-  替えるとクラスタの作り直しとディレクトリの移動が要るので、最初のアプリを足すときに決める。
+設計の時点で未決だった次の 3 つは、実装で決めた。
 
-設計の時点で未決だった次の 2 つは、実装で決めた。
+- ラベル名 `home-k8s/observability-storage` とホストのディレクトリ `observability/` は**替えない**。最初に足したアプリ (Keycloak の PostgreSQL、2026-10-11) も
+  同じ extraMounts の下に置いた (PV `keycloak-postgres` → `observability/keycloak-postgres`、`keycloak-postgres-dump` → `observability/keycloak-postgres-dump`。
+  [keycloak.md](keycloak.md))。替えるには kind-config の変更とクラスタの作り直しが要り、作り直すと Tailscale の proxy の端末が tailnet に残って
+  同じ名前を取れなくなりうる ([keycloak.md](keycloak.md) の「鶏と卵」)。名前は実態とずれるが、移す手間とその危険に見合わない
 
 - Grafana の `reset-admin-password` は distroless のイメージの initContainer で打てる (上の「Grafana のユーザーを Secret にそろえる」)。
 - Application `storage` に sync wave `-1` を付けた (上の「同期の順序」)。

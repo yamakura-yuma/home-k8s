@@ -1,0 +1,28 @@
+# Keycloak の PostgreSQL のデータ ($PGDATA の親)。PVC は StatefulSet keycloak-postgres (clusters/kind/auth/postgres) が作る。
+# 中身は WSL2 ホストの ~/.local/share/home-k8s/observability/keycloak-postgres (kind-config の extraMounts)。
+# 観測スタックと同じ extraMounts の下に置く。名前を一般的なものに替えるにはクラスタの作り直しが要るため (persistence.md の「未決の論点」)。
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: keycloak-postgres
+spec:
+  # local は容量を強制しない。PVC の要求 (2Gi) を満たす値にする
+  capacity:
+    storage: 2Gi
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: home-k8s-local
+  # StatefulSet が作るこの PVC 以外とは結ばない (事前バインド)
+  claimRef:
+    namespace: auth
+    name: data-keycloak-postgres-0
+  local:
+    path: /var/local/home-k8s/observability/keycloak-postgres
+  # local では必須。extraMounts を持つ worker (clusters/kind/kind-config.yaml の labels) に固定する
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: home-k8s/observability-storage
+              operator: In
+              values: ["true"]

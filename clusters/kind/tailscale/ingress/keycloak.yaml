@@ -1,0 +1,18 @@
+# Keycloak を https://keycloak.<tailnet>.ts.net に出す。issuer (https://keycloak.<tailnet>.ts.net/realms/home-k8s) がこの名前に結び付くので、
+# tls.hosts の名前は変えない (変えると各 UI の設定と passkey の登録がやり直しになる。docs/cluster/keycloak.md)。
+# Service keycloak-service は Keycloak Operator が CR keycloak から作る (HTTP 8080)。namespace auth は Application keycloak-operator が作る
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: keycloak
+  namespace: auth
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: keycloak-service
+      port:
+        number: 8080
+  tls:
+    - hosts:
+        - keycloak
