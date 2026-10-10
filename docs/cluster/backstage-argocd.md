@@ -78,7 +78,7 @@ admin のパスワードを変えて `argocd-initial-admin-secret` を消した�
 クラスタでの確認は、マージ後に人が `just up` を打ってから行う。
 
 ```sh
-just up   # ArgoCD の values (アカウントと RBAC) を入れ、トークンを作り、Secret backstage-argocd を作る。Backstage のイメージも作り直す (0.8.0)
+just up   # ArgoCD の values (アカウントと RBAC) を入れ、トークンを作り、Secret backstage-argocd を作る。Backstage のイメージも作り直す (0.10.0)
 ```
 
 読み取りだけで確かめるコマンド:

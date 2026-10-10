@@ -55,18 +55,18 @@ API エンティティ (<http://localhost:7007/catalog/default/api/sample-api/de
 
 ![API エンティティの Definition](assets/swagger-api-definition.png)
 
-上の画面は、マージ前に build したイメージ (0.5.0) を手元の docker で動かし、sample-api を dev・prod の 2 つの
+上の画面は、マージ前に build したイメージを手元の docker で動かし、sample-api を dev・prod の 2 つの
 プロセスで立てて撮ったもの。kind での確認はマージ後に行う (下)。
 
 ## マージ後に、クラスタで確かめる手順
 
-`just up` のあと (Backstage のイメージ 0.5.0 が入り、Application `backstage` が作り直される)。読み取りだけ:
+`just up` のあと (Backstage のイメージ 0.10.0 が入り、Application `backstage` が作り直される)。読み取りだけ:
 
 ```sh
 # sample-api が dev・prod にいる (土台の PR の確かめ方と同じ)
 kubectl --context kind-study-kind -n argocd get applications | grep sample-api
 kubectl --context kind-study-kind -n dev get pods,svc
-kubectl --context kind-study-kind -n backstage get deploy backstage -o jsonpath='{..image}'   # home-k8s-backstage:0.5.0
+kubectl --context kind-study-kind -n backstage get deploy backstage -o jsonpath='{..image}'   # home-k8s-backstage:0.10.0
 
 # プロキシ越しに、Swagger の Try it out と同じ要求を送る
 tok=$(curl -s -X POST http://localhost:7007/api/auth/guest/refresh | jq -r .backstageIdentity.token)

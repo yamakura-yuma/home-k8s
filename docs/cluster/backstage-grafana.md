@@ -122,7 +122,7 @@ Grafana の横のサイドカー (`backstage-user`、`curlimages/curl`) が、Po
 クラスタでの確認は、マージ後に人が `just up` を打ってから行う。
 
 ```sh
-just up   # 環境の Secret を作り (grafana-env-secrets.sh)、Backstage のイメージを作り直し (0.9.0)、ArgoCD が環境の観測スタックを同期する
+just up   # 環境の Secret を作り (grafana-env-secrets.sh)、Backstage のイメージを作り直し (0.10.0)、ArgoCD が環境の観測スタックを同期する
 ```
 
 読み取りだけで確かめるコマンド:

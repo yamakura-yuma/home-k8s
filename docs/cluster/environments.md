@@ -55,14 +55,14 @@ generator や、要素で置き換わらない `{{ }}` が残る template は、
 
 | キー | 値 | 使うタブ | 状態 |
 |---|---|---|---|
-| `api-proxy` | Backstage のバックエンドのプロキシの経路 (`/api/proxy` の下)。サービスの API を読む | Environments | この PR |
+| `api-proxy` | Backstage のバックエンドのプロキシの経路 (`/api/proxy` の下)。サービスの API を読む | Environments | 実装済み ([swagger-tab.md](swagger-tab.md)) |
 | `grafana-host-id` | Grafana の host の id (`app-config.yaml` の `grafana.hosts[].id`)。プラグインの注釈 `grafana/host-id` に重ねる | Grafana | 実装済み ([backstage-grafana.md](backstage-grafana.md)) |
 | `grafana-dashboard-selector` | 環境の Grafana で出すダッシュボードの選び方 (タグ)。プラグインの注釈 `grafana/dashboard-selector` に重ねる | Grafana | 実装済み ([backstage-grafana.md](backstage-grafana.md)) |
 | `temporal-url` | ブラウザが開く Temporal Web UI の URL (iframe の src。dev `http://localhost:8233`・prod `http://localhost:8234`) | Temporal | 実装済み ([temporal.md](temporal.md)) |
 | `argocd-app-name` | ArgoCD の Application の名前 (`<名前>-<環境>`、例 `sample-api-dev`)。プラグインの注釈 `argocd/app-name` に重ねる | ArgoCD | 実装済み ([backstage-argocd.md](backstage-argocd.md)) |
 | `azure-web-sites` | Azure の App Service・Functions の名前 (部分一致、大文字小文字を問わない)。プラグインの注釈 `azure.com/microsoft-web-sites` に重ねる | Azure | 実装済み ([backstage-azure.md](backstage-azure.md)) |
 
-「予定」のキーは名前だけを決めておく。値の形は、そのタブを作る PR が決めてこの表を直す。
+キーを足す PR は、値の形をこの表に書く。
 
 - プロキシの経路の名前は `/<サービス>-<環境>` (Grafana は `/grafana-<環境>/api`)。`app-config.yaml` の
   `proxy.endpoints` に環境ごとに 1 つ置き、`target` は `http://<Service>.<環境>.svc.cluster.local`
@@ -199,5 +199,5 @@ curl -s -H "Authorization: Bearer $tok" 'http://localhost:7007/api/catalog/entit
 ![Environments のタブ (dev)](assets/environments-tab-dev.png)
 ![Environments のタブ (prod)](assets/environments-tab-prod.png)
 
-上の画面は、マージ前に build したイメージ (0.4.0) を手元の docker で動かし、sample-api を dev・prod の 2 つの
+上の画面は、マージ前に build したイメージを手元の docker で動かし、sample-api を dev・prod の 2 つの
 プロセスで立てて撮ったもの。kind での確認はマージ後に行う。

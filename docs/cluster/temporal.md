@@ -94,7 +94,7 @@ URL を変えたら、Backstage の CSP の `frame-src` と proxy の NodePort�
 | prod の Grafana | 127.0.0.1:3002 | 30302 | Grafana の PR |
 
 **`extraPortMappings` はクラスタを作るときにしか効かない。マージ後は、人が `just down && just up` でクラスタを作り直す。**
-PV のデータ (観測スタックの保存先) はホストのディレクトリに残る。Backstage のイメージ (0.8.0) も `just up` が入れ直す。
+PV のデータ (観測スタックの保存先) はホストのディレクトリに残る。Backstage のイメージ (0.10.0) も `just up` が入れ直す。
 作り直しの間は、観測スタックと Backstage が止まる。
 
 ## メモリの見込み
@@ -156,7 +156,7 @@ docker exec study-kind-control-plane crictl stats
 - `temporalio/temporal` の `server start-dev` (サーバー + Web UI が 1 プロセス) を dev・prod の 2 つ、別の docker network で立てる。
   どちらも network alias `temporal-web`、UI のポート 8080 にして、本番と同じ `Caddyfile` の Caddy (nonroot・読み取り専用の root。
   `frame-ancestors` の Backstage の分だけ手元に合わせて `localhost:17007` に置き換えた) をそれぞれの前に置き、127.0.0.1 の 8233・8234 に出す
-- Backstage のイメージ (`home-k8s-backstage:0.7.0`) を `--network host` のポート 17007 で動かし、`sample-api` の
+- Backstage のイメージ (手元で build した `home-k8s-backstage`) を `--network host` のポート 17007 で動かし、`sample-api` の
   `catalog-info.yaml` を http.server で配って読ませる。プロキシの向き先だけ手元の sample-api に上書きする設定を重ねる
 
 ![Temporal のタブ (dev)](assets/temporal-tab-dev.png)
