@@ -1,6 +1,6 @@
 # 自前でホストする IdP (Keycloak など) — 比較と推奨
 
-状態: 調査は 2026-10-10。実装は下の「移行の段取り」の単位ごとに進めている (単位 1・2a・2b・2c と、3〜6 のうち ArgoCD と Grafana は実装済み。Keycloak と PostgreSQL、ユーザーと MFA、各 UI の OIDC は [keycloak.md](keycloak.md))。
+状態: 調査は 2026-10-10。実装は下の「移行の段取り」の単位ごとに進めている (単位 1・2a・2b・2c と、3〜6 のうち ArgoCD・Grafana・Temporal UI・Backstage は実装済み。Keycloak と PostgreSQL、ユーザーと MFA、各 UI の OIDC は [keycloak.md](keycloak.md))。
 
 [access-control.md](access-control.md) は、Dex + GitHub を唯一の OIDC issuer にする構成を推奨した。
 そのとき Keycloak・Authentik は「重い」という理由で外したが、重さは確かめていなかった ([未確認])。
@@ -214,7 +214,7 @@ Dex をまだ入れていない (2026-10-10 時点で未実装 [観測]) ので�
 | 2a | PostgreSQL | namespace `auth` に StatefulSet、静的 PV `keycloak-postgres`、`pg_dump` の CronJob を置く。[persistence.md](persistence.md) の「未決の論点」(ラベルとディレクトリの名前を一般的なものに替えるか) をここで決める。**実装済み** ([keycloak.md](keycloak.md)。名前は替えず、観測スタックと同じ extraMounts の下に置いた。作り直しは tailnet の端末の名前に当たるため) | `just down`・`just up` のあとも DB のデータが残る。dump のファイルがホストにできる |
 | 2b | Keycloak | Keycloak Operator と `Keycloak` の CR を置き、PostgreSQL につなぐ。realm `home-k8s`、グループ、client scope (Group Membership mapper、`full.path: false`)、各 UI の client を KeycloakRealmImport で Git に置く。クラスタ内から issuer に届かせる方法を決める (access-control.md の注意点と同じ)。**実装済み** ([keycloak.md](keycloak.md)。Pod からは Tailscale の operator の egress と CoreDNS の rewrite で、ブラウザと同じ URL に届く。KeycloakRealmImport は realm が無いときしか効かないので、後からの変更は Admin Console か kcadm.sh でも入れる) | `/realms/home-k8s/.well-known/openid-configuration` がブラウザからも Pod からも引ける |
 | 2c | ユーザーの登録と MFA | 自分のユーザーを作り、必須アクション (パスワードの変更、OTP の設定) を通す。必要なら GitHub などの Identity Provider を足す。**実装済み** ([keycloak.md](keycloak.md) の「人のユーザーと MFA」。TOTP は realm の既定の必須アクション、passkey も登録できる。Identity Provider は足していない) | 一時パスワードから TOTP の登録を経てログインでき、ID トークンの `groups` にグループ名が入る |
-| 3〜6 | 各 UI と API server | access-control.md の単位 3〜6 と同じ。issuer を Keycloak にし、policy.csv や RoleBinding には Keycloak のグループ名を書く。Backstage のカタログのユーザーとグループは、GitHub の org からではなく Keycloak から取り込む (Backstage の Keycloak のプラグインを使う [未確認])。**ArgoCD と Grafana ×3 (access-control.md の単位 3) は実装済み** ([keycloak.md](keycloak.md) の「各 UI の OIDC」。ArgoCD は Dex を通さず Keycloak を直に見る。admins は管理、viewers は読むだけ、どちらでもない人は ArgoCD で何も見えず Grafana には入れない) | access-control.md の確かめ方と同じ |
+| 3〜6 | 各 UI と API server | access-control.md の単位 3〜6 と同じ。issuer を Keycloak にし、policy.csv や RoleBinding には Keycloak のグループ名を書く。Backstage のカタログのユーザーとグループは、GitHub の org からではなく Keycloak から取り込む (Backstage の Keycloak のプラグインを使う [未確認])。**ArgoCD と Grafana ×3 (access-control.md の単位 3) は実装済み** ([keycloak.md](keycloak.md) の「各 UI の OIDC」。ArgoCD は Dex を通さず Keycloak を直に見る。admins は管理、viewers は読むだけ、どちらでもない人は ArgoCD で何も見えず Grafana には入れない)。**Temporal UI ×2・Backstage (access-control.md の単位 4・6 の一部) も実装済み** ([temporal.md](temporal.md)・[backstage.md](backstage.md) の「ログインと権限」。Temporal はサーバーの JWT の認可で、admins は `temporal-system:admin`・viewers は `temporal-system:read`。Backstage は oidc provider と自前の sign-in resolver・permission のポリシーで、admins 以外の書き込みを拒否。カタログのユーザーとグループは Keycloak から取り込まず静的に置いた (権限はサインインのときの groups で決まるため)。ゲストは 127.0.0.1 と share に残し、tailnet からは入口の proxy で拒む。oauth2-proxy は置く対象が tailnet に無かった ([keycloak.md](keycloak.md) の「OIDC を持たない UI と oauth2-proxy」)) | access-control.md の確かめ方と同じ |
 | 7・8 | ワーカーと Azure | access-control.md のまま (IdP と関係しない) | 同じ |
 
 ## 出典

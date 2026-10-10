@@ -1,9 +1,12 @@
 # home-k8s の Backstage の設定。イメージに入れ、kind クラスタで動かす (clusters/kind/backstage)。
-# 画面はホストの localhost:7007 で開く (NodePort 30707 + kind の extraPortMappings)。
-# フロントエンドもバックエンド (app-backend) が配るので、app と backend の baseUrl は同じにする。
+# 画面は tailnet の https://backstage.taild2b611.ts.net で開く (Keycloak でログイン)。ホストの localhost:7007
+# (NodePort 30707 + kind の extraPortMappings) と share Pod からはゲストで開く (docs/cluster/backstage.md の「ログインと権限」)。
+# フロントエンドもバックエンド (app-backend) が配るので、app と backend の baseUrl は同じにする。baseUrl は tailnet の URL にする:
+# OIDC の callback (backend.baseUrl/api/auth/oidc/handler/frame) と、ログインの窓がトークンを渡す先のオリジン (app.baseUrl) になるため。
+# localhost:7007 で開いても、フロントエンドは baseUrl を開いたオリジンに置き換えるので、ゲストの画面はそのまま動く
 app:
   title: home-k8s
-  baseUrl: http://localhost:7007
+  baseUrl: https://backstage.taild2b611.ts.net
   packages: all
   extensions:
     # カタログを入口にする
@@ -24,15 +27,15 @@ organization:
   name: home-k8s
 
 backend:
-  baseUrl: http://localhost:7007
+  baseUrl: https://backstage.taild2b611.ts.net
   listen:
     port: 7007
   csp:
     connect-src: ["'self'", 'http:', 'https:']
-    # Temporal のタブの iframe (環境ごとの Web UI)。この 2 つのオリジンだけ埋め込みを許す (docs/cluster/temporal.md)
-    frame-src: ["'self'", 'http://localhost:8233', 'http://localhost:8234']
+    # Temporal のタブの iframe (環境ごとの Web UI。tailnet の URL)。この 2 つのオリジンだけ埋め込みを許す (docs/cluster/temporal.md)
+    frame-src: ["'self'", 'https://temporal-dev.taild2b611.ts.net', 'https://temporal-prod.taild2b611.ts.net']
   cors:
-    origin: http://localhost:7007
+    origin: [https://backstage.taild2b611.ts.net, http://localhost:7007]
     methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
     credentials: true
   # DB はインメモリの SQLite。カタログは Git から読み直せるので、Pod を作り直して消えても困らない
@@ -132,11 +135,30 @@ azureResources:
     clientId: ${AZURE_CLIENT_ID}
     clientSecret: ${AZURE_CLIENT_SECRET}
 
-# ログインはゲストだけ。127.0.0.1 と、人ごとの資格情報つきの share Pod にしか出さないので、production でもゲストを許す
+# ログイン (docs/cluster/backstage.md の「ログインと権限」)。
+# - oidc: Keycloak の realm home-k8s、client backstage。tailnet の URL で使う。誰になるか (sign-in resolver) と
+#   グループの扱いは packages/backend/src/keycloakAuth.ts。callback は https://backstage.taild2b611.ts.net/api/auth/oidc/handler/frame
+#   (Keycloak の client の redirect URI は /api/auth/* を許す)。prompt: auto は、Keycloak のセッションがあれば画面を出さずに入れる
+# - guest: 127.0.0.1 (localhost:7007) と、人ごとの資格情報つきの share Pod のため。tailnet の入口の proxy が /api/auth/guest を拒むので、
+#   tailnet からは使えない (clusters/kind/backstage/tailnet-proxy)。ゲストは permission のポリシーで読むだけになる
+# session は OIDC のログインの途中 (state・nonce) を持つ (openid-client が要る)。鍵は Secret backstage-session から
 auth:
+  environment: production
+  session:
+    secret: ${AUTH_SESSION_SECRET}
   providers:
+    oidc:
+      production:
+        metadataUrl: https://keycloak.taild2b611.ts.net/realms/home-k8s/.well-known/openid-configuration
+        clientId: backstage
+        clientSecret: ${AUTH_OIDC_CLIENT_SECRET}
+        prompt: auto
     guest:
       dangerouslyAllowOutsideDevelopment: true
+
+# 書き込み (カタログの登録・削除・再読み込み、Azure の操作など) は admins だけ (packages/backend/src/permissionPolicy.ts)
+permission:
+  enabled: true
 
 # TechDocs。catalog-info.yaml に backstage.io/techdocs-ref を持つエンティティの文書を、
 # 開かれたときに Pod の中で mkdocs が build し (mkdocs はイメージに入れてある)、Pod の中に置いて配る。
@@ -201,6 +223,6 @@ catalog:
             dependencyOf:
               - component:default/sample-api
   rules:
-    - allow: [Component, System, API, Resource, Location, User]
+    - allow: [Component, System, API, Resource, Location, User, Group]
   # 読み込む catalog-info.yaml (locations) は clusters/kind/backstage/values.yaml に置く。
   # ArgoCD と同じく GitHub の main を指すので、検証用のブランチではそこも書き換える

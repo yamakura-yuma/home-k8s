@@ -1,4 +1,5 @@
-# Backstage (https://backstage.<tailnet>.ts.net)
+# Backstage (https://backstage.<tailnet>.ts.net)。Service backstage ではなく、ゲストのサインインの経路を拒む proxy backstage-tailnet につなぐ
+# (clusters/kind/backstage/tailnet-proxy)。tailnet からはゲストでサインインできない
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -8,9 +9,9 @@ spec:
   ingressClassName: tailscale
   defaultBackend:
     service:
-      name: backstage
+      name: backstage-tailnet
       port:
-        number: 7007
+        number: 80
   tls:
     - hosts:
         - backstage

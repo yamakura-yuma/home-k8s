@@ -1,7 +1,8 @@
 """Temporal (環境ごとの UI と Backstage のタブ) の、ファイルをまたぐ食い違いの試験 (just ci)。標準ライブラリだけ。
 
-タブが出す URL (catalog-info.yaml の注釈) は、ホストのポート (kind-config)・NodePort (overlays)・Backstage の CSP の frame-src・
-proxy の frame-ancestors と、1 つでもずれると画面が出ない (iframe が拒まれる)。クラスタには出ないので、ここで突き合わせる。
+タブが出す URL (catalog-info.yaml の注釈。tailnet の URL) は、Backstage の CSP の frame-src・proxy の frame-ancestors と、
+1 つでもずれると画面が出ない (iframe が拒まれる)。ホストのポート (kind-config)・NodePort (overlays) も残っているので揃える。
+クラスタには出ないので、ここで突き合わせる。
 """
 import re
 import sys
@@ -20,13 +21,16 @@ APPS = ROOT / "clusters/kind/argocd/apps"
 
 # 環境 → (ホストのポート, NodePort)。docs/cluster/environments.md の予約と同じ
 PORTS = {"dev": (8233, 30233), "prod": (8234, 30234)}
+# 環境 → タブが iframe に出す URL (tailnet の Ingress temporal-<環境>。docs/cluster/tailscale.md)
+TAILNET_URLS = {env: f"https://temporal-{env}.taild2b611.ts.net" for env in PORTS}
 GRAFANA_PORTS = {3001: 30301, 3002: 30302}
 
 
 class TemporalUrlTest(unittest.TestCase):
-    def test_annotation_points_at_the_reserved_host_port_of_each_environment(self):
-        for env, (host, _) in PORTS.items():
-            self.assertIn(f"home-k8s/env.{env}.temporal-url: http://localhost:{host}\n", CATALOG)
+    def test_annotation_points_at_the_tailnet_url_of_each_environment(self):
+        # Web UI は OIDC でログインし、callback は tailnet の URL にしか戻らないので、タブも tailnet の URL を出す
+        for env, url in TAILNET_URLS.items():
+            self.assertIn(f"home-k8s/env.{env}.temporal-url: {url}\n", CATALOG)
 
     def test_kind_config_maps_each_host_port_to_the_node_port(self):
         mappings = dict(
@@ -44,8 +48,8 @@ class TemporalUrlTest(unittest.TestCase):
     def test_csp_frame_src_allows_exactly_the_environment_origins(self):
         m = re.search(r"^\s+frame-src: \[(.*)\]", APP_CONFIG, re.M)
         self.assertIsNotNone(m, "backend.csp.frame-src が app-config.yaml に無い")
-        origins = set(re.findall(r"'(http://[^']+)'", m.group(1)))
-        self.assertEqual(origins, {f"http://localhost:{h}" for h, _ in PORTS.values()})
+        origins = set(re.findall(r"'(https?://[^']+)'", m.group(1)))
+        self.assertEqual(origins, set(TAILNET_URLS.values()))
 
 
 class EmbedProxyTest(unittest.TestCase):
@@ -56,7 +60,7 @@ class EmbedProxyTest(unittest.TestCase):
         # Web UI は自分の /render を iframe に入れる (親が Backstage と Web UI の 2 段) ので 'self' が要る
         m = re.search(r'header_down Content-Security-Policy "frame-ancestors ([^"]*)"', CADDYFILE)
         self.assertIsNotNone(m)
-        base_url = re.search(r"^  baseUrl: (http://\S+)", APP_CONFIG, re.M).group(1)
+        base_url = re.search(r"^  baseUrl: (https?://\S+)", APP_CONFIG, re.M).group(1)
         self.assertEqual(sorted(m.group(1).split()), sorted(["'self'", base_url]))
 
     def test_proxy_targets_the_chart_web_service(self):

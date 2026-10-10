@@ -8,6 +8,7 @@ import searchPlugin from '@backstage/plugin-search/alpha';
 import { navModule } from './modules/nav';
 import { environmentsPlugin } from './modules/environments';
 import { azurePlugin } from './modules/azure';
+import { signInModule } from './modules/signin';
 
 export default createApp({
   features: [
@@ -20,5 +21,6 @@ export default createApp({
     environmentsPlugin,
     azurePlugin,
     navModule,
+    signInModule,
   ],
 });

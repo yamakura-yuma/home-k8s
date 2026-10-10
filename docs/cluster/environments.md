@@ -58,7 +58,7 @@ generator や、要素で置き換わらない `{{ }}` が残る template は、
 | `api-proxy` | Backstage のバックエンドのプロキシの経路 (`/api/proxy` の下)。サービスの API を読む | Environments | 実装済み ([swagger-tab.md](swagger-tab.md)) |
 | `grafana-host-id` | Grafana の host の id (`app-config.yaml` の `grafana.hosts[].id`)。プラグインの注釈 `grafana/host-id` に重ねる | Grafana | 実装済み ([backstage-grafana.md](backstage-grafana.md)) |
 | `grafana-dashboard-selector` | 環境の Grafana で出すダッシュボードの選び方 (タグ)。プラグインの注釈 `grafana/dashboard-selector` に重ねる | Grafana | 実装済み ([backstage-grafana.md](backstage-grafana.md)) |
-| `temporal-url` | ブラウザが開く Temporal Web UI の URL (iframe の src。dev `http://localhost:8233`・prod `http://localhost:8234`) | Temporal | 実装済み ([temporal.md](temporal.md)) |
+| `temporal-url` | ブラウザが開く Temporal Web UI の URL (iframe の src。dev `https://temporal-dev.taild2b611.ts.net`・prod `https://temporal-prod.taild2b611.ts.net`。ログインの callback が tailnet の URL なので、単位 4 で localhost から替えた) | Temporal | 実装済み ([temporal.md](temporal.md)) |
 | `argocd-app-name` | ArgoCD の Application の名前 (`<名前>-<環境>`、例 `sample-api-dev`)。プラグインの注釈 `argocd/app-name` に重ねる | ArgoCD | 実装済み ([backstage-argocd.md](backstage-argocd.md)) |
 | `azure-web-sites` | Azure の App Service・Functions の名前 (部分一致、大文字小文字を問わない)。プラグインの注釈 `azure.com/microsoft-web-sites` に重ねる | Azure | 実装済み ([backstage-azure.md](backstage-azure.md)) |
 

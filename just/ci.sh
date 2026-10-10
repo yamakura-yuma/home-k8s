@@ -17,13 +17,14 @@
 #                      URL を引く関数と CLI (just share add/delete/...、just/share.sh) を偽の kubectl で確かめる (注釈・引数に値が残らない作り方、#49・#56。
 #                      CLI は上限超えの --ttl・不正な名前・2 つ目の特権・期限付きへの rotate の拒否と、作った項目を実物の認証サービスに通す往復)。
 #                      稼働中のクラスタ・ホストには触れない。あわせて環境ごとのサンプルの API (services/sample-api) の経路と OpenAPI の突き合わせ、
-#                      Temporal (clusters/kind/temporal) の URL・ポート・CSP・proxy の突き合わせ
+#                      Temporal (clusters/kind/temporal) の URL・ポート・CSP・proxy の突き合わせ、Backstage の tailnet の入口の proxy
+#                      (clusters/kind/backstage/tailnet-proxy。caddy を起動して、ゲストのサインインの経路の表記揺れが届かないこと)
 #   8b. Azure の資格情報  just/backstage-azure-secret.sh を偽の kubectl で確かめる (ファイルが無い・空・欠けた項目・CRLF・コメント、値が引数に残らないこと)
 #   8c. Tailscale の OAuth client  just/tailscale-secrets.sh を偽の kubectl で確かめる (ファイルが無ければ止まる・欠けた項目・CRLF、値が引数に残らないこと)
 #   8d. Keycloak       just/keycloak-secrets.sh (ファイルを一度だけ作る・値が引数に残らない) と just/coredns-tailnet.sh (rewrite の挿入・打ち直しで変わらない) を
 #                      偽の kubectl で確かめ、realm の client と Secret keycloak-clients のキーを突き合わせる
 #   8e. OIDC           just/oidc-secrets.sh (client のファイルから各 UI の Secret を作る・ArgoCD のラベル・値が引数に残らない) を偽の kubectl で確かめ、
-#                      ArgoCD と Grafana ×3 の values (issuer・clientId・コールバック・グループからロール) を realm の client と突き合わせる
+#                      ArgoCD・Grafana ×3・Temporal UI ×2・Backstage の values (issuer・clientId・コールバック・グループからロール) を realm の client と突き合わせる
 #   9. backstage       yarn install --immutable (yarn.lock のとおりに入れ、ずれていたら落とす) のあと、backend・app の jest (yarn workspace backend/app test) と
 #                      型検査 (yarn tsc)。node_modules は backstage/ に入る (git の管理外・.dockerignore 済み)
 set -euo pipefail
@@ -142,6 +143,8 @@ echo "== sample-api (環境ごとのサンプルの API の経路と OpenAPI の
 python3 -B -m unittest discover -s services/sample-api -v
 echo "== temporal (環境ごとの UI の URL・ポート・CSP・proxy の突き合わせ) =="
 python3 -B -m unittest discover -s clusters/kind/temporal -v
+echo "== backstage の tailnet の入口 (caddy + 偽の upstream。ゲストのサインインの経路を表記を変えても拒む) =="
+python3 -B -m unittest discover -s clusters/kind/backstage -v
 
 echo "== share のホスト側 (中継の caddy、Secret を作るスクリプト、URL を引く関数、CLI) =="
 python3 -B -m unittest discover -s just -p 'test_share_*.py' -v
@@ -151,7 +154,7 @@ echo "== Tailscale の operator の OAuth client の Secret (ファイルが無�
 python3 -B -m unittest discover -s just -p 'test_tailscale_secrets.py' -v
 echo "== Keycloak の Secret (ファイルを一度だけ作る、値が引数に残らない)・realm の client と Secret のキー・CoreDNS の読み替え =="
 python3 -B -m unittest discover -s just -p 'test_keycloak.py' -v
-echo "== ArgoCD と Grafana の OIDC (client の Secret を作るスクリプト、values と realm の client の突き合わせ) =="
+echo "== ArgoCD・Grafana・Temporal UI・Backstage の OIDC (client の Secret を作るスクリプト、values と realm の client の突き合わせ) =="
 python3 -B -m unittest discover -s just -p 'test_oidc.py' -v
 
 # backstage の試験と型検査。node と yarn が無いと飛ばされるのではなく失敗にする

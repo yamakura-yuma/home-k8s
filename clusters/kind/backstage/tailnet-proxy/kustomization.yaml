@@ -1,0 +1,9 @@
+# Backstage の tailnet の入口の proxy (Caddyfile)。Application backstage の 3 つ目の source が同期する
+# (clusters/kind/argocd/apps/backstage.yaml)。Ingress backstage (clusters/kind/tailscale/ingress/backstage.yaml) がこの Service を指す。
+namespace: backstage
+resources:
+  - proxy.yaml
+configMapGenerator:
+  - name: backstage-tailnet
+    files:
+      - Caddyfile

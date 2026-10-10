@@ -1,6 +1,6 @@
 # 環境へのアクセス権の一元管理 — 比較と推奨
 
-状態: 調査。実装は下の「移行の段取り」の単位ごとに別の話題で行っている (単位 1・2・3 は実装済み)。調べた日は 2026-10-10。
+状態: 調査。実装は下の「移行の段取り」の単位ごとに別の話題で行っている (単位 1・2・3・4 は実装済み、6 は Temporal UI と oauth2-proxy の判断まで)。調べた日は 2026-10-10。
 
 > **IdP の推奨は差し替えた (2026-10-10)**: 下の Dex + GitHub に代えて、Keycloak (DB は PostgreSQL) を唯一の issuer にする。
 > 比較と移行の段取りは [idp-options.md](idp-options.md)。到達経路・各 UI の OIDC の設定・ワーカーと Azure の権限は、この文書のまま。
@@ -110,13 +110,13 @@ Orca のワーカー
 
 | 対象 | OIDC への対応 | グループからロールへ | 無料か | 備考 |
 |---|---|---|---|---|
-| Backstage | `@backstage/plugin-auth-backend-module-oidc-provider` (`auth.providers.oidc`、`metadataUrl`) [公式] | sign-in resolver で User エンティティに対応づけ、権限は permission framework のポリシーで決める。**permission framework は既定で無効で、何もしなければ誰でも何でもできる** [公式] | 無料 (OSS) | resolver はカタログの User を引く。`dangerouslyAllowSignInWithoutUserInCatalog` は本番では非推奨 [公式]。ゲストは本番で出さない想定 [公式] |
+| Backstage | `@backstage/plugin-auth-backend-module-oidc-provider` (`auth.providers.oidc`、`metadataUrl`) [公式] | sign-in resolver で User エンティティに対応づけ、権限は permission framework のポリシーで決める。**permission framework は既定で無効で、何もしなければ誰でも何でもできる** [公式] | 無料 (OSS) | resolver はカタログの User を引く。`dangerouslyAllowSignInWithoutUserInCatalog` は本番では非推奨 [公式]。ゲストは本番で出さない想定 [公式]。**実装 (単位 4)**: resolver はカタログを引かず、Keycloak の groups を ownership に入れる。ゲストは 127.0.0.1 と share だけ ([backstage.md](backstage.md)) |
 | ArgoCD | `argocd-cm` の `oidc.config` で外の issuer を直接使う。同梱の Dex を使う方法もある [公式] | `argocd-rbac-cm` の policy.csv に `g, <group>, role:<name>` と書く [公式] | 無料 (OSS) | グループはログインのときにだけ更新される [公式] |
 | Grafana (OSS) ×3 | Generic OAuth [公式] | `role_attribute_path` (JMESPath) で Admin/Editor/Viewer を決め、`allowed_groups` でログインを絞る [公式] | 無料。**Team Sync だけ Enterprise (有料)** [公式] | 3 つの Grafana は client を分けるか、redirect URI を並べる |
-| Temporal Web UI | `TEMPORAL_AUTH_ENABLED`・`_PROVIDER_URL`・`_CLIENT_ID`・`_CLIENT_SECRET`・`_CALLBACK_URL`・`_SCOPES` [公式] | **UI へのログインだけを守る。Temporal Service の認可とは別物** [公式]。サーバーの認可の既定の claim mapper は `permissions` クレーム (`<ns>:read` など) を読む [公式] | 無料 (OSS) | サーバー (gRPC) はクラスタの中にだけ置けば、人は UI を通るしかない |
+| Temporal Web UI | `TEMPORAL_AUTH_ENABLED`・`_PROVIDER_URL`・`_CLIENT_ID`・`_CLIENT_SECRET`・`_CALLBACK_URL`・`_SCOPES` [公式] | **UI へのログインだけを守る。Temporal Service の認可とは別物** [公式]。サーバーの認可の既定の claim mapper は `permissions` クレーム (`<ns>:read` など) を読む [公式] | 無料 (OSS) | サーバー (gRPC) はクラスタの中にだけ置けば、人は UI を通るしかない。**実装 (単位 4)**: UI のログインに加えてサーバーの認可も入れた (Keycloak の client role を `permissions` に。[temporal.md](temporal.md)) |
 | Headlamp | `-oidc-client-id`・`-oidc-idp-issuer-url` など (Helm では `config.oidc`) [公式] | ID トークンを API server にそのまま渡すので、権限は Kubernetes の RBAC で決まる [公式] | 無料 (OSS) | API server 側の OIDC 設定と、issuer・audience が合っている必要がある |
 | Swagger (sample-api) | Backstage の中のタブ。Backstage の proxy を通る [観測] | Backstage のログインと permission framework に従う | — | 別に守る必要はない |
-| headroom などの素の UI | 無い | oauth2-proxy を forward-auth として前に置く。provider に OIDC・GitHub・Entra ID がある [未確認] | 無料 (MIT) [未確認] | |
+| headroom などの素の UI | 無い | oauth2-proxy を forward-auth として前に置く。provider に OIDC・GitHub・Entra ID がある [未確認] | 無料 (MIT) [未確認] | **単位 4**: headroom は tailnet に出していないので置いていない ([keycloak.md](keycloak.md)) |
 
 ### Kubernetes と Azure
 
@@ -194,9 +194,9 @@ Dex の上流の IdP は **GitHub** に決めた (アクセス管理専用の or
 | 1 | 到達経路 (Tailscale) | Tailscale の Kubernetes operator を入れ、UI と後で置く Dex を `*.<tailnet>.ts.net` に出す。認証はまだ変えない。**実装済み** ([tailscale.md](tailscale.md)。Dex ではなく Keycloak を置く。[idp-options.md](idp-options.md)) | tailnet の別の端末から固定の URL で開ける |
 | 2 | Dex | namespace `auth` に Dex を置き、GitHub connector (org と team) を設定する。クラスタ内から issuer に届かせる方法を決める (上の注意点)。**Keycloak に差し替えて実装済み** ([idp-options.md](idp-options.md) の単位 2a・2b・2c、[keycloak.md](keycloak.md)) | `/.well-known/openid-configuration` がブラウザからも Pod からも引ける |
 | 3 | ArgoCD・Grafana の OIDC | `oidc.config` と policy.csv、3 つの Grafana の generic_oauth と role_attribute_path。admin のパスワードは非常用として残す。**Keycloak で実装済み** ([keycloak.md](keycloak.md) の「各 UI の OIDC」。グループは `admins`・`viewers`) | 管理の team の人は Admin、それ以外は Viewer になる |
-| 4 | Backstage の OIDC と permission framework | oidc provider、GitHub org のユーザーとチームの取り込み、ポリシーを入れる。ゲストは 127.0.0.1 の開発用に限る | org の外の人は入れない。管理の team 以外は書き込みが拒否される |
+| 4 | Backstage の OIDC と permission framework | oidc provider、GitHub org のユーザーとチームの取り込み、ポリシーを入れる。ゲストは 127.0.0.1 の開発用に限る。**Keycloak で実装済み** ([backstage.md](backstage.md) の「ログインと権限」。グループ `admins` 以外の書き込みを拒否、グループの無い人はサインインできない。ユーザーとグループは取り込まず静的に置いた。ゲストは 127.0.0.1 と share に残し (読むだけ)、tailnet からは入口の proxy で拒む) | org の外の人は入れない。管理の team 以外は書き込みが拒否される |
 | 5 | kind の API server と Headlamp | AuthenticationConfiguration (kind-config)、kubelogin、Headlamp の `config.oidc`、Group の RBAC | `kubectl auth whoami` が `oidc:` の Group を返す。Headlamp の権限が RBAC どおりになる |
-| 6 | Temporal UI・oauth2-proxy・share の扱い | `TEMPORAL_AUTH_*` を設定し、headroom の前に oauth2-proxy を置く。`just share` を残すか廃止するかを決める | どの UI も Dex のログインを経ないと開けない |
+| 6 | Temporal UI・oauth2-proxy・share の扱い | `TEMPORAL_AUTH_*` を設定し、headroom の前に oauth2-proxy を置く。`just share` を残すか廃止するかを決める。**Temporal UI は Keycloak で実装済み** ([temporal.md](temporal.md) の「ログインと権限」。サーバーの JWT の認可で `admins`・`viewers` を分ける)。**oauth2-proxy は置いていない**: headroom は tailnet に出しておらず (外からは share だけ)、tailnet に出している UI はどれも OIDC を持つ ([keycloak.md](keycloak.md) の「OIDC を持たない UI と oauth2-proxy」)。share の扱いは別の話題 | どの UI も Dex のログインを経ないと開けない |
 | 7 | ワーカーの kind の権限 | ServiceAccount `orca-worker` と RoleBinding を作り、worktree の setup が短命の kubeconfig を書くようにする。admin の kubeconfig の読み取りを止める (Claude の deny 設定など) | ワーカーから prod に書き込めない。トークンが期限で切れる |
 | 8 | Azure の権限 | 人: Entra ID のセキュリティグループ (他の人は B2B ゲスト) を作り、リソースグループにロールを割り当てる。ワーカー: 専用のサービスプリンシパルを作る。Backstage の SP のスコープも、サブスクリプションからリソースグループに絞るか検討する | `az role assignment list` が想定どおりになる |
 

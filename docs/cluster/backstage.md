@@ -1,6 +1,6 @@
 # Backstage で Grafana のダッシュボードと文書を見る
 
-Backstage (<http://localhost:7007>) のカタログに home-k8s を 1 つのエンティティとして載せ、そのページに
+Backstage (tailnet の <https://backstage.taild2b611.ts.net>、Keycloak でサインイン。ホストからはゲストで <http://localhost:7007>) のカタログに home-k8s を 1 つのエンティティとして載せ、そのページに
 Grafana のダッシュボードの一覧を出す。一覧の各行は Grafana (localhost:3000) のダッシュボードへのリンクになる。
 あわせて、home-k8s・knowledge-base・dotfiles の markdown の文書を TechDocs で読めるようにする (下の「TechDocs」)。
 Backstage は ArgoCD が GitHub の `main` から同期する ([argocd.md](argocd.md))。
@@ -9,14 +9,20 @@ Backstage は ArgoCD が GitHub の `main` から同期する ([argocd.md](argoc
 
 ```
 just up
-  ├─ docker build -t home-k8s-backstage:0.10.0 backstage   (repo の backstage/。ホストに node は要らない)
-  ├─ kind load docker-image home-k8s-backstage:0.10.0       (3 つのノードに入れる)
+  ├─ docker build -t home-k8s-backstage:0.11.0 backstage   (repo の backstage/。ホストに node は要らない)
+  ├─ kind load docker-image home-k8s-backstage:0.11.0       (3 つのノードに入れる)
   ├─ Secret observability/grafana-backstage                 (Grafana の閲覧用ユーザー backstage のパスワード)
   ├─ Secret backstage/backstage-grafana                     (同じ資格情報を Backstage のプロキシ用に)
   ├─ Secret dev・prod/grafana-admin・grafana-backstage      (環境ごとの Grafana の admin と閲覧用ユーザーのパスワード。backstage-grafana.md)
   ├─ Secret backstage/backstage-grafana-env                 (環境ごとの Grafana への Basic 認証。GRAFANA_DEV_BASIC_AUTH・GRAFANA_PROD_BASIC_AUTH)
   ├─ Secret backstage/backstage-azure                      (Azure の資格情報のファイルがあるときだけ。backstage-azure.md)
-  └─ Secret backstage/backstage-argocd                      (ArgoCD の読み取り専用アカウント backstage の API トークン。backstage-argocd.md)
+  ├─ Secret backstage/backstage-argocd                      (ArgoCD の読み取り専用アカウント backstage の API トークン。backstage-argocd.md)
+  ├─ Secret backstage/backstage-oidc                        (Keycloak の client backstage の secret。AUTH_OIDC_CLIENT_SECRET。_oidc-secrets)
+  └─ Secret backstage/backstage-session                     (session の cookie の署名鍵。AUTH_SESSION_SECRET。無いときだけ乱数で作る)
+
+tailnet の端末 ── Ingress backstage ── Deployment backstage-tailnet (Caddy。/api/auth/guest を 403) ──┐
+ホスト ── localhost:7007 (NodePort 30707) ─────────────────────────────────────────────────────┼─▶ Service backstage:7007
+share Pod (Cloudflare Quick Tunnel、人ごとの Basic) ──────────────────────────────────────────┘
 
 Application backstage (backstage chart 2.10.2、clusters/kind/backstage/values.yaml)
   Pod backstage ── イメージは kind load したもの (pullPolicy: Never)
@@ -38,15 +44,95 @@ Application backstage (backstage chart 2.10.2、clusters/kind/backstage/values.y
 | Swagger のタブ・API の定義 | `backstage/packages/app` | `@backstage/plugin-api-docs` 0.14.5 (`/alpha`)。Component sample-api のタブで OpenAPI を Swagger UI で出し、環境ごとのプロキシを向き先にする。[swagger-tab.md](swagger-tab.md) |
 | Azure のタブ | `backstage/packages/app/src/modules/azure`・`backstage/packages/backend/src/azureSites.ts` | `@backstage-community/plugin-azure-sites` と `-backend`。資格情報はファイルから `just up` が Secret にする。無くても起動する ([backstage-azure.md](backstage-azure.md)) |
 | TechDocs | `backstage/packages/app`・`backstage/packages/backend` | `@backstage/plugin-techdocs` 1.18.2 と `@backstage/plugin-techdocs-backend` 2.3。文書の画面が検索の API を要るので、検索 (`@backstage/plugin-search` と search-backend、カタログと TechDocs の索引) も載せる |
-| 設定 | `backstage/app-config.yaml` | ポート 7007、インメモリの SQLite、ゲストのログイン、Grafana・ArgoCD へのプロキシ (`/grafana/api`・`/argocd/api`)、`argocd.baseUrl`・`argocd.revisionsToLoad`、TechDocs |
+| 設定 | `backstage/app-config.yaml` | ポート 7007、`baseUrl` (tailnet の URL)、インメモリの SQLite、ログイン (Keycloak の OIDC とゲスト)、permission、Grafana・ArgoCD へのプロキシ (`/grafana/api`・`/argocd/api`)、`argocd.baseUrl`・`argocd.revisionsToLoad`、TechDocs |
+| ログインと権限 | `backstage/packages/backend/src/keycloakAuth.ts`・`permissionPolicy.ts`、`backstage/packages/app/src/modules/signin`、`clusters/kind/backstage/tailnet-proxy` | 下の「ログインと権限」 |
 | chart の values | `clusters/kind/backstage/values.yaml` | イメージ、NodePort 30707、Secret の参照、読む `catalog-info.yaml` |
-| エンティティ | `catalog-info.yaml` (repo の直下) | Component `home-k8s` と、ダッシュボードを選ぶ注釈、TechDocs の注釈。サービスの `catalog-info.yaml` (`services/*/`) を読む Location |
+| エンティティ | `catalog-info.yaml` (repo の直下) | Component `home-k8s` と、ダッシュボードを選ぶ注釈、TechDocs の注釈。User `yamakura-yuma`、Group `admins`・`viewers` (表示用)。サービスの `catalog-info.yaml` (`services/*/`) を読む Location |
 | 文書の設定 | `mkdocs.yml` (repo の直下) | `docs/` を HTML にする MkDocs の設定 |
 
 DB はインメモリの SQLite で、Pod を作り直すとカタログは消えるが、起動のたびに GitHub から読み直す。
-ログインはゲストだけ (`auth.providers.guest.dangerouslyAllowOutsideDevelopment: true`)。127.0.0.1 にしか
-出さないので認証を付けていない。外からは常駐の `share` Pod 経由だけで、人ごとの資格情報と、
-通す経路の絞り込みを前に置く (下の「別の PC から見る」)。
+ログインは入口で分ける (下の「ログインと権限」)。tailnet からは Keycloak の OIDC だけ、ホストの 127.0.0.1 と
+常駐の `share` Pod 経由 (人ごとの資格情報と、通す経路の絞り込みを前に置く。下の「別の PC から見る」) はゲストで、読むだけ。
+
+## ログインと権限
+
+決めた形:
+
+| 入口 | サインイン | 権限 |
+|---|---|---|
+| tailnet `https://backstage.taild2b611.ts.net` | Keycloak (realm `home-k8s`、client `backstage`) の OIDC だけ。ゲストの経路は入口の proxy が 403 で拒む | Keycloak のグループで決まる。admins は何でもでき、viewers は読むだけ。どちらでもない人はサインインできない |
+| ホスト `http://localhost:7007` (127.0.0.1 の NodePort) | ゲストだけ (`user:development/guest`) | 読むだけ |
+| `share` Pod (Cloudflare Quick Tunnel、人ごとの Basic) | ゲスト (Basic の後) | 読むだけ。share の caddy もカタログの登録の POST を止めている |
+
+ゲストを外さず、127.0.0.1 と share に残したのは次の理由による。
+
+- **share が使っている**。share Pod は Backstage にゲストでサインインさせる (share の caddy は `/api/auth/*` の POST を通す、[share.md](share.md))。
+  share は合意の範囲の外 (触らない) で、ゲストを外すと共有先の Backstage が開けなくなる
+- **OIDC の callback は tailnet の URL にしか戻らない**。Keycloak の client `backstage` の redirect URI は `https://backstage.taild2b611.ts.net/api/auth/*`
+  で、localhost:7007 で開いた画面からは OIDC でサインインできない。ホストで開く手段として、読むだけのゲストを残す
+- どの入口のゲストも permission のポリシーで読むだけなので、ゲストで書き込みはできない
+
+tailnet からゲストを使えなくする方法は、Ingress `backstage` の先に Caddy の proxy `backstage-tailnet` (`clusters/kind/backstage/tailnet-proxy`) を
+挟み、`/api/auth/guest` の下を 403 で返すこと。Backstage (express) は経路の大文字小文字を区別せず、provider の名前の %エンコードを解くので、
+caddy の `path` の matcher (大文字小文字を区別せず、%エンコードを解き、スラッシュの重なりとドットセグメントを畳んだ path に当たる) で拒む。
+表記揺れ (`/API/AUTH/GUEST`・`/api/auth/%67uest`・`//api/auth/guest`・`/api/auth/x/../guest`) も届かないことを
+`clusters/kind/backstage/test_tailnet_proxy.py` (`just ci`) が caddy を起動して確かめる。サインインの画面も、tailnet の URL (`*.ts.net`) では
+Keycloak だけ、それ以外ではゲストだけを出す (`packages/app/src/modules/signin`)。
+
+部品:
+
+| 部品 | 中身 |
+|---|---|
+| provider `oidc` (`packages/backend/src/keycloakAuth.ts`) | `@backstage/plugin-auth-backend-module-oidc-provider` の `oidcAuthenticator` に、自前の sign-in resolver を付けて provider id `oidc` で登録する。設定は `app-config.yaml` の `auth.providers.oidc.production` (`metadataUrl` = issuer の discovery、`clientId: backstage`、`clientSecret: ${AUTH_OIDC_CLIENT_SECRET}`、`prompt: auto`)。`auth.environment: production` |
+| sign-in resolver | userinfo の `preferred_username` をユーザー名にし (`user:default/<名前>`)、`groups` のうち `admins`・`viewers` を `group:default/<グループ>` として Backstage のトークンの ownership (`ent`) に入れる。カタログは引かない (カタログに無い人もサインインできる)。どちらのグループにも入っていなければ「サインインできない」で断る (Grafana の `role_attribute_strict` と同じ扱い) |
+| session (`auth.session.secret`) | OIDC の provider (openid-client の Strategy) がログインの途中の state・nonce を session に置くので要る。鍵は Secret `backstage-session` (`AUTH_SESSION_SECRET`、`_oidc-secrets` が無いときだけ乱数で作る)。session はインメモリの DB にあり、Pod を作り直すと消える (サインインし直すだけ) |
+| `baseUrl` | `app.baseUrl`・`backend.baseUrl` を tailnet の URL にした。OIDC の callback (`backend.baseUrl/api/auth/oidc/handler/frame`) と、ログインの窓がトークンを渡す先のオリジン (`app.baseUrl`) がこの値になるため。localhost:7007 で開いても、フロントエンドは baseUrl を開いたオリジンに置き換えるので画面は動く |
+| permission (`packages/backend/src/permissionPolicy.ts`) | `@backstage/plugin-permission-backend` と自前のポリシー。`permission.enabled: true`。ownership に `group:default/admins` があれば許す。それ以外は、`action` が `read` の permission と、何も書かない検査 2 つ (`catalog.entity.validate`・`catalog.location.analyze`) だけを許し、ほか (カタログの登録・削除・再読み込み、Azure の起動・停止、`action` の無い・知らない permission) は拒む。ownership はポリシーが userInfo サービスで credentials から引く (`PolicyQueryUser.info` は非推奨) |
+| サインインの画面 (`packages/app/src/modules/signin`) | API `auth.keycloak` (`OAuth2.create`、provider `oidc`) と、`SignInPageBlueprint` で既定 (ゲストだけ) を置き換えた画面 |
+| カタログのユーザーとグループ (`catalog-info.yaml`) | **静的な宣言**。User `yamakura-yuma` と Group `admins`・`viewers` を置く。メンバー (memberOf・members) は書かない |
+
+カタログのユーザーとグループを Keycloak から取り込まず (Keycloak のプラグイン `@backstage-community/plugin-catalog-backend-module-keycloak` を使わず)
+静的に置いたのは、権限がカタログではなくサインインのときの `groups` クレームで決まり、取り込みが権限に要らないため。取り込むには、client `backstage` に
+realm のユーザーを全部読めるサービスアカウントの権限 (realm-management の view-users など) を足す必要があり、1 人の学習用のクラスタには割に合わない。
+Keycloak のグループを変えたら、カタログは変えなくてよい (次のサインインから効く)。人が増えて、カタログでメンバーを見たくなったら取り込みを入れる。
+
+プラグインの版は、Backstage 1.55.0 (`backstage.json`) の版の一覧 <https://versions.backstage.io/v1/releases/1.55.0/manifest.json> (2026-10-11 に引いた) に合わせた。
+
+| package | 版 |
+|---|---|
+| `@backstage/plugin-auth-backend-module-oidc-provider` | 0.4.21 |
+| `@backstage/plugin-permission-backend` | 0.7.16 |
+| `@backstage/plugin-permission-node` | 0.11.4 |
+| `@backstage/plugin-permission-common` | 0.9.11 |
+| `@backstage/plugin-catalog-common` | 1.2.0 |
+| `@backstage/core-app-api` (app。`OAuth2`) | 1.20.5 |
+
+制約:
+
+- **localhost:7007 では TechDocs の CSS と画像が出ない**。TechDocs の静的なファイルは cookie (`backstage-auth`) で認証し、Backstage はその cookie の
+  `Domain` を `backend.baseUrl` のホスト名 (`backstage.taild2b611.ts.net`) にするので、localhost ではブラウザが捨てる。文書の本文は出る。
+  tailnet の URL と share (caddy が `Domain` を外す) では出る
+- **Backstage の中のリンクは localhost のまま** (ArgoCD・Grafana・Headlamp のリンク、`argocd.baseUrl`・`grafana.hosts[].domain`)。tailnet の端末からは
+  開けない ([tailscale.md](tailscale.md))。Temporal のタブは tailnet の URL にした ([temporal.md](temporal.md))
+
+確かめ方 (使い捨てのテスト用ユーザー `test-admin` (admins)・`test-viewer` (viewers)・`test-nogroup` で、ブラウザなしに authorization code flow を流した。
+`/api/auth/oidc/start` → Keycloak のログインフォームに POST → `/api/auth/oidc/handler/frame` → `/api/auth/oidc/refresh` で Backstage のトークン):
+
+| 要求 | test-admin | test-viewer | test-nogroup | ゲスト (localhost) |
+|---|---|---|---|---|
+| サインイン | できる。ownership `user:default/test-admin`・`group:default/admins` | できる。`group:default/viewers` | 断られる (「admins・viewers のどちらにも入っていない」) | できる (tailnet からは 403) |
+| `/api/permission/authorize` の catalog.entity.read | ALLOW | ALLOW | — | ALLOW |
+| 同 catalog.entity.refresh・delete、catalog.location.create・delete、azure.sites.update | ALLOW | DENY | — | DENY |
+| `POST /api/catalog/refresh` (home-k8s) | 200 | 403 | — | 403 |
+| `POST /api/catalog/locations?dryRun=true` | 201 | 403 | — | 403 |
+
+人 (自分のユーザー `yamakura-yuma`、admins) が戻ってから、tailnet の端末のブラウザで確かめること:
+
+1. <https://backstage.taild2b611.ts.net> を開く → サインインの画面に Keycloak だけが出る (Guest は出ない) → Keycloak でサインイン
+   (パスワード + TOTP、または passkey。窓が開いて閉じる)
+2. 左下の Settings で、ユーザーが `yamakura-yuma`、Ownership に `admins` が出る
+3. カタログの home-k8s で、右上のメニューの **Unregister entity** が押せる (admins なので。押さなくてよい)。sample-api の Temporal・ArgoCD・Grafana・Azure のタブが出る
+4. ホストのブラウザで <http://localhost:7007> を開くとゲストだけが出て、入ると読むだけ (Unregister entity が出ない・押せない)
 
 ## ダッシュボードの選び方
 
@@ -132,7 +218,7 @@ viewer と `backstage` は別のユーザーなので、viewer のパスワー�
 ## イメージ
 
 レジストリ (GHCR など) には置かず、`just up` が手元で build して `kind load` する。chart の values は
-タグを `0.10.0` に固定し、`pullPolicy: Never` で pull しない。クラスタを作り直しても `just up` が入れ直す。
+タグを `0.11.0` に固定し、`pullPolicy: Never` で pull しない。クラスタを作り直しても `just up` が入れ直す。
 
 - `docker build` は層のキャッシュが効くので、`backstage/` を変えていなければすぐ終わる。初回は 5 分ほど
 - TechDocs の mkdocs は、実行用のイメージに Python の venv (`/opt/venv`) を作って pip で入れる (上流の
@@ -163,7 +249,7 @@ API を呼ぶときに `Authorization: Bearer` (Backstage のトークン) を�
 毎回確かめるので、`delete`・期限切れはすぐ効く。
 
 TechDocs の文書の CSS や画像は、Backstage が発行する cookie (`backstage-auth`) で認証する。Backstage は
-この cookie に `backend.baseUrl` のホスト名 (`Domain=localhost`) を付けるので、そのままでは trycloudflare の
+この cookie に `backend.baseUrl` のホスト名 (`Domain=backstage.taild2b611.ts.net`。以前は `localhost`) を付けるので、そのままでは trycloudflare の
 ホストで捨てられ、文書の画面が読み込み中のまま止まる。caddy はこの `Domain` を外して返す。
 
 7007 をそのまま出すと、Backstage が Grafana の資格情報で読むプロキシ (`/api/proxy/grafana/api`) や、
@@ -192,7 +278,7 @@ kind-config は変えていない (7007 は ArgoCD を入れたときに開け�
 ```sh
 just up        # Backstage のイメージを build・kind load し、Secret を作り、root を同期し、全部の同期を待つ
 kubectl --context kind-study-kind -n argocd get applications   # backstage を含め全部 Synced / Healthy
-just show backstage   # http://localhost:7007 (ゲストで入る)
+just show backstage   # https://backstage.taild2b611.ts.net (Keycloak) と http://localhost:7007 (ゲスト)
 ```
 
 ブラウザで <http://localhost:7007> を開き、ゲストで入って `home-k8s` を開くと、Overview に

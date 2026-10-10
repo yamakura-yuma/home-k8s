@@ -75,9 +75,25 @@ spec:
       # この属性で既定のものも作らせ、下の groups を足す (Keycloak 26.8.0 の RealmManager.isCreateDefaultClientScopes)
       CreateDefaultClientScopes: "true"
     # 権限はグループで分ける。各 UI の RBAC (policy.csv・role_attribute_path・RoleBinding など) はこの名前を書く
+    # Temporal は例外で、サーバーの既定の claim mapper がグループを読めない (permissions クレームの「<namespace>:<role>」しか読まない) ので、
+    # client temporal-<環境> の client role をグループに付け、下の client の mapper が permissions クレームにする (docs/cluster/temporal.md)
     groups:
       - name: admins
+        clientRoles:
+          temporal-dev: [temporal-system:admin]
+          temporal-prod: [temporal-system:admin]
       - name: viewers
+        clientRoles:
+          temporal-dev: [temporal-system:read]
+          temporal-prod: [temporal-system:read]
+    roles:
+      client:
+        temporal-dev:
+          - name: temporal-system:admin
+          - name: temporal-system:read
+        temporal-prod:
+          - name: temporal-system:admin
+          - name: temporal-system:read
     # ID トークン・アクセストークン・userinfo に groups: ["admins", ...] を入れる (full.path=false で先頭の / を付けない)
     clientScopes:
       - name: groups
@@ -192,6 +208,21 @@ spec:
         webOrigins: ["+"]
         attributes:
           post.logout.redirect.uris: "+"
+        # client role (temporal-system:admin・temporal-system:read) をアクセストークンの permissions: [...] にする。Temporal のサーバーが読む
+        protocolMappers:
+          - name: permissions
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-client-role-mapper
+            consentRequired: false
+            config:
+              usermodel.clientRoleMapping.clientId: temporal-dev
+              claim.name: permissions
+              multivalued: "true"
+              jsonType.label: String
+              access.token.claim: "true"
+              id.token.claim: "true"
+              userinfo.token.claim: "false"
+              introspection.token.claim: "true"
       - clientId: temporal-prod
         name: Temporal UI (prod)
         enabled: true
@@ -207,6 +238,21 @@ spec:
         webOrigins: ["+"]
         attributes:
           post.logout.redirect.uris: "+"
+        # client role (temporal-system:admin・temporal-system:read) をアクセストークンの permissions: [...] にする。Temporal のサーバーが読む
+        protocolMappers:
+          - name: permissions
+            protocol: openid-connect
+            protocolMapper: oidc-usermodel-client-role-mapper
+            consentRequired: false
+            config:
+              usermodel.clientRoleMapping.clientId: temporal-prod
+              claim.name: permissions
+              multivalued: "true"
+              jsonType.label: String
+              access.token.claim: "true"
+              id.token.claim: "true"
+              userinfo.token.claim: "false"
+              introspection.token.claim: "true"
       # Backstage (単位 4)。auth provider の名前 (oidc・keycloak など) で callback のパスが変わるので、/api/auth/ の下を全部許す
       - clientId: backstage
         name: Backstage
