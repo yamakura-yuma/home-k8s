@@ -2,7 +2,7 @@
 
 kind の UI を、tailnet の端末から `https://<名前>.<tailnet>.ts.net` で開けるようにする。
 [access-control.md](access-control.md) と [idp-options.md](idp-options.md) の「移行の段取り」の単位 1 にあたる。
-認証は変えていない。各 UI のログインは今までどおり (`just show`)。
+この単位では認証を変えていない。ArgoCD と Grafana ×3 は後の単位 3 で Keycloak の SSO にした (tailnet の URL で使う。[keycloak.md](keycloak.md) の「各 UI の OIDC」)。ほかの UI のログインは今までどおり (`just show`)。
 
 - tailnet: `<tailnet>` = **`taild2b611.ts.net`** (Personal プラン、2026-10-10 に作成)。例: ArgoCD は `https://argocd.taild2b611.ts.net`
 - 入れたもの: Tailscale の Kubernetes operator (chart `tailscale-operator` 1.102.4、namespace `tailscale`。[apps/tailscale-operator.yaml](../../clusters/kind/argocd/apps/tailscale-operator.yaml))

@@ -1,3 +1,9 @@
 # prod の Grafana。ホストの localhost:3002 で開く (NodePort 30302 + kind の extraPortMappings。kind-config は Temporal の PR #86 が足した)
 service:
   nodePort: 30302
+# Keycloak の client grafana-prod。root_url は OAuth のコールバック (<これ>/login/generic_oauth) の元で、client の redirect URI と同じ
+grafana.ini:
+  server:
+    root_url: https://grafana-prod.taild2b611.ts.net
+  auth.generic_oauth:
+    client_id: grafana-prod

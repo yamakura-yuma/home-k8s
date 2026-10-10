@@ -190,7 +190,8 @@ kind 標準の StorageClass `standard` (local-path) は使わない (PVC を消�
 ## Grafana の認証
 
 Grafana はログイン必須で、匿名アクセスは付けていない (閲覧のみの匿名も無い)。
-「別の PC から見る」で外に出すことがあるため。ユーザーは 3 つある。
+「別の PC から見る」で外に出すことがあるため。人は tailnet の URL (`https://grafana.taild2b611.ts.net`) から Keycloak の SSO で入る
+(グループ admins は Admin、viewers は Viewer。[keycloak.md](../cluster/keycloak.md) の「各 UI の OIDC」)。パスワードのユーザーは 3 つあり、admin は非常用に残す。
 
 | ユーザー | ロール | 使う人 | パスワードのファイル | 表示するコマンド |
 | --- | --- | --- | --- | --- |

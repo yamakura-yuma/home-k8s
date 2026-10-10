@@ -5,7 +5,7 @@ kind のクラスタの namespace `auth` に、IdP の Keycloak と、その DB 
 
 - issuer: **`https://keycloak.taild2b611.ts.net/realms/home-k8s`** (ブラウザからも Pod からも同じ URL)
 - Admin Console: `https://keycloak.taild2b611.ts.net/admin/` (realm `master`、ユーザー `admin`。パスワードは下の「Secret」)
-- ユーザーは `yamakura-yuma` (グループ `admins`、TOTP 必須、passkey も登録できる。下の「人のユーザーと MFA」。単位 2c)。各 UI と API server を OIDC につなぐのは単位 3〜6
+- ユーザーは `yamakura-yuma` (グループ `admins`、TOTP 必須、passkey も登録できる。下の「人のユーザーと MFA」。単位 2c)。各 UI と API server を OIDC につなぐのは単位 3〜6。ArgoCD と Grafana ×3 は単位 3 でつないだ (下の「各 UI の OIDC」)
 
 ## 構成
 
@@ -178,7 +178,7 @@ kc "kcadm delete users/$id -r home-k8s"                 # ユーザーごと消�
 #                         kc "kcadm delete users/$id/groups/$gid -r home-k8s"
 ```
 
-各 UI のセッションは、各 UI の側の期限まで残りうる (単位 3〜6 で UI ごとに確かめる)。Keycloak のセッションは `kc "kcadm create users/$id/logout -r home-k8s"` で消せる。
+各 UI のセッションは、各 UI の側の期限まで残りうる (ArgoCD と Grafana は下の「各 UI の OIDC」の「人を外したとき」)。Keycloak のセッションは `kc "kcadm create users/$id/logout -r home-k8s"` で消せる。
 
 ### MFA を設定し直す (認証アプリや passkey の端末を失くした)
 
@@ -204,6 +204,53 @@ kc "kcadm update realms/home-k8s -s otpPolicyType=totp -s otpPolicyAlgorithm=Hma
   -s webAuthnPolicyPasswordlessPasskeysEnabled=true
   kcadm update authentication/required-actions/CONFIGURE_TOTP -r home-k8s -s defaultAction=true"
 ```
+
+## 各 UI の OIDC
+
+単位 3 で ArgoCD と Grafana ×3 を realm `home-k8s` につないだ。どれも issuer の URL を Pod からも引く (上の「Pod から issuer に届かせる」)。
+グループと権限は各 UI の設定に書く (Keycloak の側ではグループに入れるだけ)。
+
+| UI | URL (SSO) | client | 設定 | admins | viewers | どちらでもない |
+|---|---|---|---|---|---|---|
+| ArgoCD | `https://argocd.taild2b611.ts.net` | `argocd` (UI)・`argocd-cli` (`argocd login --sso`、public + PKCE) | [values.yaml](../../clusters/kind/argocd/values.yaml) の `configs.cm` の `url`・`oidc.config`、`configs.rbac` の `policy.csv` | `role:admin` | `role:readonly` | ログインはできるが何も見えない (`policy.default` は空) |
+| Grafana (観測スタック) | `https://grafana.taild2b611.ts.net` | `grafana` | [grafana-values.yaml](../../clusters/kind/observability/grafana-values.yaml) の `grafana.ini` の `server.root_url`・`auth.generic_oauth` | Admin | Viewer | ログインを断る (`role_attribute_strict`) |
+| Grafana (dev・prod) | `https://grafana-dev.…`・`https://grafana-prod.…` | `grafana-dev`・`grafana-prod` | [env-grafana/values.yaml](../../clusters/kind/env-grafana/values.yaml) (共通) と `values-<環境>.yaml` (`client_id`・`root_url`) | Admin | Viewer | 同上 |
+
+- **ArgoCD は Keycloak を直に見る**。同梱の Dex は使わない (`dex.enabled: false` のまま)。groups は realm の既定の client scope `groups` で ID トークンに入り、ArgoCD は既定の `scopes: [groups]` で読む。
+  ArgoCD のユーザー名はメールアドレスになる (`test-admin@example.invalid` など)。グループはログインのときにだけ読まれるので、グループを変えたらログインし直す
+- **Grafana は `role_attribute_path` で groups からロールを決め、ログインのたびに付け直す**。どちらのグループにも入っていない人は `role_attribute_strict: true` でログインを断る
+  (既定の `auto_assign_org_role: Viewer` に落とさない)。Grafana の Team Sync は Enterprise なので使わない
+- **非常用のパスワードは残す**。ArgoCD の `admin` (`just show argocd`) と Grafana の `admin` (`just show grafana-admin`) は、Keycloak が落ちていても `localhost` から入れる。
+  Grafana の `viewer`・`backstage` (share Pod と Backstage のプロキシの Basic 認証) も今までどおり。ログインフォームと Basic 認証は消していない
+- **SSO のコールバックは tailnet の URL**。ArgoCD の `url` と Grafana の `root_url` を tailnet の URL にした (Keycloak の client の redirect URI と同じ)。
+  `localhost:8080`・`localhost:3000` などで SSO のボタンを押すと、Keycloak の後に tailnet の URL へ戻る。localhost で使うなら admin のパスワードで入る
+- **client の secret は Git に置かない**。`just up` の `_oidc-secrets` ([just/oidc-secrets.sh](../../just/oidc-secrets.sh)) が、`_keycloak-secrets` の作ったホストのファイル `~/.local/share/home-k8s/keycloak/clients/<clientId>` から作る
+
+| Secret | キー | 元のファイル (`clients/`) | 読むもの |
+|---|---|---|---|
+| `argocd/argocd-oidc-keycloak` (ラベル `app.kubernetes.io/part-of: argocd`) | `clientSecret` | `argocd` | `oidc.config` の `$argocd-oidc-keycloak:clientSecret`。ArgoCD はこのラベルの付いた Secret しか読まない |
+| `observability/grafana-oidc` | `client-secret` | `grafana` | 環境変数 `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET` (chart の `envValueFrom`) |
+| `dev/grafana-oidc`・`prod/grafana-oidc` | `client-secret` | `grafana-dev`・`grafana-prod` | 同上 |
+
+ファイルは作らない (realm の側の secret とずれるので、無ければ止まる)。client の secret を変えたら (上の「Secret」)、`just up` を打ち、Grafana の Pod を作り直す
+(`kubectl -n <namespace> rollout restart deploy/grafana`)。ArgoCD は Secret の変更を Pod の作り直しなしで読み直す [未確認]。
+
+### argocd login --sso
+
+```sh
+argocd login argocd.taild2b611.ts.net --sso --grpc-web
+```
+
+- tailnet の Ingress は HTTP の proxy なので `--grpc-web` を付ける
+- CLI は `localhost:8085` で待ち、ブラウザで Keycloak に入ると `http://localhost:8085/auth/callback` に戻る (client `argocd-cli` の redirect URI)。
+  ブラウザと CLI が同じ端末で動いている必要がある。WSL2 では Windows のブラウザから WSL の `localhost:8085` に届かないことがある (単位 2c で kubelogin の callback が届かなかった)。
+  そのときは CLI が出す URL を WSL の中のブラウザで開くか、Windows 側の argocd CLI を使う
+
+### 人を外したとき
+
+Keycloak でユーザーを消す・止める・グループから外すと、次のログインから効く。ArgoCD のセッション (既定 24 時間 [未確認]) と Grafana のセッションは、それぞれの期限まで残る [未確認]。
+すぐに切るときは、ArgoCD は `argocd-secret` の `server.secretkey` を消して argocd-server を作り直す (全員のセッションが切れる)、
+Grafana は admin で Server admin → Users → 該当ユーザー → Sessions の Force logout (どちらも試していない [未確認])。
 
 ## Secret
 
@@ -309,6 +356,18 @@ tailnet の端末のブラウザで `https://keycloak.taild2b611.ts.net/realms/h
 | 人のログイン | 本人が tailnet の端末で Account Console に入り、OTP の設定とパスワードの変更、passkey の登録、サインアウトしてからの passkey でのログインまでできた。ユーザーの credential は `password`・`otp`・`webauthn-passwordless`、必須アクションは空 |
 | groups | Admin Console の client の「Client scopes → Evaluate」と同じ API (`evaluate-scopes/generate-example-id-token`) で、client `kubernetes`・`argocd-cli` の ID トークンに `groups: ["admins"]`・`preferred_username`・`aud` (client 名)・issuer が入る。実際のログインで取った ID トークンでは見ていない [未確認] (kubelogin の localhost の callback に Windows のブラウザから WSL へ届かなかった。単位 3・6 で確かめる) |
 
+単位 3 (ArgoCD と Grafana の OIDC) は 2026-10-11 (JST) に確かめた。ログインは使い捨てのテスト用ユーザー (`test-admin` は admins、`test-viewer` は viewers、`test-nogroup` はグループなし。
+OTP の必須アクションを外して作り、確かめた後に消した) で、ブラウザを使わずに authorization code flow を流した (Python の標準ライブラリで Keycloak のログインフォームに送る)。
+
+| 確認 | test-admin | test-viewer | test-nogroup |
+|---|---|---|---|
+| ArgoCD (UI の SSO) | ログイン、`groups: [admins]`、Application 32 個、`can-i sync`・`delete` が yes、同期 (dry run) が 200 | ログイン、`groups: [viewers]`、32 個、`can-i sync` が no、同期が 403 | ログインはできる、groups なし、0 個、同期が 403 |
+| ArgoCD (`argocd login --sso`) | `Logged In: true`、Groups admins、`can-i sync` yes | Groups viewers、`can-i sync` no | — |
+| Grafana ×3 | Admin、`/api/org/users` が 200 | Viewer、`/api/org/users` が 403 | ログインを断る (Grafana のログに `role_attribute_strict_violation`) |
+
+実際のログインで取ったトークンにも `groups` が入ることを、ArgoCD の userinfo (ID トークンから) で確かめた (上の単位 2c の [未確認] のうち `argocd-cli` の分)。
+非常用の admin (ArgoCD の `/api/v1/session`、Grafana 3 つの `/api/user` の Basic 認証) と、Backstage のプロキシ (Grafana ×3 と ArgoCD)・`just share test-smoke` (share Pod の Grafana の経路) も通った。
+
 ## 出典
 
 - Keycloak Operator のインストール・基本の導入・Realm Import (realm があれば上書きしない、placeholders)・Managing Clients (preview)・Advanced configuration (bootstrapAdmin) (確認):
@@ -323,3 +382,6 @@ tailnet の端末のブラウザで `https://keycloak.taild2b611.ts.net/realms/h
 - 単位 2c の MFA (観測): feature `PASSKEYS` が既定で有効なこと (`kcadm.sh get serverinfo`)、`RealmRepresentation` に `webAuthnPolicyPasswordlessPasskeysEnabled` があること (keycloak-core 26.8.0 の jar)、
   `requiredActions` を一部だけ書くと残りが作られないこと (scratch の realm への import)。いずれも Keycloak 26.8.0 の Pod で確かめた。
   passkey と必須アクションの説明 (未確認: 読んでいない): <https://www.keycloak.org/docs/latest/server_admin/#passkeys>
+- 単位 3 の ArgoCD と Grafana (観測): `oidc.config` の `$<Secret>:<キー>` とラベル、`cliClientID`、`policy.csv` の `g, <group>, <role>`、Grafana の `role_attribute_path`・`role_attribute_strict`・`GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET` は、
+  ArgoCD v3.5.3 (chart 10.9.6) と Grafana 13.2.3 (chart 13.2.7) で上の「確かめた結果」のとおりに動いた。
+  文書 (未確認: この単位では開いていない): <https://argo-cd.readthedocs.io/en/stable/operator-manual/user-management/keycloak/>、<https://grafana.com/docs/grafana/latest/setup-grafana/configure-security/configure-authentication/keycloak/>

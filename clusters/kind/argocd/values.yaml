@@ -9,6 +9,21 @@ configs:
   params:
     server.insecure: true
   cm:
+    # SSO のコールバック (https://<これ>/auth/callback) を組み立てる URL。Keycloak の client argocd の redirect URI と同じ (tailnet の名前)。
+    # localhost:8080 は admin のパスワードでのログインに残る (SSO のボタンは出るが、コールバックが tailnet の URL に返る)
+    url: https://argocd.taild2b611.ts.net
+    # Keycloak (realm home-k8s) の OIDC で直にログインする。同梱の Dex は使わない (下の dex.enabled: false、docs/cluster/idp-options.md)。
+    # Pod からも issuer はブラウザと同じ URL で引ける (CoreDNS の読み替え、docs/cluster/keycloak.md)。
+    # clientSecret の $<Secret>:<キー> は、ラベル app.kubernetes.io/part-of: argocd の付いた Secret から読む。Secret は `just up` の
+    # _oidc-secrets が Git の外のファイル (~/.local/share/home-k8s/keycloak/clients/argocd) から作る (just/oidc-secrets.sh)。
+    # cliClientID は argocd login --sso 用の公開 client (PKCE。secret を持たない)。groups は realm の既定の client scope で必ず入る
+    oidc.config: |
+      name: Keycloak
+      issuer: https://keycloak.taild2b611.ts.net/realms/home-k8s
+      clientID: argocd
+      clientSecret: $argocd-oidc-keycloak:clientSecret
+      cliClientID: argocd-cli
+      requestedScopes: ["openid", "profile", "email", "groups"]
     # Backstage が Application の同期状態と健全性を読む、読み取り専用のアカウント。apiKey は API トークンだけで入れる
     # (パスワードでのログインはできない)。トークンは `just up` が作り、Git の外のファイルから Secret backstage-argocd にする
     # (just/argocd-secrets.sh、docs/cluster/backstage-argocd.md)
@@ -29,15 +44,21 @@ configs:
   rbac:
     # backstage のアカウントには Application の取得 (get) だけを許す。作成・同期・削除・ログ・Secret は許さない。
     # 既定の role (policy.default) は空のままなので、ここに書いた以外はすべて拒否される
+    # (Keycloak のグループ admins・viewers のどちらにも入っていない人は、ログインできても何も見えない)。
+    # Keycloak のグループは ID トークンの groups クレーム (scopes の既定) で、admins は組み込みの role:admin、viewers は role:readonly。
+    # グループはログインのときにだけ読まれるので、グループを変えたらログインし直す
     policy.csv: |
       p, role:backstage-readonly, applications, get, */*, allow
       g, backstage, role:backstage-readonly
+      g, admins, role:admin
+      g, viewers, role:readonly
 server:
   service:
     type: NodePort
     nodePortHttp: 30080
 
-# ログインは admin だけ使う (パスワードは argocd-initial-admin-secret)。SSO も通知も使わない
+# 人は Keycloak の SSO でログインする。admin (パスワードは argocd-initial-admin-secret) は非常用に残す
+# (Keycloak が落ちたとき、just/argocd-secrets.sh が backstage のトークンを作るとき)。同梱の Dex と通知は使わない
 dex:
   enabled: false
 notifications:

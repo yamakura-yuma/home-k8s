@@ -61,11 +61,13 @@ namespace dev (prod も同じ)
 
 ## 資格情報
 
-環境の Grafana には 2 つのユーザーがいる。
+環境の Grafana には、パスワードのユーザーが 2 ついる。人はふだん tailnet の URL (`https://grafana-dev.taild2b611.ts.net`・`https://grafana-prod.taild2b611.ts.net`) から
+Keycloak の SSO で入る (client `grafana-dev`・`grafana-prod`、Secret `grafana-oidc`。グループ admins は Admin、viewers は Viewer。[keycloak.md](keycloak.md) の「各 UI の OIDC」)。
+`admin` は非常用に残し、`backstage` の Basic 認証は SSO と関係なく今までどおり通る。
 
 | ユーザー | ロール | パスワード | 使う者 |
 |---|---|---|---|
-| `admin` | Admin | `~/.local/share/home-k8s/observability/env-grafana/<環境>-admin-password` | 人 (画面に入る)。Secret `grafana-admin` (各環境の namespace) |
+| `admin` | Admin | `~/.local/share/home-k8s/observability/env-grafana/<環境>-admin-password` | 人 (非常用。ふだんは SSO)。Secret `grafana-admin` (各環境の namespace) |
 | `backstage` | Viewer | `.../<環境>-backstage-password` | Backstage のプロキシ。Secret `grafana-backstage` (各環境の namespace) が、Grafana の横のサイドカーがユーザーを作る元 |
 
 `just up` は `just/grafana-env-secrets.sh` で、環境ごとに次をする。パスワードのファイルが無ければ作り (`openssl rand`、本人だけが読める)、2 回目以降は再利用する。

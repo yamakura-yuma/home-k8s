@@ -59,9 +59,9 @@ chart のリポジトリは今までの `helm --repo` と同じく URL で直接
 
 | 画面 | URL | ログイン |
 |---|---|---|
-| ArgoCD | <http://localhost:8080> | `admin`、パスワードは `just show argocd` |
+| ArgoCD | <http://localhost:8080>・<https://argocd.taild2b611.ts.net> | 人は Keycloak の SSO (tailnet の URL。admins は管理、viewers は読むだけ)。`admin` (パスワードは `just show argocd`) は非常用 ([keycloak.md](keycloak.md) の「各 UI の OIDC」) |
 | Headlamp | <http://localhost:4466> | `just show headlamp` のトークン |
-| Grafana | <http://localhost:3000> | [claude-code-traces.md](../observability/claude-code-traces.md) の「Grafana の認証」 |
+| Grafana | <http://localhost:3000>・<https://grafana.taild2b611.ts.net> | 人は Keycloak の SSO (tailnet の URL)。パスワードのユーザーは [claude-code-traces.md](../observability/claude-code-traces.md) の「Grafana の認証」 |
 | Backstage | <http://localhost:7007> | ゲスト ([backstage.md](backstage.md)) |
 
 どれも NodePort (30080・30466・30300・30707) を kind の `extraPortMappings` で `127.0.0.1` に出している
@@ -84,6 +84,7 @@ Node・PersistentVolume・StorageClass・CRD・ClusterRole を読むだけの `h
 | `share/share-credentials`・`share-session-key`・`share-grafana`・`share-host` | `just up`・`just share add` | 資格情報はハッシュだけ (`just share` が足す。空で作り、あれば触らない)。`share-grafana` は `grafana-viewer-password` の写し。`share-host` は headroom の中継の宛先とトークン ([share.md](share.md)) |
 | `headlamp/headlamp-token` | `just up` | kube-controller-manager が ServiceAccount `headlamp` のトークンを入れる。取り出して `~/.local/share/home-k8s/headlamp/token` に書く |
 | `argocd/argocd-initial-admin-secret` | ArgoCD (初回の起動時) | ArgoCD が乱数で作る |
+| `argocd/argocd-oidc-keycloak`、`observability・dev・prod/grafana-oidc` | `just up` (`_oidc-secrets`) | Keycloak の client の secret。`~/.local/share/home-k8s/keycloak/clients/<clientId>` (`_keycloak-secrets` が作る) から ([keycloak.md](keycloak.md) の「各 UI の OIDC」) |
 
 `headlamp-token` は ArgoCD の追跡ラベルが付かないので、ArgoCD は prune しない。
 

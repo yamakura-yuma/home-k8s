@@ -125,8 +125,34 @@ extraContainers: |
         while true; do sleep 3600; done
 
 grafana.ini:
+  # OAuth のコールバック (<これ>/login/generic_oauth) とリンクの元。Keycloak の client grafana の redirect URI と同じ (tailnet の名前)。
+  # localhost:3000 でもパスワードでは入れる
+  server:
+    root_url: https://grafana.taild2b611.ts.net
   auth.anonymous:
     enabled: false
+  # Keycloak (realm home-k8s) の OIDC でログインする (generic_oauth)。グループ admins は Admin、viewers は Viewer、どちらでもなければ
+  # role_attribute_strict でログインを断る。ロールはログインのたびに groups から付け直す。
+  # ログインフォームと Basic 認証 (admin・viewer・backstage) は残す: admin は非常用、viewer と backstage は share Pod と Backstage のプロキシが使う。
+  # client_secret は環境変数 GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET (下の envValueFrom。Secret grafana-oidc は `just up` の _oidc-secrets が作る)。
+  # token_url と api_url は Pod から引く。CoreDNS の読み替えでブラウザと同じ URL・証明書で届く (docs/cluster/keycloak.md)
+  auth.generic_oauth:
+    enabled: true
+    name: Keycloak
+    client_id: grafana
+    scopes: openid profile email groups
+    auth_url: https://keycloak.taild2b611.ts.net/realms/home-k8s/protocol/openid-connect/auth
+    token_url: https://keycloak.taild2b611.ts.net/realms/home-k8s/protocol/openid-connect/token
+    api_url: https://keycloak.taild2b611.ts.net/realms/home-k8s/protocol/openid-connect/userinfo
+    signout_redirect_url: https://keycloak.taild2b611.ts.net/realms/home-k8s/protocol/openid-connect/logout
+    use_pkce: true
+    allow_sign_up: true
+    login_attribute_path: preferred_username
+    name_attribute_path: name
+    email_attribute_path: email
+    groups_attribute_path: groups
+    role_attribute_path: "contains(groups[*], 'admins') && 'Admin' || contains(groups[*], 'viewers') && 'Viewer'"
+    role_attribute_strict: true
   users:
     auto_assign_org_role: Viewer
   analytics:
@@ -135,6 +161,13 @@ grafana.ini:
   # ログイン直後のホームを「Claude Code はじめに」にする (下の provisioning で置かれるファイル)
   dashboards:
     default_home_dashboard_path: /var/lib/grafana/dashboards/default/claude-code-start.json
+
+# Keycloak の client の secret (auth.generic_oauth、`just up` の _oidc-secrets が Git の外のファイルから作る)
+envValueFrom:
+  GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
+    secretKeyRef:
+      name: grafana-oidc
+      key: client-secret
 
 datasources:
   datasources.yaml:

@@ -51,7 +51,7 @@ class Recipes(unittest.TestCase):
         steps = ["kind create cluster", "observability/{tempo,prometheus,loki,grafana,keycloak-postgres,keycloak-postgres-dump}", "tailscale-secrets.sh",
                  "docker build -t home-k8s-backstage:", "kind load docker-image home-k8s-backstage:",
                  "helm upgrade --install argocd", "grafana-secrets.sh", "grafana-env-secrets.sh", "argocd-secrets.sh", "backstage-azure-secret.sh",
-                 "share-relay.sh up", "share-secrets.sh", "keycloak-secrets.sh", "coredns-tailnet.sh", "argocd/root.yaml", "argocd-wait.sh", "headlamp-token.sh"]
+                 "share-relay.sh up", "share-secrets.sh", "keycloak-secrets.sh", "oidc-secrets.sh", "coredns-tailnet.sh", "argocd/root.yaml", "argocd-wait.sh", "headlamp-token.sh"]
         pos = [out.find(step) for step in steps]
         self.assertNotIn(-1, pos, out)
         self.assertEqual(pos, sorted(pos))
@@ -100,6 +100,15 @@ class Recipes(unittest.TestCase):
         self.assertNotIn("keycloak", " ".join(just("--list").stdout.split()), "内部用は公開しない")
         keycloak = (ROOT / "clusters/kind/auth/keycloak/keycloak.yaml").read_text()
         self.assertIn("hostname: https://keycloak.taild2b611.ts.net\n", keycloak)
+
+    def test_oidc_secrets_are_made_from_the_keycloak_client_files_before_argocd_syncs_the_uis(self):
+        # ArgoCD と Grafana の client の secret は、keycloak-secrets.sh が作るファイル (realm の import と同じ値) から作る。
+        # ファイルを作るのは keycloak-secrets.sh だけなので、その後。Grafana の Pod は Secret が無いと起動しないので root.yaml の前
+        up = just("--dry-run", "up").stderr
+        self.assertRegex(up, r'oidc-secrets\.sh ".*/\.local/share/home-k8s/keycloak/clients" kind-study-kind\n')
+        self.assertLess(up.find("keycloak-secrets.sh"), up.find("oidc-secrets.sh"))
+        self.assertLess(up.find("oidc-secrets.sh"), up.find("argocd/root.yaml"))
+        self.assertNotIn("oidc", " ".join(just("--list").stdout.split()), "内部用は公開しない")
 
     def test_backstage_image_tag_matches_values(self):
         # kind load するイメージのタグと、chart が使うタグ (pull しない) がずれると Pod が起動しない
