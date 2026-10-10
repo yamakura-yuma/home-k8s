@@ -29,7 +29,7 @@ Application backstage (backstage chart 2.10.2、clusters/kind/backstage/values.y
 
 | 部品 | 置き場所 | 中身 |
 |---|---|---|
-| アプリ | `backstage/` | `@backstage/create-app@0.9.2` (Backstage 1.55.0、新しいフロントエンドシステム) の雛形から、カタログと Grafana プラグイン以外を外したもの |
+| アプリ | `backstage/` | `@backstage/create-app@0.9.2` (Backstage 1.55.0、新しいフロントエンドシステム) の雛形を、カタログ・TechDocs・検索だけに絞り、Grafana・ArgoCD・Azure・api-docs のプラグインを足したもの |
 | イメージ | `backstage/Dockerfile` | 上流の multi-stage build。yarn install と build もイメージの中で行う |
 | Grafana プラグイン | `backstage/packages/app` | `@backstage-community/plugin-grafana` 1.1.0。拡張 `entity-card:grafana/dashboards` を有効にする |
 | Grafana のタブ・環境ごとの観測スタック | `backstage/packages/app`・`clusters/kind/env-*` | 既存の Grafana プラグインのカードを環境のタブで出す (`grafana.hosts` に `default`・`dev`・`prod`)。環境ごとに Prometheus・Loki・Tempo・OTel Collector・Grafana を ApplicationSet で立てる。設定は [backstage-grafana.md](backstage-grafana.md) |
@@ -37,7 +37,7 @@ Application backstage (backstage chart 2.10.2、clusters/kind/backstage/values.y
 | 環境ごとのタブ | `backstage/packages/app/src/modules/environments` | dev・prod を切り替えて中身を出すエンティティのタブ。注釈の規約と作り方は [environments.md](environments.md) |
 | Swagger のタブ・API の定義 | `backstage/packages/app` | `@backstage/plugin-api-docs` 0.14.5 (`/alpha`)。Component sample-api のタブで OpenAPI を Swagger UI で出し、環境ごとのプロキシを向き先にする。[swagger-tab.md](swagger-tab.md) |
 | Azure のタブ | `backstage/packages/app/src/modules/azure`・`backstage/packages/backend/src/azureSites.ts` | `@backstage-community/plugin-azure-sites` と `-backend`。資格情報はファイルから `just up` が Secret にする。無くても起動する ([backstage-azure.md](backstage-azure.md)) |
-| TechDocs | `backstage/packages/app`・`backstage/packages/backend` | `@backstage/plugin-techdocs` 1.18 と `@backstage/plugin-techdocs-backend` 2.3。文書の画面が検索の API を要るので、検索 (`@backstage/plugin-search` と search-backend、カタログと TechDocs の索引) も載せる |
+| TechDocs | `backstage/packages/app`・`backstage/packages/backend` | `@backstage/plugin-techdocs` 1.18.2 と `@backstage/plugin-techdocs-backend` 2.3。文書の画面が検索の API を要るので、検索 (`@backstage/plugin-search` と search-backend、カタログと TechDocs の索引) も載せる |
 | 設定 | `backstage/app-config.yaml` | ポート 7007、インメモリの SQLite、ゲストのログイン、Grafana・ArgoCD へのプロキシ (`/grafana/api`・`/argocd/api`)、`argocd.baseUrl`・`argocd.revisionsToLoad`、TechDocs |
 | chart の values | `clusters/kind/backstage/values.yaml` | イメージ、NodePort 30707、Secret の参照、読む `catalog-info.yaml` |
 | エンティティ | `catalog-info.yaml` (repo の直下) | Component `home-k8s` と、ダッシュボードを選ぶ注釈、TechDocs の注釈。サービスの `catalog-info.yaml` (`services/*/`) を読む Location |

@@ -1,5 +1,6 @@
 // home-k8s の Backstage のバックエンド。カタログ (Git の catalog-info.yaml)、
-// Grafana プラグインが Grafana の API を読むためのプロキシ、TechDocs (文書の build と配信) と検索だけを載せる。
+// Grafana・ArgoCD・サービスの API を読むためのプロキシ、TechDocs (文書の build と配信) と検索、
+// Azure (azure-sites のバックエンドと、リソースのカタログへの取り込み) を載せる。
 import { createBackend } from '@backstage/backend-defaults';
 import { azureResourcesFeatureLoader } from './azureResources';
 import { azureSitesFeatureLoader } from './azureSites';
