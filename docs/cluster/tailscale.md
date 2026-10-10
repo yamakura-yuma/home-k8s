@@ -45,7 +45,7 @@ tailnet の端末 ─ HTTPS (Tailscale の証明書) ─▶ proxy Pod (tag:k8s�
   Web UI のログインの callback が tailnet の URL なので、Backstage のタブの iframe も tailnet の URL を開く。`frame-ancestors` は
   `https://backstage.taild2b611.ts.net` だけを許す ([temporal.md](temporal.md))
 - **Backstage はゲストのサインインを拒む proxy (`backstage-tailnet`) につなぐ** (単位 4)。tailnet からは Keycloak でだけサインインできる ([backstage.md](backstage.md) の「ログインと権限」)
-- **operator の API server proxy は使わない** (`apiServerProxyConfig.mode: "false"`)。kind の API server は単位 6 で Keycloak の OIDC につなぐ
+- **operator の API server proxy は使わない** (`apiServerProxyConfig.mode: "false"`)。kind の API server は Keycloak の OIDC につないだ (単位 5、[kube-oidc.md](kube-oidc.md)。kubectl は tailnet を通らず 127.0.0.1 の API server に kubelogin のトークンを渡す)
 
 ### tag と ACL (最小の形)
 
@@ -78,7 +78,7 @@ Service `keycloak-service:8080`)。`https://keycloak.<tailnet>.ts.net` で開け
 - tag は proxy の既定の `tag:k8s` のまま。tailnet のポリシーは変えていない
 - proxy (tailscale serve) は `X-Forwarded-For`・`X-Forwarded-Host`・`X-Forwarded-Proto` を付ける。Keycloak は `proxy.headers: xforwarded` と `hostname: https://keycloak.<tailnet>.ts.net`
 - Pod からは operator の **egress** (Service `auth/keycloak-tailnet`、注釈 `tailscale.com/tailnet-fqdn`) と CoreDNS の rewrite で同じ URL に届く ([keycloak.md](keycloak.md) の「Pod から issuer に届かせる」)。
-  kind の API server からの届かせ方は単位 6
+  kind の API server も同じ CoreDNS の rewrite で届かせた ([kube-oidc.md](kube-oidc.md) の「API server から issuer に届かせる」)
 - proxy の端末は ephemeral ではない。`just down` (`kind delete cluster`) は端末を tailnet に残すので、作り直したクラスタの proxy が同じ名前を取れないことがある [未確認] ([keycloak.md](keycloak.md) の「鶏と卵」)
 
 ## 人の画面操作 (最初の 1 回)

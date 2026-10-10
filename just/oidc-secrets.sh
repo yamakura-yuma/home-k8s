@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# just up の一部。ArgoCD・Grafana ×3・Temporal UI ×2・Backstage が Keycloak (realm home-k8s) の OIDC で使う client の secret を、各 UI の namespace の Secret にする。
+# just up の一部。ArgoCD・Grafana ×3・Temporal UI ×2・Backstage・Headlamp が Keycloak (realm home-k8s) の OIDC で使う client の secret を、各 UI の namespace の Secret にする。
 #   argocd/argocd-oidc-keycloak   clientSecret  (argocd-cm の oidc.config が $argocd-oidc-keycloak:clientSecret で読む。
 #                                                ArgoCD はラベル app.kubernetes.io/part-of: argocd の付いた Secret しか読まない)
 #   observability/grafana-oidc    client-secret (Grafana の環境変数 GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET)
 #   dev/grafana-oidc・prod/grafana-oidc  同上 (client grafana-dev・grafana-prod)
 #   dev/temporal-oidc・prod/temporal-oidc client-secret (Temporal Web UI の環境変数 TEMPORAL_AUTH_CLIENT_SECRET。client temporal-dev・temporal-prod)
 #   backstage/backstage-oidc      AUTH_OIDC_CLIENT_SECRET (chart の extraEnvVarsSecrets がキーの名前のまま環境変数にする。app-config.yaml の auth.providers.oidc)
+#   headlamp/headlamp-oidc        OIDC_CLIENT_SECRET (chart の config.oidc.externalSecret が envFrom で環境変数にする。clusters/kind/headlamp/values.yaml)
 # あわせて backstage/backstage-session (AUTH_SESSION_SECRET。app-config.yaml の auth.session.secret) を、無いときだけ乱数で作る。
 # OIDC のログインの途中 (state・nonce) を入れる session の cookie の署名鍵で、session はインメモリの DB にあるので、ファイルには残さない
 # 元は keycloak-secrets.sh が作るホストのファイル <ディレクトリ>/<clientId> (realm の import と同じ値)。ここでは作らない:
@@ -25,6 +26,7 @@ targets=(
     "dev temporal-oidc client-secret temporal-dev"
     "prod temporal-oidc client-secret temporal-prod"
     "backstage backstage-oidc AUTH_OIDC_CLIENT_SECRET backstage"
+    "headlamp headlamp-oidc OIDC_CLIENT_SECRET headlamp"
 )
 for t in "${targets[@]}"; do
     read -r _ _ _ client <<<"$t"

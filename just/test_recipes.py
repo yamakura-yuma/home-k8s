@@ -110,6 +110,16 @@ class Recipes(unittest.TestCase):
         self.assertLess(up.find("oidc-secrets.sh"), up.find("argocd/root.yaml"))
         self.assertNotIn("oidc", " ".join(just("--list").stdout.split()), "内部用は公開しない")
 
+    def test_apiserver_oidc_files_are_copied_before_the_cluster_and_the_kubectl_context_is_only_added(self):
+        # API server は --authentication-config のファイルが無いと起動しないので、kind create cluster より前にコピーする
+        up = just("--dry-run", "up").stderr
+        self.assertLess(up.find('cp -r clusters/kind/kube-apiserver/. "$HOME/.local/share/home-k8s/kube-apiserver/"'), up.find("kind create cluster"))
+        # kubeconfig には足すだけ。admin の context (非常用) と current-context は変えない
+        self.assertIn("kubectl config set-credentials oidc@study-kind ", up)
+        self.assertIn("kubectl config set-context oidc@study-kind --cluster=kind-study-kind --user=oidc@study-kind\n", up)
+        self.assertNotIn("use-context", up)
+        self.assertNotIn("delete-context", up)
+
     def test_backstage_image_tag_matches_values(self):
         # kind load するイメージのタグと、chart が使うタグ (pull しない) がずれると Pod が起動しない
         image = re.search(r"docker build -t (\S+) backstage", just("--dry-run", "up").stderr).group(1)

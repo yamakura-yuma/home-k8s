@@ -1,0 +1,44 @@
+# Keycloak (realm home-k8s) のグループに Kubernetes の権限を結ぶ。kubectl (kubelogin) と Headlamp が同じ権限になる。
+# API server はトークンの groups に接頭辞 oidc: を付ける (clusters/kind/kube-apiserver/authentication-config.yaml)。
+# どちらのグループにも入っていない人は、認証されても何もできない (system:authenticated の既定の権限、自分の権限の問い合わせなどだけ)。
+# admins: クラスタの管理者。kind の admin の kubeconfig (非常用) と同じ cluster-admin
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oidc-admins
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: oidc:admins
+---
+# viewers: 読むだけ。組み込みの view (名前空間の中。Secret は読めない) と、
+# Node・PersistentVolume・StorageClass・CRD・ClusterRole を読む headlamp-cluster-read (clusters/kind/headlamp/manifests/rbac.yaml)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oidc-viewers
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: oidc:viewers
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oidc-viewers-cluster-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: headlamp-cluster-read
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: oidc:viewers

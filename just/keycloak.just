@@ -19,3 +19,10 @@ _coredns-tailnet:
 # (argocd/argocd-oidc-keycloak、observability・dev・prod/grafana-oidc、dev・prod/temporal-oidc、backstage/backstage-oidc。docs/cluster/keycloak.md の「各 UI の OIDC」)。_keycloak-secrets の後に打つ
 _oidc-secrets:
     bash just/oidc-secrets.sh "{{keycloak_secret_dir}}/clients" {{kube_context}}
+
+# kubectl を Keycloak の OIDC でつなぐ context oidc@<クラスタ> を kubeconfig (~/.kube/config) に足す。既存の context・user は変えない (足すか、同じ名前を上書きするだけ)。
+# ログインは kubelogin (kubectl oidc-login、開発用コンテナにある) が client kubernetes (public + PKCE) で行い、ID トークンを API server に渡す。
+# 開発用コンテナにブラウザは無いので URL を表示するだけにし、人がブラウザで開く (callback は localhost:8000)。手順は docs/cluster/kube-oidc.md
+_kube-oidc-context:
+    kubectl config set-credentials oidc@{{kind_cluster}} --exec-api-version=client.authentication.k8s.io/v1 --exec-interactive-mode=IfAvailable --exec-command=kubectl --exec-arg=oidc-login --exec-arg=get-token --exec-arg=--oidc-issuer-url=https://{{keycloak_host}}/realms/home-k8s --exec-arg=--oidc-client-id=kubernetes --exec-arg=--oidc-pkce-method=S256 --exec-arg=--skip-open-browser
+    kubectl config set-context oidc@{{kind_cluster}} --cluster={{kube_context}} --user=oidc@{{kind_cluster}}

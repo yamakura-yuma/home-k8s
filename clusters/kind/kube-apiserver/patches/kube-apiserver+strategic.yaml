@@ -1,0 +1,6 @@
+# kubeadm が作る kube-apiserver の static Pod への patch (kind-config.yaml の InitConfiguration の patches.directory)。
+# API server は control-plane のホストのネットワークで動くので、既定 (ClusterFirst) ではノードの resolv.conf を引く。
+# それを CoreDNS にし、Pod と同じ経路 (CoreDNS の rewrite → Tailscale の egress → Keycloak の Ingress) で
+# issuer の discovery と JWKS を引かせる。理由と他の案は docs/cluster/kube-oidc.md の「API server から issuer に届かせる」。
+spec:
+  dnsPolicy: ClusterFirstWithHostNet

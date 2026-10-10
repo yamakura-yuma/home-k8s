@@ -3,6 +3,31 @@ apiVersion: kind.x-k8s.io/v1alpha4
 name: study-kind
 nodes:
   - role: control-plane
+    # API server の OIDC (Keycloak の ID トークン。docs/cluster/kube-oidc.md)。clusters/kind/kube-apiserver を
+    # `just up` がホストの ${HOME}/.local/share/home-k8s/kube-apiserver に置き、ノードの /etc/kubernetes/home-k8s に見せる。
+    # ディレクトリごと見せるので、just up が置き直した authentication-config.yaml を API server が読み直す。
+    extraMounts:
+      - hostPath: ${HOME}/.local/share/home-k8s/kube-apiserver
+        containerPath: /etc/kubernetes/home-k8s
+        readOnly: true
+    kubeadmConfigPatches:
+      - |
+        kind: ClusterConfiguration
+        apiServer:
+          # kind は merge patch で重ねるので、この配列は kind の既定 (runtime-config の空の値) を置き換えるはず [未確認]。値は空なので動きは変わらない
+          extraArgs:
+            - name: authentication-config
+              value: /etc/kubernetes/home-k8s/authentication-config.yaml
+          extraVolumes:
+            - name: home-k8s
+              hostPath: /etc/kubernetes/home-k8s
+              mountPath: /etc/kubernetes/home-k8s
+              readOnly: true
+              pathType: Directory
+      - |
+        kind: InitConfiguration
+        patches:
+          directory: /etc/kubernetes/home-k8s/patches
     # 観測スタック (docs/observability/claude-code-traces.md) の受け口と、各画面。
     # NodePort はどのノードでも受けられるので、ホストへの公開は control-plane に集約する。
     extraPortMappings:

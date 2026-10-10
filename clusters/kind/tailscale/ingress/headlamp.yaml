@@ -1,4 +1,4 @@
-# Headlamp (https://headlamp.<tailnet>.ts.net)。ログインは今までどおり just show headlamp のトークン
+# Headlamp (https://headlamp.<tailnet>.ts.net)。ログインは Keycloak の OIDC (callback もこの URL。docs/cluster/kube-oidc.md)
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
