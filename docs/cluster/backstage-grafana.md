@@ -89,8 +89,8 @@ Grafana の横のサイドカー (`backstage-user`、`curlimages/curl`) が、Po
 | `env-prometheus` | `prometheus` 29.35.0 | cAdvisor だけをスクレイプし、`metric_relabel_configs` で、その環境の namespace の `container_cpu_usage_seconds_total`・`container_memory_working_set_bytes`・`container_network_{receive,transmit}_bytes_total` だけを残す。OTLP の受信も開ける。ClusterRole の名前は `prometheus-server-<環境>` (`prometheus-server` は `observability` が使っていて、クラスタに 1 つしか置けない) |
 | `env-loki` | `loki` 18.13.7 | 単一バイナリ。OTLP (`/otlp`) を受ける。保持 2 日。ClusterRole を作らず namespace の Role にする (`rbac.namespaced`) |
 | `env-tempo` | `tempo` 3.0.0 | 単一バイナリ。OTLP を受ける。保持 2 日 |
-| `env-otel-collector` | `opentelemetry-collector` 0.174.0 | DaemonSet (worker の数だけ Pod)。その環境の `sample-api` の Pod のログ (`/var/log/pods/<環境>_sample-api-*/*/*.log`) を filelog で読み、アプリからの OTLP と合わせて同じ環境の Tempo・Prometheus・Loki へ渡す。スタック自身のログは読まない (Loki のログが Loki に入って増え続けるのを避ける)。受け口は Service `otel-collector-opentelemetry-collector` (ClusterIP、4317・4318。daemonset モードの chart は既定では Service を作らないので `service.enabled: true` を置く。Service は `internalTrafficPolicy: Local` が既定で、同じノードの Collector にしか届かない) |
-| `env-grafana` | `grafana` 13.2.7 | データソースは同じ namespace の Prometheus・Loki・Tempo (Service 名は namespace の中の名前で引ける)。ダッシュボードは ConfigMap から provisioning。NodePort 30301 (dev)・30302 (prod)。匿名アクセスなし。ClusterRole を作らず namespace の Role にする |
+| `env-otel-collector` | `opentelemetry-collector` 0.174.0 | DaemonSet (worker の数だけ Pod)。その環境の `sample-api` の Pod のログ (`/var/log/pods/<環境>_sample-api-*/*/*.log`) を filelog で読み、アプリからの OTLP と合わせて同じ環境の Tempo・Prometheus・Loki へ渡す。スタック自身のログは読まない (Loki のログが Loki に入って増え続けるのを避ける)。受け口は Service `otel-collector-opentelemetry-collector` (ClusterIP、4317・4318。daemonset モードの chart は既定では Service を作らないので `service.enabled: true` を置く。Service は `internalTrafficPolicy: Local` が既定で、同じノードの Collector にしか届かない。chart は既定で 4317・4318 を hostPort でノードに開けるが、dev と prod が同じノードで取り合って片方が Pending になるので `ports.otlp.hostPort`・`ports.otlp-http.hostPort` を `null` にして使わない。`just ci` が描画した manifest に hostPort が無いことを確かめる) |
+| `env-grafana` | `grafana` 13.2.7 | データソースは同じ namespace の Prometheus・Loki・Tempo (Service 名は namespace の中の名前で引ける)。ダッシュボードは ConfigMap から provisioning。NodePort 30301 (dev)・30302 (prod)。匿名アクセスなし。ClusterRole を作らず namespace の Role にする。`startupProbe` (10 秒 × 90 回) で起動の完了を待ってから liveness を始める。メモリの limits は 512Mi |
 
 `sample-api` のダッシュボード (`sample-api.json`) は、Pod の CPU・メモリ・受信・送信 (Prometheus) と、ログ (Loki) を出す。
 `sample-api` は標準ライブラリだけの HTTP サーバーでトレースもアプリのメトリクスも出さないので、Tempo と Prometheus の OTLP の入口は
@@ -108,12 +108,12 @@ Grafana の横のサイドカー (`backstage-user`、`curlimages/curl`) が、Po
 | Loki | 64Mi | 192Mi | 〜70Mi |
 | Tempo | 64Mi | 192Mi | 〜100Mi (空に近い) |
 | OTel Collector (DaemonSet。worker 2 台なので 2 Pod。control-plane には taint があり tolerations を置かない) | 64Mi | 192Mi | 〜80Mi |
-| Grafana (+ サイドカー) | 96Mi (+8Mi) | 256Mi (+32Mi) | 〜150Mi |
-| **1 環境** | **392Mi** | **1.0GiB** | **〜500Mi** |
-| **2 環境 (dev・prod)** | **784Mi** | **2.1GiB** | **〜1.0GiB** |
+| Grafana (+ サイドカー) | 192Mi (+8Mi) | 512Mi (+32Mi) | 〜240Mi (dev・prod の実測は anon 180〜230Mi。256Mi の limit では張り付いた) |
+| **1 環境** | **488Mi** | **1.3GiB** | **〜590Mi** |
+| **2 環境 (dev・prod)** | **976Mi** | **2.6GiB** | **〜1.2GiB** |
 
-環境の土台の見積もり (観測スタック ×2 で +2.6〜3.6GiB、kind 全体で 5〜6GiB) より小さくなる。要るのは `requests` の 784Mi と、
-実使用の〜1.0GiB。Pod は 1 環境で 6 つ (Prometheus・Loki・Tempo・Collector ×2・Grafana)、2 環境で 12 になり、inotify の instance
+環境の土台の見積もり (観測スタック ×2 で +2.6〜3.6GiB、kind 全体で 5〜6GiB) より小さくなる。要るのは `requests` の 976Mi と、
+実使用の〜1.2GiB。Pod は 1 環境で 6 つ (Prometheus・Loki・Tempo・Collector ×2・Grafana)、2 環境で 12 になり、inotify の instance
 (`fs.inotify.max_user_instances`、このホストは 128) も使う。Pod が `too many open files` で起動しないときは、ホストで `sudo sysctl -w fs.inotify.max_user_instances=512` を打つ (要 root)。
 
 ## 確かめ方 (マージ後)
@@ -178,4 +178,6 @@ dev と prod の違いが見えるよう、prod の Grafana にだけ「prod 専
 | Backstage の Pod が `CreateContainerConfigError` | Secret `backstage-grafana-env` が無い。`just up` の `_grafana-env-secrets` が失敗していないか |
 | Backstage が起動時に落ちる (Grafana の host) | `grafana.hosts` の `proxyPath` が host で重なっている、`defaultHost` の id が `hosts` に無い、`id` が重なっている |
 | ダッシュボードのリンクが開かない | `localhost:3001`・`3002` は kind-config の `extraPortMappings` (#86 で入った) が効いたクラスタだけで開く。古いクラスタなら `just down && just up` で作り直す |
+| 環境の Collector が Pending (`didn't have free ports`) | hostPort が重なっている。`kubectl -n dev get pod -l app.kubernetes.io/name=opentelemetry-collector -o jsonpath='{..hostPort}'` が空であること。`values.yaml` の `ports.otlp.hostPort`・`ports.otlp-http.hostPort` が `null` か |
+| Grafana が CrashLoopBackOff (ログが `Installed APIs for app ...` のあたりで止まり、`failed liveness probe`) | 最初の起動 (DB のマイグレーション) が遅く、liveness の猶予を超えて殺されている。`startupProbe` が入っているか (`kubectl -n dev get deploy grafana -o jsonpath='{.spec.template.spec.containers[0].startupProbe}'`)。`Last State` が `OOMKilled` でなくても、メモリが limits に張り付くと回収が走って遅くなる (cgroup の `memory.events` の `max`)。limits は 512Mi |
 | Prometheus の ClusterRole が重なる | `clusterRoleNameOverride` が環境ごとの名前 (`prometheus-server-<環境>`) になっているか |

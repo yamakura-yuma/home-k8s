@@ -9,6 +9,7 @@
 #   3. kustomize build / 素の manifest  同じ Application の path (dashboards、storage、headlamp/manifests)
 #   4. kubeconform     3 までの出力を、kind の Kubernetes の版のスキーマに照らす
 #   5. kube-linter     3 までの出力 (.kube-linter.yaml)
+#   5b. hostPort       3 までの出力で、同じ hostPort を 2 つ以上のワークロードが使わないこと、環境 (dev・prod) の Collector が hostPort を使わないこと
 #   6. share の公開の入口  share namespace に同期する manifest に NodePort・LoadBalancer の Service と Ingress が無いこと (yq)
 #   7. unittest        share の認証サービスと、share Pod の Caddyfile の経路・manifest (clusters/kind/share)。caddy と認証サービスを空きポートで起動し、
 #                      偽の upstream に向けて、認証なし・許可リスト外・delete・期限切れ・認証サービスに届かないときの拒否を確かめる。クラスタにもネットワークにも出ない
@@ -114,6 +115,19 @@ exposed=$(yq 'select(.kind == "Ingress" or (.kind == "Service" and (.spec.type =
                        | .kind + "/" + .metadata.name' "${share_renders[@]}")
 [ -z "$exposed" ] || { echo "share に公開の入口が入っている: $exposed" >&2; exit 1; }
 echo "ok (${share_renders[*]##*/})"
+
+echo "== hostPort (同じノードに置く Pod が同じ hostPort を取り合わないこと) =="
+# 環境ごとの Collector (daemonset) は chart の既定で 4317・4318 を hostPort に開け、dev と prod が同じノードで取り合って Pending になった。
+# 描画した全ワークロードの hostPort を集め、同じ port/protocol を 2 つ以上のワークロードが使っていたら落とす。環境の Collector は使わない
+host_ports=$(yq -N 'select(.kind == "DaemonSet" or .kind == "Deployment" or .kind == "StatefulSet")
+                 | (.metadata.namespace + "/" + .metadata.name) as $w
+                 | .spec.template.spec.containers[] | (.ports // [])[] | select(has("hostPort"))
+                 | (.hostPort | tostring) + "/" + (.protocol // "TCP") + " " + $w' "$out"/*.yaml)
+dup=$(awk '{print $1}' <<<"$host_ports" | sort | uniq -d)
+[ -z "$dup" ] || { echo "同じ hostPort を 2 つ以上のワークロードが使っている: $dup" >&2; echo "$host_ports" >&2; exit 1; }
+env_host_ports=$(grep -E ' [^/ ]+/[^ ]*otel-collector[^ ]*$' <<<"$host_ports" | grep -E ' (dev|prod)/' || true)
+[ -z "$env_host_ports" ] || { echo "環境 (dev・prod) の Collector が hostPort を使っている: $env_host_ports" >&2; exit 1; }
+echo "ok (hostPort のワークロード: $(grep -c . <<<"$host_ports" || true))"
 
 # caddy の試験は caddy が無いと飛ばされるので、CI では無いことを失敗にする
 command -v caddy >/dev/null || { echo "caddy が無い (devShells.ci に入っているはず)" >&2; exit 1; }
