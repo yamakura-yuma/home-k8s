@@ -3,7 +3,8 @@
 # 1 つの kind に 2 環境を載せるので、メモリを詰めてある (各サーバーはレプリカ 1、requests/limits を置く)。
 # DB は同じ namespace の PostgreSQL (clusters/kind/temporal/base/postgres.yaml)。chart は DB を持たない。
 
-# Web UI は ClusterIP のまま。ホストへは proxy temporal-ui-embed (X-Frame-Options を外して Backstage の iframe に出す) が出す
+# Web UI は ClusterIP のまま。tailnet へは proxy temporal-ui-embed (X-Frame-Options を外して Backstage の iframe に出す) が出す。
+# ログインは Keycloak の OIDC (TEMPORAL_AUTH_*)。client が環境ごとに違うので、環境変数は values-<環境>.yaml に置く (docs/cluster/temporal.md)
 web:
   replicaCount: 1
   resources:
@@ -29,6 +30,18 @@ server:
   replicaCount: 1
   config:
     logLevel: "info"
+    # 権限はサーバーが決める (Web UI はトークンを frontend に渡すだけで、自分では何も拒まない)。Keycloak の JWKS で署名を確かめ、
+    # アクセストークンの permissions クレームを既定の claim mapper で読む。値は Keycloak の client temporal-<環境> の client role で、
+    # グループ admins に temporal-system:admin、viewers に temporal-system:read を付けてある (realm-home-k8s.yaml)。
+    # トークンの無い呼び出し・permissions の無いトークンは拒まれる。サーバー同士 (worker・namespace のジョブ) は下の internal-frontend を通る
+    authorization:
+      jwtKeyProvider:
+        keySourceURIs:
+          - https://keycloak.taild2b611.ts.net/realms/home-k8s/protocol/openid-connect/certs
+        refreshInterval: 1m
+      permissionsClaimName: permissions
+      authorizer: default
+      claimMapper: default
     persistence:
       # シャードの数は DB を作った後で変えられない。学習用なので小さくして、history のメモリを抑える (既定は 512)
       numHistoryShards: 4
@@ -67,6 +80,16 @@ server:
       requests:
         cpu: 20m
         memory: 128Mi
+      limits:
+        memory: 384Mi
+  # 認可を通らない内部用の frontend。worker サービスと namespace を作るジョブがこちらを使う (chart が向け先を切り替える)。
+  # これが無いと、authorization を入れた frontend がトークンの無いサーバー同士の呼び出しを拒む。Service は ClusterIP だけ
+  internal-frontend:
+    enabled: true
+    resources:
+      requests:
+        cpu: 20m
+        memory: 96Mi
       limits:
         memory: 384Mi
   history:

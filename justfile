@@ -34,7 +34,7 @@ ci:
     exec just/ci.sh
 
 # kind のクラスタを作り、Tailscale の operator の Secret を作り (ファイルが無ければここで止まる)、Backstage のイメージを入れ、ArgoCD を入れ、Secret を作り、
-# ArgoCD と Grafana の OIDC の client の Secret を作り、Pod から Keycloak の issuer に届くよう CoreDNS を設定して、観測スタック・Headlamp・Backstage・Tailscale・Keycloak の同期を待つ。
+# ArgoCD・Grafana・Temporal UI・Backstage の OIDC の client の Secret を作り、Pod から Keycloak の issuer に届くよう CoreDNS を設定して、観測スタック・Headlamp・Backstage・Tailscale・Keycloak の同期を待つ。
 # 打ち直しても同じ状態に戻るだけ。
 
 # kind のクラスタを作り、ArgoCD・Secret・観測スタック・Headlamp・Backstage を立ち上げる
@@ -69,8 +69,8 @@ show what="":
     @{{ if what =~ '^(|headlamp)$' { 'echo "  URL:      http://localhost:4466"' } else { "" } }}
     @{{ if what =~ '^(|headlamp)$' { 'echo "  トークン: $(cat "' + headlamp_token_file + '")"' } else { "" } }}
     @{{ if what == "" { "echo '== backstage =='" } else { "" } }}
-    @{{ if what =~ '^(|backstage)$' { 'echo "  URL:      http://localhost:7007"' } else { "" } }}
-    @{{ if what =~ '^(|backstage)$' { 'echo "  ログイン: ゲスト"' } else { "" } }}
+    @{{ if what =~ '^(|backstage)$' { 'echo "  URL:      https://backstage.taild2b611.ts.net (Keycloak でログイン)"' } else { "" } }}
+    @{{ if what =~ '^(|backstage)$' { 'echo "            http://localhost:7007 (ゲスト。読むだけ)"' } else { "" } }}
 
 # 公開の本体は常駐する share Pod (clusters/kind/share)。人ごとの資格情報を Secret share-credentials に足す・消す・引く (docs/cluster/share.md)。
 # 検査 (名前・--ttl・--permanent の併用) はクラスタに触れる前に just/share.sh が行う。

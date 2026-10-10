@@ -2,7 +2,7 @@
 
 kind の UI を、tailnet の端末から `https://<名前>.<tailnet>.ts.net` で開けるようにする。
 [access-control.md](access-control.md) と [idp-options.md](idp-options.md) の「移行の段取り」の単位 1 にあたる。
-この単位では認証を変えていない。ArgoCD と Grafana ×3 は後の単位 3 で Keycloak の SSO にした (tailnet の URL で使う。[keycloak.md](keycloak.md) の「各 UI の OIDC」)。ほかの UI のログインは今までどおり (`just show`)。
+この単位では認証を変えていない。ArgoCD と Grafana ×3 は後の単位 3 で、Temporal UI ×2 と Backstage は単位 4 で Keycloak の SSO にした (tailnet の URL で使う。[keycloak.md](keycloak.md) の「各 UI の OIDC」)。ほかの UI のログインは今までどおり (`just show`)。
 
 - tailnet: `<tailnet>` = **`taild2b611.ts.net`** (Personal プラン、2026-10-10 に作成)。例: ArgoCD は `https://argocd.taild2b611.ts.net`
 - 入れたもの: Tailscale の Kubernetes operator (chart `tailscale-operator` 1.102.4、namespace `tailscale`。[apps/tailscale-operator.yaml](../../clusters/kind/argocd/apps/tailscale-operator.yaml))
@@ -14,12 +14,12 @@ kind の UI を、tailnet の端末から `https://<名前>.<tailnet>.ts.net` �
 | UI | URL | Ingress (namespace/名前) | つなぐ Service |
 |---|---|---|---|
 | ArgoCD | `https://argocd.<tailnet>.ts.net` | argocd/argocd | argocd-server:80 |
-| Backstage | `https://backstage.<tailnet>.ts.net` | backstage/backstage | backstage:7007 |
+| Backstage | `https://backstage.<tailnet>.ts.net` | backstage/backstage | backstage-tailnet:80 (ゲストのサインインを拒む proxy の先が backstage:7007。単位 4) |
 | Grafana (観測スタック) | `https://grafana.<tailnet>.ts.net` | observability/grafana | grafana:80 |
 | Grafana (dev) | `https://grafana-dev.<tailnet>.ts.net` | dev/grafana-dev | grafana:80 |
 | Grafana (prod) | `https://grafana-prod.<tailnet>.ts.net` | prod/grafana-prod | grafana:80 |
-| Temporal UI (dev) | `https://temporal-dev.<tailnet>.ts.net` | dev/temporal-dev | temporal-web:8080 |
-| Temporal UI (prod) | `https://temporal-prod.<tailnet>.ts.net` | prod/temporal-prod | temporal-web:8080 |
+| Temporal UI (dev) | `https://temporal-dev.<tailnet>.ts.net` | dev/temporal-dev | temporal-ui-embed:80 (iframe 用の proxy の先が temporal-web:8080。単位 4) |
+| Temporal UI (prod) | `https://temporal-prod.<tailnet>.ts.net` | prod/temporal-prod | temporal-ui-embed:80 (同上) |
 | Headlamp | `https://headlamp.<tailnet>.ts.net` | headlamp/headlamp | headlamp:80 |
 | Keycloak | `https://keycloak.<tailnet>.ts.net` | auth/keycloak | keycloak-service:8080 |
 
@@ -41,8 +41,10 @@ tailnet の端末 ─ HTTPS (Tailscale の証明書) ─▶ proxy Pod (tag:k8s�
   自宅の 1 クラスタで、proxy の再起動中の数秒の断は受け入れる。proxy は Ingress の 9 つ (Keycloak を含む) と egress の 1 つで、Personal のタグ付きリソースの上限 50 に収まる
 - **Ingress は UI の chart の外に置く** (`clusters/kind/tailscale/ingress`、各 manifest が namespace を書く)。UI の chart と values を変えずに足し引きでき、
   tailnet に何を出しているかが 1 か所で見える。Ingress は Service と同じ namespace に要るので、namespace は manifest ごとに書く
-- **Temporal UI は iframe 用の proxy (`temporal-ui-embed`) ではなく chart の Web UI (`temporal-web`) につなぐ**。
-  `temporal-ui-embed` は Backstage のタブの iframe のための proxy で、`frame-ancestors` は `http://localhost:7007` だけを許す ([temporal.md](temporal.md))
+- **Temporal UI は iframe 用の proxy (`temporal-ui-embed`) につなぐ** (単位 4 で変えた。単位 1 では chart の Web UI `temporal-web` に直につないでいた)。
+  Web UI のログインの callback が tailnet の URL なので、Backstage のタブの iframe も tailnet の URL を開く。`frame-ancestors` は
+  `https://backstage.taild2b611.ts.net` だけを許す ([temporal.md](temporal.md))
+- **Backstage はゲストのサインインを拒む proxy (`backstage-tailnet`) につなぐ** (単位 4)。tailnet からは Keycloak でだけサインインできる ([backstage.md](backstage.md) の「ログインと権限」)
 - **operator の API server proxy は使わない** (`apiServerProxyConfig.mode: "false"`)。kind の API server は単位 6 で Keycloak の OIDC につなぐ
 
 ### tag と ACL (最小の形)
@@ -130,9 +132,9 @@ tailnet の別の端末 (Tailscale のアプリを入れてログインした端
 
 ## 制約と、この単位でしていないこと
 
-- **Backstage の中のリンクと埋め込みは localhost を指したまま**。Temporal のタブ (iframe、`http://localhost:8233`)・Grafana と ArgoCD へのリンクは、
-  ホストの外の端末からは開けない。Backstage の画面そのものは、フロントエンドが `app.baseUrl` と `backend.baseUrl` を開いたオリジンに置き換えるので
-  (`@backstage/frontend-defaults` の overrideBaseUrlConfigs) ts.net でも動く
+- **Backstage の中のリンクは localhost を指したまま**。Grafana と ArgoCD へのリンクは、ホストの外の端末からは開けない。
+  Temporal のタブ (iframe) は単位 4 で tailnet の URL にした。Backstage の `app.baseUrl` と `backend.baseUrl` は単位 4 で tailnet の URL にした
+  (OIDC の callback のため)。フロントエンドは baseUrl を開いたオリジンに置き換える (`@backstage/frontend-defaults` の overrideBaseUrlConfigs) ので、localhost でも画面は動く
 - **share (`just share`) は触っていない**。Tailscale に招待できない相手に見せる経路として残る ([share.md](share.md))
 - Funnel (インターネットへの公開) は使わない
 - 証明書は Let's Encrypt の上限 (tailnet あたり週 50 のホスト名) に数える。クラスタを作り直しても同じ名前なら新しい名前は増えない

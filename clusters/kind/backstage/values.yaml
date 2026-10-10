@@ -1,5 +1,5 @@
 # backstage/charts の backstage chart の values。
-# ホストの localhost:7007 で開く (NodePort + kind の extraPortMappings)。
+# tailnet の https://backstage.<tailnet>.ts.net (Keycloak でログイン) と、ホストの localhost:7007 (NodePort + kind の extraPortMappings。ゲスト) で開く。
 # イメージは repo の backstage/ から `just up` が手元で build して kind load したもの。
 # レジストリから pull しないので、タグは固定して pullPolicy は Never にする。
 # タグを変えるときは just/backstage.just の backstage_image と揃える。
@@ -7,7 +7,7 @@ backstage:
   image:
     registry: ""
     repository: home-k8s-backstage
-    tag: "0.10.0"
+    tag: "0.11.0"
     pullPolicy: Never
 
   # イメージの app-config.yaml に、下の appConfig (chart が ConfigMap にする) を重ねる
@@ -15,11 +15,15 @@ backstage:
 
   # GRAFANA_BASIC_AUTH (Grafana の閲覧用ユーザー backstage の資格情報)、GRAFANA_DEV_BASIC_AUTH・GRAFANA_PROD_BASIC_AUTH
   # (環境の Grafana の同じユーザーの資格情報)、ARGOCD_AUTH_TOKEN (ArgoCD の読み取り専用アカウント backstage の API トークン)。
-  # どれも `just up` が Git の外のファイルから作る Secret を名前で参照する
+  # どれも `just up` が Git の外のファイルから作る Secret を名前で参照する。
+  # AUTH_OIDC_CLIENT_SECRET (Keycloak の client backstage の secret) と AUTH_SESSION_SECRET (session の cookie の署名鍵) は
+  # `just up` の _oidc-secrets が作る (docs/cluster/backstage.md の「ログインと権限」)
   extraEnvVarsSecrets:
     - backstage-grafana
     - backstage-grafana-env
     - backstage-argocd
+    - backstage-oidc
+    - backstage-session
 
   # Azure のタブの資格情報 (AZURE_*)。`just up` が Git の外のファイル ~/.local/share/home-k8s/backstage/azure.env から Secret
   # backstage-azure を作る。ファイルが無いと Secret も無いので、optional にして Pod は起動させる (環境変数が無ければ

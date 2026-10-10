@@ -1,9 +1,12 @@
 // home-k8s の Backstage のバックエンド。カタログ (Git の catalog-info.yaml)、
 // Grafana・ArgoCD・サービスの API を読むためのプロキシ、TechDocs (文書の build と配信) と検索、
-// Azure (azure-sites のバックエンドと、リソースのカタログへの取り込み) を載せる。
+// Azure (azure-sites のバックエンドと、リソースのカタログへの取り込み)、ログイン (Keycloak の OIDC とゲスト) と
+// permission framework を載せる。
 import { createBackend } from '@backstage/backend-defaults';
 import { azureResourcesFeatureLoader } from './azureResources';
 import { azureSitesFeatureLoader } from './azureSites';
+import { authModuleKeycloakOidc } from './keycloakAuth';
+import { permissionModuleAdminsWritePolicy } from './permissionPolicy';
 import { searchModuleEmptyOnMissingIndex } from './searchEngine';
 
 const backend = createBackend();
@@ -11,9 +14,16 @@ const backend = createBackend();
 backend.add(import('@backstage/plugin-app-backend'));
 backend.add(import('@backstage/plugin-proxy-backend'));
 
-// ログインはゲストだけ (127.0.0.1 と、人ごとの資格情報つきの share Pod にしか出さない)
+// ログインは tailnet (https://backstage.<tailnet>.ts.net) では Keycloak の OIDC (keycloakAuth.ts)。
+// ゲストは 127.0.0.1 と、人ごとの資格情報つきの share Pod のためだけに残す。tailnet の入口 (Ingress の前の proxy) が
+// ゲストの経路 /api/auth/guest を拒むので、tailnet からはゲストでサインインできない (docs/cluster/backstage.md)
 backend.add(import('@backstage/plugin-auth-backend'));
+backend.add(authModuleKeycloakOidc);
 backend.add(import('@backstage/plugin-auth-backend-module-guest-provider'));
+
+// 書き込み (カタログの登録・削除など) は admins だけ。ゲストと viewers は読むだけ (permissionPolicy.ts)
+backend.add(import('@backstage/plugin-permission-backend'));
+backend.add(permissionModuleAdminsWritePolicy);
 
 backend.add(import('@backstage/plugin-catalog-backend'));
 backend.add(import('@backstage/plugin-catalog-backend-module-logs'));

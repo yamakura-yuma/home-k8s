@@ -5,3 +5,28 @@ server:
       namespace:
         - name: default
           retention: 1d
+
+# Web UI のログイン (Keycloak の client temporal-dev)。callback は tailnet の URL (Ingress → temporal-ui-embed → temporal-web)。
+# client の secret は Secret temporal-oidc (just up の _oidc-secrets が Git の外のファイルから作る)。
+# REDIRECT_TO_PROVIDER は、ログインのボタンを挟まず Keycloak へ送る (Backstage のタブの iframe でも、Keycloak のセッションがあればそのまま入れる)
+web:
+  additionalEnv:
+    - name: TEMPORAL_AUTH_ENABLED
+      value: "true"
+    - name: TEMPORAL_AUTH_TYPE
+      value: oidc
+    - name: TEMPORAL_AUTH_PROVIDER_URL
+      value: https://keycloak.taild2b611.ts.net/realms/home-k8s
+    - name: TEMPORAL_AUTH_CLIENT_ID
+      value: temporal-dev
+    - name: TEMPORAL_AUTH_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: temporal-oidc
+          key: client-secret
+    - name: TEMPORAL_AUTH_CALLBACK_URL
+      value: https://temporal-dev.taild2b611.ts.net/auth/sso/callback
+    - name: TEMPORAL_AUTH_SCOPES
+      value: openid,profile,email
+    - name: TEMPORAL_AUTH_REDIRECT_TO_PROVIDER
+      value: "true"

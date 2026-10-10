@@ -25,13 +25,35 @@ spec:
   lifecycle: experimental
   owner: user:yamakura-yuma
 ---
-# 上の owner。Backstage にユーザーの連携は入れていないので、ここで 1 人だけ置く
+# 上の owner。ユーザーとグループは Keycloak から取り込まず、ここに静的に置く (docs/cluster/backstage.md の「ログインと権限」)。
+# Keycloak でサインインした人は、ここに無くてもサインインできる (名前は Keycloak のユーザー名)。
+# グループに入っているか (= 権限) は、サインインのときの Keycloak の groups クレームで決まる。ここの memberOf と members は書かない
+# (書くと Keycloak とずれうる。Keycloak のグループを変えたら、ここは変えなくてよい)
 apiVersion: backstage.io/v1alpha1
 kind: User
 metadata:
   name: yamakura-yuma
 spec:
   memberOf: []
+---
+# Keycloak の realm home-k8s のグループ (表示用)。admins は書き込み (カタログの登録・削除など) ができ、viewers は読むだけ
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: admins
+  description: 管理者。Keycloak のグループ admins。Backstage では何でもできる
+spec:
+  type: team
+  children: []
+---
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: viewers
+  description: 閲覧者。Keycloak のグループ viewers。Backstage では読むだけ
+spec:
+  type: team
+  children: []
 ---
 # repo の中のサービスのエンティティ。サービスのコードの隣の catalog-info.yaml を読む (相対パスはこのファイルから)
 apiVersion: backstage.io/v1alpha1

@@ -126,7 +126,10 @@ class Realm(unittest.TestCase):
         self.assertIn("protocolMapper: oidc-group-membership-mapper", self.realm)
         self.assertIn('full.path: "false"', self.realm)
         self.assertIn("claim.name: groups", self.realm)
-        self.assertRegex(self.realm, r"groups:\n      - name: admins\n      - name: viewers\n")
+        # グループは admins・viewers の 2 つだけで、入れ子 (subGroups) にしない。clientRoles は Temporal の permissions のため (単位 4)
+        groups = re.search(r"\n    groups:\n((?:      .*\n)+)", self.realm).group(1)
+        self.assertEqual(re.findall(r"^      - name: (\S+)$", groups, re.M), ["admins", "viewers"])
+        self.assertNotIn("subGroups", groups)
         # 既定の client scope (profile・email など) も作らせる
         self.assertIn('CreateDefaultClientScopes: "true"', self.realm)
 

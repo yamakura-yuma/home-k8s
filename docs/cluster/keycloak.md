@@ -87,9 +87,9 @@ client (単位 3〜6 で使うものを先に全部置いた)。redirect URI は
 | `argocd` | confidential | 3 | `https://argocd.taild2b611.ts.net/auth/callback` |
 | `argocd-cli` | public + PKCE | 3 (`argocd login --sso`、oidc.config の `cliClientID`) | `http://localhost:8085/auth/callback` |
 | `grafana`・`grafana-dev`・`grafana-prod` | confidential | 3 | `https://grafana{,-dev,-prod}.taild2b611.ts.net/login/generic_oauth` |
-| `temporal-dev`・`temporal-prod` | confidential | 4 | `https://temporal-{dev,prod}.taild2b611.ts.net/auth/sso/callback` |
+| `temporal-dev`・`temporal-prod` | confidential | 4 | `https://temporal-{dev,prod}.taild2b611.ts.net/auth/sso/callback`。client role `temporal-system:admin`・`temporal-system:read` と mapper `permissions` (単位 4 で足した) |
 | `backstage` | confidential | 4 | `https://backstage.taild2b611.ts.net/api/auth/*` (provider の名前で callback のパスが変わるため) |
-| `oauth2-proxy` | confidential | 4 | `https://oauth2-proxy.taild2b611.ts.net/oauth2/callback` (**仮**。置くホストは単位 4 で決める) |
+| `oauth2-proxy` | confidential | (まだ使っていない) | `https://oauth2-proxy.taild2b611.ts.net/oauth2/callback` (**仮**。単位 4 では置く対象が無かった。下の「OIDC を持たない UI と oauth2-proxy」) |
 | `headlamp` | confidential | 5 | `https://headlamp.taild2b611.ts.net/oidc-callback` |
 | `kubernetes` | public + PKCE | 6 (kubelogin) | `http://localhost:8000`、`http://localhost:18000` |
 
@@ -207,14 +207,17 @@ kc "kcadm update realms/home-k8s -s otpPolicyType=totp -s otpPolicyAlgorithm=Hma
 
 ## 各 UI の OIDC
 
-単位 3 で ArgoCD と Grafana ×3 を realm `home-k8s` につないだ。どれも issuer の URL を Pod からも引く (上の「Pod から issuer に届かせる」)。
-グループと権限は各 UI の設定に書く (Keycloak の側ではグループに入れるだけ)。
+単位 3 で ArgoCD と Grafana ×3 を、単位 4 で Temporal UI ×2 と Backstage を realm `home-k8s` につないだ。どれも issuer の URL を Pod からも引く (上の「Pod から issuer に届かせる」)。
+グループと権限は各 UI の設定に書く (Keycloak の側ではグループに入れるだけ)。例外は Temporal で、サーバーがグループを読めないので、
+client `temporal-<環境>` の client role をグループに付け、`permissions` クレームにしている ([temporal.md](temporal.md) の「ログインと権限」)。
 
 | UI | URL (SSO) | client | 設定 | admins | viewers | どちらでもない |
 |---|---|---|---|---|---|---|
 | ArgoCD | `https://argocd.taild2b611.ts.net` | `argocd` (UI)・`argocd-cli` (`argocd login --sso`、public + PKCE) | [values.yaml](../../clusters/kind/argocd/values.yaml) の `configs.cm` の `url`・`oidc.config`、`configs.rbac` の `policy.csv` | `role:admin` | `role:readonly` | ログインはできるが何も見えない (`policy.default` は空) |
 | Grafana (観測スタック) | `https://grafana.taild2b611.ts.net` | `grafana` | [grafana-values.yaml](../../clusters/kind/observability/grafana-values.yaml) の `grafana.ini` の `server.root_url`・`auth.generic_oauth` | Admin | Viewer | ログインを断る (`role_attribute_strict`) |
 | Grafana (dev・prod) | `https://grafana-dev.…`・`https://grafana-prod.…` | `grafana-dev`・`grafana-prod` | [env-grafana/values.yaml](../../clusters/kind/env-grafana/values.yaml) (共通) と `values-<環境>.yaml` (`client_id`・`root_url`) | Admin | Viewer | 同上 |
+| Temporal UI (dev・prod) | `https://temporal-dev.…`・`https://temporal-prod.…` | `temporal-dev`・`temporal-prod` | [temporal/values-<環境>.yaml](../../clusters/kind/temporal/values-dev.yaml) の `web.additionalEnv` (`TEMPORAL_AUTH_*`)、[values.yaml](../../clusters/kind/temporal/values.yaml) の `server.config.authorization` | `temporal-system:admin` (すべて) | `temporal-system:read` (読むだけ) | ログインはできるが、どの API も 403 |
+| Backstage | `https://backstage.taild2b611.ts.net` | `backstage` | [app-config.yaml](../../backstage/app-config.yaml) の `auth.providers.oidc`、sign-in resolver とポリシー (`packages/backend/src/keycloakAuth.ts`・`permissionPolicy.ts`) | 何でもできる | 読むだけ (登録・削除・再読み込みは拒否) | サインインを断る |
 
 - **ArgoCD は Keycloak を直に見る**。同梱の Dex は使わない (`dex.enabled: false` のまま)。groups は realm の既定の client scope `groups` で ID トークンに入り、ArgoCD は既定の `scopes: [groups]` で読む。
   ArgoCD のユーザー名はメールアドレスになる (`test-admin@example.invalid` など)。グループはログインのときにだけ読まれるので、グループを変えたらログインし直す
@@ -231,9 +234,25 @@ kc "kcadm update realms/home-k8s -s otpPolicyType=totp -s otpPolicyAlgorithm=Hma
 | `argocd/argocd-oidc-keycloak` (ラベル `app.kubernetes.io/part-of: argocd`) | `clientSecret` | `argocd` | `oidc.config` の `$argocd-oidc-keycloak:clientSecret`。ArgoCD はこのラベルの付いた Secret しか読まない |
 | `observability/grafana-oidc` | `client-secret` | `grafana` | 環境変数 `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET` (chart の `envValueFrom`) |
 | `dev/grafana-oidc`・`prod/grafana-oidc` | `client-secret` | `grafana-dev`・`grafana-prod` | 同上 |
+| `dev/temporal-oidc`・`prod/temporal-oidc` | `client-secret` | `temporal-dev`・`temporal-prod` | Temporal Web UI の環境変数 `TEMPORAL_AUTH_CLIENT_SECRET` (chart の `web.additionalEnv`) |
+| `backstage/backstage-oidc` | `AUTH_OIDC_CLIENT_SECRET` | `backstage` | Backstage の環境変数 (chart の `extraEnvVarsSecrets`)。`auth.providers.oidc.production.clientSecret` |
+| `backstage/backstage-session` | `AUTH_SESSION_SECRET` | (無し。無いときだけ乱数で作る) | `auth.session.secret` (OIDC のログインの途中の state・nonce を持つ session の cookie の署名鍵) |
 
-ファイルは作らない (realm の側の secret とずれるので、無ければ止まる)。client の secret を変えたら (上の「Secret」)、`just up` を打ち、Grafana の Pod を作り直す
-(`kubectl -n <namespace> rollout restart deploy/grafana`)。ArgoCD は Secret の変更を Pod の作り直しなしで読み直す [未確認]。
+ファイルは作らない (realm の側の secret とずれるので、無ければ止まる)。client の secret を変えたら (上の「Secret」)、`just up` を打ち、Grafana・Temporal Web UI・Backstage の Pod を作り直す
+(`kubectl -n <namespace> rollout restart deploy/grafana`、`deploy/temporal-web`、`deploy/backstage`)。ArgoCD は Secret の変更を Pod の作り直しなしで読み直す [未確認]。
+
+### OIDC を持たない UI と oauth2-proxy
+
+**oauth2-proxy は置いていない** (単位 4 で決めた)。tailnet に出している UI (ArgoCD・Grafana ×3・Temporal UI ×2・Backstage・Headlamp・Keycloak、
+[tailscale.md](tailscale.md)) は、どれも自分で OIDC を持つ (Headlamp は単位 5)。OIDC を持たない UI は、どれも tailnet に出していない。
+
+| OIDC を持たない UI | 届き方 | oauth2-proxy を置かない理由 |
+|---|---|---|
+| headroom のダッシュボード | ホストのプロセス (`127.0.0.1:8787`)。外からは share (人ごとの Basic、[share.md](share.md)) だけ | tailnet に出していない。`/v1/messages` などのプロキシ本体と同じポートにあり、出すなら share の中継と同じ絞り込みが要る。share をどうするか (残すか廃止するか) は別の話題で、share は合意の範囲の外 |
+| Prometheus・OTel Collector など | クラスタの中か、ホストの 127.0.0.1 (kind-config) だけ | 画面として人に出していない (Grafana から読む) |
+
+client `oauth2-proxy` は realm に定義したまま (redirect URI は仮の `https://oauth2-proxy.taild2b611.ts.net/oauth2/callback`)。headroom などを tailnet に出すときに
+oauth2-proxy を前に置き、ホストが決まったら redirect URI を Git と kcadm.sh の両方で直す (上の「realm を後から変える」)。
 
 ### argocd login --sso
 

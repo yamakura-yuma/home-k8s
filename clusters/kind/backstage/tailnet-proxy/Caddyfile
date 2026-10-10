@@ -1,0 +1,20 @@
+# tailnet の入口 (Ingress backstage → この proxy → Service backstage) で、ゲストのサインインの経路を拒む。
+# Backstage はゲスト (127.0.0.1 の localhost:7007 と share Pod のため) を残しているので、ここで止めないと tailnet の誰でも
+# ゲストとしてサインインできてしまう。止めるのは /api/auth/guest の下だけで、ほかは中身を変えずに渡す (docs/cluster/backstage.md)。
+# Backstage (express) の経路は大文字小文字を区別せず、provider の名前は %エンコードを解いて読む。caddy の path の matcher は
+# 大文字小文字を区別せず、%エンコードを解き、スラッシュの重なりとドットセグメントを畳んだ path に当たるので、表記揺れ
+# (/API/AUTH/GUEST・/api/auth/%67uest・//api/auth/guest・/api/auth/x/../guest) も同じく拒む (test_tailnet_proxy.py)
+{
+	admin off
+	auto_https off
+}
+
+:8080 {
+	@guest path /api/auth/guest /api/auth/guest/*
+	handle @guest {
+		respond "guest sign-in is not available on the tailnet" 403
+	}
+	handle {
+		reverse_proxy backstage:7007
+	}
+}

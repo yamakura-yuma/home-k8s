@@ -1,4 +1,4 @@
-"""ArgoCD と Grafana ×3 の OIDC (Keycloak) の試験。Secret を作るスクリプト (oidc-secrets.sh) と、各 UI の values と realm の突き合わせ。
+"""ArgoCD・Grafana ×3・Temporal UI ×2・Backstage の OIDC (Keycloak) の試験。Secret を作るスクリプト (oidc-secrets.sh) と、各 UI の values と realm の突き合わせ。
 
 標準ライブラリだけ: python3 -B -m unittest discover -s just -p test_oidc.py
 スクリプトは PATH の先頭に置いた偽の kubectl (fake_kubectl.py) で、引数と標準入力だけを見る。稼働中のクラスタには触れない。
@@ -12,7 +12,7 @@ from pathlib import Path
 sys.dont_write_bytecode = True  # __pycache__ をリポジトリに作らない
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_share_secrets import FakeEnv, decode  # noqa: E402
+from test_share_secrets import FAKE_RANDOM, FakeEnv, decode  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 REALM = (ROOT / "clusters/kind/auth/keycloak/realm-home-k8s.yaml").read_text()
@@ -23,7 +23,12 @@ SECRETS = {
     "observability/grafana-oidc": ("client-secret", "grafana"),
     "dev/grafana-oidc": ("client-secret", "grafana-dev"),
     "prod/grafana-oidc": ("client-secret", "grafana-prod"),
+    "dev/temporal-oidc": ("client-secret", "temporal-dev"),
+    "prod/temporal-oidc": ("client-secret", "temporal-prod"),
+    "backstage/backstage-oidc": ("AUTH_OIDC_CLIENT_SECRET", "backstage"),
 }
+# Backstage の session の署名鍵。client のファイルからではなく、無いときだけ乱数で作る
+SESSION = "backstage/backstage-session"
 
 
 def realm_client(client_id):
@@ -53,11 +58,21 @@ class OidcSecrets(FakeEnv):
         r = self.run_oidc()
         self.assertEqual(r.returncode, 0, r.stderr)
         made = self.made()
-        self.assertEqual(sorted(made), sorted(SECRETS))
+        self.assertEqual(sorted(made), sorted([*SECRETS, SESSION]))
         for name, (key, client) in SECRETS.items():
             self.assertEqual(made[name]["verb"], "create")
             self.assertEqual(decode(made[name]["manifest"]), {key: f"SECRET-{client}"}, name)
             self.assertNotIn("annotations", made[name]["manifest"]["metadata"], "apply の注釈を残さない (#49)")
+
+    def test_backstage_session_secret_is_random_and_made_only_once(self):
+        self.assertEqual(self.run_oidc().returncode, 0)
+        made = self.made()[SESSION]
+        self.assertEqual(made["verb"], "create-secret")
+        self.assertEqual(decode(made["manifest"]), {"AUTH_SESSION_SECRET": FAKE_RANDOM})
+        # 打ち直しでは作り直さない (動いている Pod の鍵と変わらないように)
+        self.stdin_log.unlink()
+        self.assertEqual(self.run_oidc(FAKE_EXISTING="backstage-session").returncode, 0)
+        self.assertNotIn(SESSION, self.made())
 
     def test_argocd_secret_has_the_label_argocd_reads(self):
         # ArgoCD は oidc.config の $<Secret>:<キー> を、ラベル app.kubernetes.io/part-of: argocd の付いた Secret からしか読まない
@@ -67,7 +82,7 @@ class OidcSecrets(FakeEnv):
         self.assertNotIn("labels", made["observability/grafana-oidc"]["manifest"]["metadata"])
 
     def test_existing_secrets_are_replaced(self):
-        r = self.run_oidc(FAKE_EXISTING="argocd-oidc-keycloak grafana-oidc")
+        r = self.run_oidc(FAKE_EXISTING="argocd-oidc-keycloak grafana-oidc temporal-oidc backstage-oidc backstage-session")
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual({e["verb"] for e in self.entries() if e["manifest"].get("kind") == "Secret"}, {"replace"})
 
@@ -75,6 +90,7 @@ class OidcSecrets(FakeEnv):
         self.assertEqual(self.run_oidc().returncode, 0)
         for call in self.calls():
             self.assertNotIn("SECRET-", call)
+            self.assertNotIn(FAKE_RANDOM, call)
             self.assertIn("--context kind-test", call)
 
     def test_missing_file_stops_before_any_secret(self):
@@ -155,6 +171,83 @@ class Grafana(unittest.TestCase):
             # admin (非常用) と、share Pod・Backstage のプロキシの Basic 認証を残す
             self.assertNotIn("disable_login_form", text)
             self.assertNotIn("auth.basic", text)
+
+
+class Temporal(unittest.TestCase):
+    TS = "taild2b611.ts.net"
+
+    def values(self, env):
+        return (ROOT / f"clusters/kind/temporal/values-{env}.yaml").read_text()
+
+    def env_value(self, text, name):
+        m = re.search(rf"    - name: {name}\n      value: (.+)\n", text)
+        return m.group(1).strip('"') if m else None
+
+    def test_web_logs_in_with_its_own_client_and_callback(self):
+        for env in ("dev", "prod"):
+            text = self.values(env)
+            self.assertEqual(self.env_value(text, "TEMPORAL_AUTH_ENABLED"), "true", env)
+            self.assertEqual(self.env_value(text, "TEMPORAL_AUTH_PROVIDER_URL"), ISSUER, env)
+            self.assertEqual(self.env_value(text, "TEMPORAL_AUTH_CLIENT_ID"), f"temporal-{env}", env)
+            callback = self.env_value(text, "TEMPORAL_AUTH_CALLBACK_URL")
+            self.assertEqual(callback, f"https://temporal-{env}.{self.TS}/auth/sso/callback", env)
+            self.assertIn(f"          - {callback}\n", realm_client(f"temporal-{env}"), env)
+            self.assertIn("    - name: TEMPORAL_AUTH_CLIENT_SECRET\n      valueFrom:\n        secretKeyRef:\n"
+                          "          name: temporal-oidc\n          key: client-secret\n", text, env)
+
+    def test_tailnet_ingress_goes_through_the_embed_proxy(self):
+        # callback のホスト (Ingress temporal-<環境>) は、iframe 用の proxy を通る (Backstage のタブと同じ URL)
+        for env in ("dev", "prod"):
+            text = (ROOT / f"clusters/kind/tailscale/ingress/temporal-{env}.yaml").read_text()
+            self.assertIn("      name: temporal-ui-embed\n      port:\n        number: 80\n", text, env)
+            self.assertIn(f"        - temporal-{env}\n", text, env)
+
+    def test_server_checks_the_token_and_reads_permissions(self):
+        text = (ROOT / "clusters/kind/temporal/values.yaml").read_text()
+        self.assertIn(f"          - {ISSUER}/protocol/openid-connect/certs\n", text)
+        self.assertIn("      permissionsClaimName: permissions\n", text)
+        self.assertIn("      authorizer: default\n      claimMapper: default\n", text)
+        # 認可の無い内部の frontend が無いと、worker と namespace のジョブがトークン無しで拒まれる
+        self.assertIn("  internal-frontend:\n    enabled: true\n", text)
+
+    def test_realm_maps_groups_to_temporal_permissions(self):
+        for env in ("dev", "prod"):
+            client = realm_client(f"temporal-{env}")
+            self.assertIn(f"              usermodel.clientRoleMapping.clientId: temporal-{env}\n", client)
+            self.assertIn("              claim.name: permissions\n", client)
+            self.assertIn('              access.token.claim: "true"\n', client)
+            self.assertIn(f"          temporal-{env}: [temporal-system:admin]\n", REALM.split("      - name: viewers")[0])
+            self.assertIn(f"          temporal-{env}: [temporal-system:read]\n", REALM.split("      - name: viewers")[1])
+            self.assertIn(f"        temporal-{env}:\n          - name: temporal-system:admin\n          - name: temporal-system:read\n", REALM)
+
+
+class Backstage(unittest.TestCase):
+    def setUp(self):
+        self.config = (ROOT / "backstage/app-config.yaml").read_text()
+
+    def test_oidc_provider_points_at_the_issuer_and_the_client(self):
+        self.assertIn(f"        metadataUrl: {ISSUER}/.well-known/openid-configuration\n", self.config)
+        self.assertIn("        clientId: backstage\n", self.config)
+        self.assertIn("        clientSecret: ${AUTH_OIDC_CLIENT_SECRET}\n", self.config)
+        self.assertIn("    secret: ${AUTH_SESSION_SECRET}\n", self.config)
+
+    def test_callback_is_under_a_redirect_uri_of_the_client(self):
+        # callback は backend.baseUrl/api/auth/oidc/handler/frame。realm の client は /api/auth/* を許す
+        base = re.search(r"^backend:\n  baseUrl: (\S+)$", self.config, re.M).group(1)
+        app = re.search(r"^app:\n  title: .*\n  baseUrl: (\S+)$", self.config, re.M).group(1)
+        self.assertEqual(base, app)
+        self.assertIn(f"          - {base}/api/auth/*\n", realm_client("backstage"))
+
+    def test_secrets_reach_the_pod_and_permissions_are_on(self):
+        values = (ROOT / "clusters/kind/backstage/values.yaml").read_text()
+        self.assertIn("    - backstage-oidc\n    - backstage-session\n", values)
+        self.assertIn("permission:\n  enabled: true\n", self.config)
+
+    def test_tailnet_ingress_goes_through_the_guest_blocking_proxy(self):
+        ingress = (ROOT / "clusters/kind/tailscale/ingress/backstage.yaml").read_text()
+        self.assertIn("      name: backstage-tailnet\n      port:\n        number: 80\n", ingress)
+        app = (ROOT / "clusters/kind/argocd/apps/backstage.yaml").read_text()
+        self.assertIn("      path: clusters/kind/backstage/tailnet-proxy\n", app)
 
 
 if __name__ == "__main__":
