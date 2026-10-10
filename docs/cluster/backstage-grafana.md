@@ -108,7 +108,7 @@ Grafana の横のサイドカー (`backstage-user`、`curlimages/curl`) が、Po
 | Loki | 64Mi | 192Mi | 〜70Mi |
 | Tempo | 64Mi | 192Mi | 〜100Mi (空に近い) |
 | OTel Collector (DaemonSet。worker 2 台なので 2 Pod。control-plane には taint があり tolerations を置かない) | 64Mi | 192Mi | 〜80Mi |
-| Grafana (+ サイドカー) | 192Mi (+8Mi) | 512Mi (+32Mi) | 〜240Mi (クラスタでの実測は下) |
+| Grafana (+ サイドカー) | 192Mi (+8Mi) | 512Mi (+32Mi) | 〜240Mi (dev・prod の実測は anon 180〜230Mi。256Mi の limit では張り付いた) |
 | **1 環境** | **488Mi** | **1.3GiB** | **〜590Mi** |
 | **2 環境 (dev・prod)** | **976Mi** | **2.6GiB** | **〜1.2GiB** |
 
