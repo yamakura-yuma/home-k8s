@@ -20,6 +20,13 @@ presets:
     includeCollectorLogs: false
 
 ports:
+  # daemonset モードの chart は OTLP の 4317・4318 を hostPort でノードに開ける。dev と prod が同じノードに Pod を置くと
+  # 同じ hostPort を取り合い、あとから来た側が Pending になる (0/3 nodes ... didn't have free ports)。
+  # アプリからは Service (internalTrafficPolicy: Local) で同じノードの Collector に届くので、hostPort は使わない
+  otlp:
+    hostPort: null
+  otlp-http:
+    hostPort: null
   jaeger-compact:
     enabled: false
   jaeger-thrift:

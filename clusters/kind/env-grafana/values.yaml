@@ -8,9 +8,30 @@ service:
 persistence:
   enabled: false
 
+# メモリの limits は 512Mi。256Mi では足りなかった: Grafana 13 は anon だけで 180〜230Mi 使い (観測済み)、limit に張り付いて
+# カーネルの回収 (memory.events の max) が何十万回も走り、起動が遅くなった (OOMKilled にはならない)
 resources:
-  requests: {cpu: 20m, memory: 96Mi}
-  limits: {memory: 256Mi}
+  requests: {cpu: 20m, memory: 192Mi}
+  limits: {memory: 512Mi}
+
+# 起動が遅くても殺されないよう、startupProbe で起動の完了を待ってから liveness を始める。
+# 最初の起動は DB のマイグレーションで遅く、クラスタ作成直後の負荷では liveness の猶予 (60 + 10 x 10 秒) を超えて
+# マイグレーションの途中で殺され、CrashLoopBackOff になった (dev)。10 秒 x 90 回 = 15 分まで待つ。
+# startupProbe が成功するまで liveness・readiness は始まらないので、liveness の initialDelaySeconds は 0 にする
+startupProbe:
+  httpGet:
+    path: /api/health
+    port: grafana
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 90
+livenessProbe:
+  httpGet:
+    path: /api/health
+    port: grafana
+  initialDelaySeconds: 0
+  timeoutSeconds: 30
+  failureThreshold: 10
 
 # ClusterRole が observability の grafana と重ならないよう、namespace の Role にする
 rbac:
