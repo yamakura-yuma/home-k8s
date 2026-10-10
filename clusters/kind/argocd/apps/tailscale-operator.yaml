@@ -1,0 +1,32 @@
+# Tailscale の Kubernetes operator (namespace tailscale)。UI と、後で置く Keycloak を tailnet の
+# https://<名前>.<tailnet>.ts.net に出す (Ingress は Application tailscale-ingress)。設計と人の画面操作は docs/cluster/tailscale.md。
+# OAuth client (trust credential) は Git に置かず、`just up` が Secret operator-oauth を作る (just/tailscale-secrets.sh)。
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tailscale-operator
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://pkgs.tailscale.com/helmcharts
+      chart: tailscale-operator
+      targetRevision: 1.102.4
+      helm:
+        releaseName: tailscale-operator
+        valueFiles:
+          - $values/clusters/kind/tailscale/values.yaml
+    - repoURL: https://github.com/yamakura-yuma/home-k8s
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tailscale
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # CRD (ProxyClass・Connector など) が大きく、client-side apply の注釈の上限を超えうる
+      - ServerSideApply=true

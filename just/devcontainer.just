@@ -21,7 +21,9 @@ devcontainer action:
       up)
         # ~/.local/share/home-k8s には Grafana の admin パスワードを置く
         # (`just up` が書く)。コンテナを作り直しても残るようホストと共有する。
-        mkdir -p "$HOME/.kube" "$HOME/.local/share/home-k8s"
+        # ~/.config/home-k8s には人が置く資格情報 (Tailscale の OAuth client、docs/cluster/tailscale.md) を置く。
+        # ~/.local/share/home-k8s はコンテナの root が作るので、人が書けないことがある
+        mkdir -p "$HOME/.kube" "$HOME/.local/share/home-k8s" "$HOME/.config/home-k8s"
         docker build -t "$name" "$root"
         if docker ps -aq -f "name=^${name}$" | grep -q .; then
           docker start "$name" >/dev/null
@@ -34,6 +36,7 @@ devcontainer action:
             -v "$main_repo":"$main_repo" \
             -v "$HOME/.kube":"$HOME/.kube" \
             -v "$HOME/.local/share/home-k8s":"$HOME/.local/share/home-k8s" \
+            -v "$HOME/.config/home-k8s":"$HOME/.config/home-k8s" \
             -w "$root" \
             "$name"
         fi
