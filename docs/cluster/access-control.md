@@ -132,7 +132,7 @@ Azure は Entra ID のグループに Azure RBAC を割り当てる。ワーカ�
 | 層 | 選ぶもの | 選んだ理由 |
 |---|---|---|
 | IdP | **Dex** (namespace `auth`) + GitHub connector | 6 つの消費者すべてが標準の OIDC で読める。groups が `<org>:<team>` という読める文字列で出て、そのまま RBAC に書ける。ユーザーを保存しないので、DB とバックアップが要らない。上流は後から Microsoft connector (Entra ID) に足し替えられ、各 UI の設定は変わらない |
-| ユーザーとグループの正本 | GitHub の organization と team | 他の人も GitHub のアカウントなら持っている見込みが高い。招待と外すのが org の操作 1 つで済む |
+| ユーザーとグループの正本 | **GitHub** (自分の org と team。2026-10-10 に決定) | 他の人も GitHub のアカウントなら持っている見込みが高い。個人のアカウントを自分の org に招待し、外すのも org の操作 1 つで済む (下の「IdP は GitHub に決めた」) |
 | 到達経路 | **Tailscale Personal** + Kubernetes operator の Ingress | 無料で URL が固定になり (`*.<tailnet>.ts.net`、HTTPS)、issuer を置ける。インターネットに出さない。6 人と非商用という条件は、自宅のクラスタの規模なら収まる |
 | Backstage | oidc provider + GitHub org のユーザーとチームをカタログに取り込む + permission framework | resolver が引く User と Group をカタログに揃える。ポリシーは「org のメンバーは読める、管理の team だけが書ける」から始める |
 | ArgoCD・Grafana・Temporal UI・Headlamp | 各自の OIDC 設定で Dex を見る | どれも無料版の機能で足りる (Grafana の Team Sync は使わない) |
@@ -141,6 +141,21 @@ Azure は Entra ID のグループに Azure RBAC を割り当てる。ワーカ�
 | ワーカー (kind) | ServiceAccount `orca-worker`、dev は `edit`・prod は `view`。トークンは `kubectl create token --duration=8h` [未確認] | admin の kubeconfig を使わせない。worktree ごとの kubeconfig (Git の外) を、worktree の setup が作る |
 | ワーカー (Azure) | 専用のサービスプリンシパル (Reader、リソースグループに割り当てる) | workload identity federation はホストのプロセスには当てはまらない。スコープを絞り、シークレットに期限を付ける |
 | `just share` | 当面は残す (アカウントを持たない人に見せるだけの用途) | Tailscale に招待できない相手向けの経路になる。招待で足りるようになったら廃止を決める |
+
+### IdP は GitHub に決めた (2026-10-10)
+
+Dex の上流の IdP は **GitHub** に決めた (自分の org と team)。理由は、いちばんわかりやすいこと。
+
+- **他の人の入れ方**: 相手の個人の GitHub アカウントを自分の org に招待し、team で権限を分ける。Dex の `orgs` には自分の org だけを書く。
+  `orgs` を書くと、そこに並べた org (team を書けばその team) のどれかに属していないユーザーはログインできない [公式]。
+  team を書くと、groups クレームに入るのはその team だけになる [公式]
+- **相手の会社の org を許可リストに足さない**: Dex の GitHub connector の注意書きには次のようにある [公式]。
+  - ユーザーは、Dex がリソースにアクセスすることを org に明示的に求める必要がある
+  - org が承認するまで、Dex は所属を確かめられず、そのユーザーはログインできない
+
+  GitHub の OAuth App access restrictions がこれにあたる。相手の会社の org がこれを有効にしていると、その org の管理者が承認するまで、相手はログインできない
+- **Enterprise Managed Users (EMU) のアカウントは使えない**: EMU のアカウントは、enterprise の外の org にもリポジトリにも招待できない [公式]。
+  自分の org に招待できないので、相手が会社の EMU のアカウントしか持っていない場合は、個人のアカウントを用意してもらう
 
 採らなかった理由は次のとおり。
 
@@ -197,9 +212,10 @@ Azure は Entra ID のグループに Azure RBAC を割り当てる。ワーカ�
   - providers (未確認): <https://oauth2-proxy.github.io/oauth2-proxy/configuration/providers/>
   - forward-auth (未確認): <https://oauth2-proxy.github.io/oauth2-proxy/configuration/integration>
 - Dex
-  - GitHub connector (確認): <https://dexidp.io/docs/connectors/github/>
+  - GitHub connector (`orgs` の許可リスト、org の承認が要る点) (確認): <https://dexidp.io/docs/connectors/github/>
   - Microsoft connector (確認): <https://dexidp.io/docs/connectors/microsoft/>
   - ローカルのユーザー (未確認): <https://dexidp.io/docs/connectors/local/>
+- GitHub の Enterprise Managed Users の制限 (確認): <https://docs.github.com/en/enterprise-cloud@latest/admin/managing-iam/understanding-iam-for-enterprises/abilities-and-restrictions-of-managed-user-accounts>
 - Keycloak (未確認): <https://www.keycloak.org/documentation>
 - Authentik (未確認): <https://docs.goauthentik.io/docs/install-config/install/kubernetes>
 - Kubernetes
