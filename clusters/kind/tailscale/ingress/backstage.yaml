@@ -1,0 +1,16 @@
+# Backstage (https://backstage.<tailnet>.ts.net)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: backstage
+  namespace: backstage
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: backstage
+      port:
+        number: 7007
+  tls:
+    - hosts:
+        - backstage

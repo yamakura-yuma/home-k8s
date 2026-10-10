@@ -210,7 +210,7 @@ Dex をまだ入れていない (2026-10-10 時点で未実装 [観測]) ので�
 
 | # | 話題 | やること | 完了の確かめ方 |
 |---|---|---|---|
-| 1 | 到達経路 (Tailscale) | access-control.md の単位 1 のまま。Keycloak のホスト名 (`keycloak.<tailnet>.ts.net`) もここで決める | tailnet の別の端末から固定の URL で開ける |
+| 1 | 到達経路 (Tailscale) | access-control.md の単位 1 のまま。Keycloak のホスト名 (`keycloak.<tailnet>.ts.net`) もここで決める。**実装済み** ([tailscale.md](tailscale.md)。公開は Ingress、proxy の tag は `tag:k8s`、Keycloak の Ingress の形も同じ文書) | tailnet の別の端末から固定の URL で開ける |
 | 2a | PostgreSQL | namespace `auth` に StatefulSet、静的 PV `keycloak-postgres`、`pg_dump` の CronJob を置く。[persistence.md](persistence.md) の「未決の論点」(ラベルとディレクトリの名前を一般的なものに替えるか) をここで決める | `just down`・`just up` のあとも DB のデータが残る。dump のファイルがホストにできる |
 | 2b | Keycloak | Keycloak Operator と `Keycloak` の CR を置き、PostgreSQL につなぐ。realm `home-k8s`、グループ、client scope (Group Membership mapper、`full.path: false`)、各 UI の client を KeycloakRealmImport で Git に置く。クラスタ内から issuer に届かせる方法を決める (access-control.md の注意点と同じ) | `/realms/home-k8s/.well-known/openid-configuration` がブラウザからも Pod からも引ける |
 | 2c | ユーザーの登録と MFA | 自分のユーザーを作り、必須アクション (パスワードの変更、OTP の設定) を通す。必要なら GitHub などの Identity Provider を足す | 一時パスワードから TOTP の登録を経てログインでき、ID トークンの `groups` にグループ名が入る |

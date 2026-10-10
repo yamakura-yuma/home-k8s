@@ -48,7 +48,7 @@ class Recipes(unittest.TestCase):
 
     def test_up_runs_in_order(self):
         out = just("--dry-run", "up").stderr
-        steps = ["kind create cluster", "observability/{tempo,prometheus,loki,grafana}",
+        steps = ["kind create cluster", "observability/{tempo,prometheus,loki,grafana}", "tailscale-secrets.sh",
                  "docker build -t home-k8s-backstage:", "kind load docker-image home-k8s-backstage:",
                  "helm upgrade --install argocd", "grafana-secrets.sh", "grafana-env-secrets.sh", "argocd-secrets.sh", "backstage-azure-secret.sh",
                  "share-relay.sh up", "share-secrets.sh", "argocd/root.yaml", "argocd-wait.sh", "headlamp-token.sh"]
@@ -82,6 +82,13 @@ class Recipes(unittest.TestCase):
         self.assertNotIn("argocd-secrets", " ".join(just("--list").stdout.split()), "内部用は公開しない")
         values = (ROOT / "clusters/kind/backstage/values.yaml").read_text()
         self.assertIn("- backstage-argocd", values)
+
+    def test_tailscale_secret_is_made_before_the_slow_steps(self):
+        # OAuth client のファイルが無ければ just up はここで止まる。image の build や ArgoCD の 20 分の待ちより前に落とす
+        up = just("--dry-run", "up").stderr
+        self.assertRegex(up, r'tailscale-secrets\.sh ".*/\.config/home-k8s/tailscale-operator\.env" kind-study-kind\n')
+        self.assertLess(up.find("kind create cluster"), up.find("tailscale-secrets.sh"))
+        self.assertLess(up.find("tailscale-secrets.sh"), up.find("docker build -t home-k8s-backstage:"))
 
     def test_backstage_image_tag_matches_values(self):
         # kind load するイメージのタグと、chart が使うタグ (pull しない) がずれると Pod が起動しない

@@ -1,0 +1,16 @@
+# 環境 dev の Temporal UI (https://temporal-dev.<tailnet>.ts.net)。iframe 用の temporal-ui-embed ではなく chart の Web UI に直につなぐ
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: temporal-dev
+  namespace: dev
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: temporal-web
+      port:
+        number: 8080
+  tls:
+    - hosts:
+        - temporal-dev

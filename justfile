@@ -20,6 +20,7 @@ import 'just/kind.just'
 import 'just/observability.just'
 import 'just/orca-exporter.just'
 import 'just/share.just'
+import 'just/tailscale.just'
 
 # 公開レシピはこの 7 つだけ (just --list)。内部用は `_` 付きで隠してあり、just/ 以下に置く。
 # up・down・show・share・ci はここ、orca-exporter と devcontainer は just/ 以下。
@@ -31,11 +32,11 @@ ci:
     #!/usr/bin/env bash
     exec just/ci.sh
 
-# kind のクラスタを作り、Backstage のイメージを入れ、ArgoCD を入れ、Secret を作って、観測スタック・Headlamp・Backstage の同期を待つ。
+# kind のクラスタを作り、Tailscale の operator の Secret を作り (ファイルが無ければここで止まる)、Backstage のイメージを入れ、ArgoCD を入れ、Secret を作って、観測スタック・Headlamp・Backstage・Tailscale の同期を待つ。
 # 打ち直しても同じ状態に戻るだけ。
 
 # kind のクラスタを作り、ArgoCD・Secret・観測スタック・Headlamp・Backstage を立ち上げる
-up: _kind-up _backstage-image _argocd-install _grafana-secrets _grafana-env-secrets _argocd-secrets _backstage-azure-secret _share-relay-up _share-secrets && _headlamp-token
+up: _kind-up _tailscale-secrets _backstage-image _argocd-install _grafana-secrets _grafana-env-secrets _argocd-secrets _backstage-azure-secret _share-relay-up _share-secrets && _headlamp-token
     kubectl --context {{kube_context}} apply -f clusters/kind/argocd/root.yaml
     @echo "ArgoCD が子の Application を同期するのを待つ (初回は image の pull で数分かかる)"
     bash just/argocd-wait.sh {{kube_context}} {{argocd_ns}}

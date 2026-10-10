@@ -1,0 +1,19 @@
+# tailscale/tailscale-operator chart の values。設計は docs/cluster/tailscale.md。
+# oauth は空のまま: chart は Secret operator-oauth (キー client_id・client_secret) を読む。`just up` が Git の外のファイルから作る。
+operatorConfig:
+  # operator 自身の tailnet 上の端末名と tag。tag は tailnet のポリシーの tagOwners と OAuth client の tag にそろえる
+  hostname: tailscale-operator
+  defaultTags:
+    - "tag:k8s-operator"
+proxyConfig:
+  # Ingress ごとの proxy の tag。tagOwners で tag:k8s-operator が付けられるようにしてある
+  defaultTags: "tag:k8s"
+ingressClass:
+  enabled: true
+# API server の proxy は使わない (kind の API server は単位 6 で Keycloak の OIDC につなぐ)
+apiServerProxyConfig:
+  mode: "false"
+# operator の Deployment の注釈。kube-linter の env-var-secret は名前に SECRET を含む環境変数を秘密の値とみなすが、
+# OPERATOR_SECRET は operator の状態を置く Secret の名前、CLIENT_SECRET_FILE は Secret operator-oauth をマウントしたファイルのパスで、値ではない
+annotations:
+  ignore-check.kube-linter.io/env-var-secret: "OPERATOR_SECRET と CLIENT_SECRET_FILE は Secret の名前とファイルのパスで、値ではない"

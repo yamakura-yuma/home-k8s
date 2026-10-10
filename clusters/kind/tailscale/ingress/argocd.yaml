@@ -1,0 +1,16 @@
+# ArgoCD (https://argocd.<tailnet>.ts.net)。server.insecure: true なので、proxy から先は HTTP の 80
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: argocd-server
+      port:
+        number: 80
+  tls:
+    - hosts:
+        - argocd
