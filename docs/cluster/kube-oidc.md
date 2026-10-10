@@ -55,6 +55,7 @@ API server も Pod と同じく egress の proxy → tailnet → Keycloak の In
 
 - CoreDNS の rewrite が無い (`just up` の `_coredns-tailnet` より前) と、OIDC のトークンだけが拒まれる。API server は起動し、admin の kubeconfig は使える。
   JWT の認証器は裏で初期化を繰り返すので、rewrite が入れば何もしなくてもつながる ([idp-options.md](idp-options.md) の「鶏と卵」)
+- クラスタを作ったばかりのときは CoreDNS がまだ無い。API server は起動し、OIDC のトークンだけが拒まれ、CoreDNS と rewrite ができてからつながるはず [未確認: kind-config からクラスタを作れていない]
 - API server の名前の解決はほかに使っていない (etcd は `127.0.0.1`、webhook と aggregated API は Service の IP)。CoreDNS が落ちても OIDC 以外は動く [未確認: CoreDNS を止めて試していない]
 
 ### kind-config と、作り直さずに入れた今のノード
