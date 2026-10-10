@@ -2,6 +2,9 @@
 
 状態: 調査 (実装はしていない。下の「移行の段取り」の単位ごとに別の話題で行う)。調べた日は 2026-10-10。
 
+> **IdP の推奨は差し替えた (2026-10-10)**: 下の Dex + GitHub に代えて、Keycloak (DB は PostgreSQL) を唯一の issuer にする。
+> 比較と移行の段取りは [idp-options.md](idp-options.md)。到達経路・各 UI の OIDC の設定・ワーカーと Azure の権限は、この文書のまま。
+
 人 (自分と他の人) と Orca のワーカー (エージェント) が、次の対象に対して何を見られて何を操作できるかを、1 か所で決めるための比較と推奨。
 
 - Backstage と、その裏にある UI (ArgoCD・Grafana・Temporal UI・Headlamp・Swagger)
@@ -166,7 +169,8 @@ Dex の上流の IdP は **GitHub** に決めた (アクセス管理専用の or
 採らなかった理由は次のとおり。
 
 - **Entra ID を直接 issuer にする案**: 無料ではグループをアプリに割り当てられない (P1)。生の groups クレームは objectId なので、RBAC が GUID の羅列になる。業務に寄せたくなったら、Dex に Microsoft connector を足せば各 UI は変えずに済む
-- **Keycloak・Authentik**: 自分でユーザーを持てる点は強いが、DB・バージョンアップ・メモリの負担が軽さの基準に合わない
+- **Keycloak・Authentik**: 自分でユーザーを持てる点は強いが、DB・バージョンアップ・メモリの負担が軽さの基準に合わない。
+  この判断は [idp-options.md](idp-options.md) で見直し、Keycloak を推奨に差し替えた
 - **Cloudflare Access**: 業務らしい構成ではあるが、ドメインが要る (登録料がかかる)。無料プランの人数の上限も今回確かめられなかった。ドメインを持つ段になったら、到達経路だけを差し替える候補にする
 
 ### 推奨構成の注意点 (実装の話題で解く)
