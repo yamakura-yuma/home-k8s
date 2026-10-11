@@ -16,7 +16,7 @@ from test_secrets import FAKE_RANDOM, FakeEnv  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 REALM = ROOT / "clusters/kind/auth/keycloak/realm-home-k8s.yaml"
-CONFIDENTIAL = ["argocd", "grafana", "grafana-dev", "grafana-prod", "temporal-dev", "temporal-prod", "backstage", "headlamp", "oauth2-proxy"]
+CONFIDENTIAL = ["argocd", "grafana", "grafana-dev", "grafana-prod", "temporal-dev", "temporal-prod", "backstage", "headlamp", "oauth2-proxy", "gitops-deployer"]
 PUBLIC = ["argocd-cli", "kubernetes"]
 HOST = "keycloak.taild2b611.ts.net"
 TARGET = "keycloak-tailnet.auth.svc.cluster.local"

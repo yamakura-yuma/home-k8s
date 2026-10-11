@@ -1,0 +1,123 @@
+openapi: 3.1.0
+info:
+  title: gitops-deployer bff
+  version: v1
+  description: |
+    gitops-deployer の外向きの API (Istio の Gateway → APISIX → bff)。Keycloak (realm home-k8s) のアクセストークンが要る。
+    aud に gitops-deployer、resource_access.gitops-deployer.roles に view (読む) か deploy (依頼する)。
+    エラーは RFC 9457 の application/problem+json。docs/cluster/gitops-deployer.md
+servers:
+  - url: /gitops-deployer
+security:
+  - bearer: []
+paths:
+  /api/v1/deployments:
+    get:
+      summary: アプリの一覧 (Dapr state の履歴)
+      parameters:
+        - {name: pageSize, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
+        - {name: pageToken, in: query, schema: {type: string}}
+      responses:
+        "200":
+          description: 名前の順
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: {type: array, items: {$ref: "#/components/schemas/Deployment"}}
+                  nextPageToken: {type: string}
+        "401": {$ref: "#/components/responses/Problem"}
+        "403": {$ref: "#/components/responses/Problem"}
+    post:
+      summary: デプロイを依頼する (deploys/<name>/ の PR を作り、Argo CD の反映を待つ Workflow を始める)
+      parameters:
+        - {name: Idempotency-Key, in: header, schema: {type: string, maxLength: 128}, description: 同じ鍵・同じ依頼は同じ応答 (24 時間)}
+        - {name: If-Match, in: header, schema: {type: string}, description: GET の ETag。合わなければ 412}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/App"}
+      responses:
+        "202": {$ref: "#/components/responses/Operation"}
+        "400": {$ref: "#/components/responses/Problem"}
+        "401": {$ref: "#/components/responses/Problem"}
+        "403": {$ref: "#/components/responses/Problem"}
+        "409": {$ref: "#/components/responses/Problem"}
+        "412": {$ref: "#/components/responses/Problem"}
+        "422": {$ref: "#/components/responses/Problem"}
+        "429": {description: APISIX のレート制限}
+  /api/v1/deployments/{name}:
+    parameters:
+      - {name: name, in: path, required: true, schema: {type: string, pattern: "^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$"}}
+    get:
+      summary: アプリ 1 つの状態・履歴・最新の Workflow
+      responses:
+        "200":
+          description: ETag ヘッダは履歴の版 (If-Match に使う)
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Deployment"}
+        "404": {$ref: "#/components/responses/Problem"}
+    delete:
+      summary: 削除を依頼する (deploys/<name>/ を消す PR、Application の消滅を待つ)
+      parameters:
+        - {name: Idempotency-Key, in: header, schema: {type: string, maxLength: 128}}
+        - {name: If-Match, in: header, schema: {type: string}}
+      responses:
+        "202": {$ref: "#/components/responses/Operation"}
+        "409": {$ref: "#/components/responses/Problem"}
+        "412": {$ref: "#/components/responses/Problem"}
+        "422": {$ref: "#/components/responses/Problem"}
+components:
+  securitySchemes:
+    bearer: {type: http, scheme: bearer, bearerFormat: JWT}
+  responses:
+    Problem:
+      description: RFC 9457
+      content:
+        application/problem+json:
+          schema:
+            type: object
+            properties:
+              type: {type: string}
+              title: {type: string}
+              status: {type: integer}
+              detail: {type: string}
+              errors: {type: array, items: {type: object, properties: {field: {type: string}, detail: {type: string}}}}
+    Operation:
+      description: 始めた Workflow
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Operation"}
+  schemas:
+    App:
+      type: object
+      required: [name, image]
+      properties:
+        name: {type: string, pattern: "^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$"}
+        image: {type: string, description: "<レジストリ>/<リポジトリ>:<タグ> (latest 不可、レジストリは許可リスト)"}
+        port: {type: integer, minimum: 1024, maximum: 65535, default: 8080}
+        replicas: {type: integer, minimum: 1, maximum: 3, default: 1}
+    Operation:
+      type: object
+      properties:
+        workflowId: {type: string}
+        runId: {type: string}
+        app: {type: string}
+        op: {type: string, enum: [deploy, delete]}
+        status: {type: string, enum: [running, completed, failed, timed-out, terminated, canceled]}
+        phase: {type: string, enum: [opening-pr, waiting-for-argocd, compensating, recording, done]}
+        pr: {type: object, properties: {number: {type: integer}, url: {type: string}}}
+        links: {type: object, properties: {temporal: {type: string}, pr: {type: string}, argocd: {type: string}}}
+    Deployment:
+      type: object
+      properties:
+        name: {type: string}
+        deployed: {type: boolean}
+        current: {$ref: "#/components/schemas/App"}
+        last: {type: object}
+        history: {type: array, items: {type: object}}
+        operation: {$ref: "#/components/schemas/Operation"}
+        links: {type: object}

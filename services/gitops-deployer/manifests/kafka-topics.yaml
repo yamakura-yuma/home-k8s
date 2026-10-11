@@ -1,0 +1,14 @@
+# Kafka (Strimzi、ブローカー 1 台) の完了イベントのトピック (store-activity が Dapr の pub/sub pubsub で流す CloudEvent)。Topic Operator が作る。
+# Knative の Broker のトピック (knative-broker-gitops-deployer-*) は Knative が作る
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: gitops-deployer-events
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  partitions: 1
+  replicas: 1
+  config:
+    retention.ms: "604800000"

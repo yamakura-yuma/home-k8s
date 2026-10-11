@@ -1,0 +1,30 @@
+# 設定の外部化。6 つの Pod は同じ ConfigMap を環境変数で読む (envFrom)。Pod の中に設定を焼かない
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gitops-deployer
+  namespace: gitops-deployer
+data:
+  # dev の Temporal の内部用の frontend (認可なし、ClusterIP)。7233 の frontend は Keycloak の JWT が要る (docs/cluster/gitops-deployer.md)
+  TEMPORAL_ADDRESS: temporal-internal-frontend.dev.svc.cluster.local:7236
+  TEMPORAL_NAMESPACE: gitops-deployer
+  # 既存の OTel Collector (observability) → Tempo
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector-opentelemetry-collector.observability.svc.cluster.local:4317
+  OTEL_EXPORTER_OTLP_INSECURE: "true"
+  # bff の JWT の確認 (APISIX と同じ issuer の JWKS)。audience は Keycloak の client gitops-deployer
+  OIDC_ISSUER: https://keycloak.taild2b611.ts.net/realms/home-k8s
+  OIDC_AUDIENCE: gitops-deployer
+  # Dapr の Component (dapr.yaml の history、基盤の pubsub)
+  DAPR_STATESTORE: history
+  DAPR_PUBSUB: pubsub
+  REQUEST_TIMEOUT: 15s
+  # Argo CD の Synced/Healthy (削除は Application の消滅) を待つ上限。PR の CI (just ci、数分) と同期を含む
+  WAIT_TIMEOUT: 20m
+  # デプロイを許すイメージのレジストリ (マニフェスト注入の防止)
+  IMAGE_REGISTRIES: docker.io,ghcr.io,quay.io,registry.k8s.io
+  GITHUB_OWNER: yamakura-yuma
+  GITHUB_REPO: home-k8s
+  GITHUB_BASE: main
+  # bff が返すリンクの頭 (Backstage のタブが使う)
+  TEMPORAL_UI_URL: https://temporal-dev.taild2b611.ts.net
+  ARGOCD_URL: https://argocd.taild2b611.ts.net

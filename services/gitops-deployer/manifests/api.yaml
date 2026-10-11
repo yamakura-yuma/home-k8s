@@ -1,0 +1,86 @@
+# api: Workflow の開始・照会と履歴 (Dapr state) の読み出し。gin。Service は置かない (呼び口は Dapr の api-dapr だけ。
+# AuthorizationPolicy api が bff 以外を拒む、rbac.yaml)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: gitops-deployer
+  labels:
+    app.kubernetes.io/name: api
+    app.kubernetes.io/part-of: gitops-deployer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: api
+        app.kubernetes.io/part-of: gitops-deployer
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: api
+        dapr.io/app-port: "8080"
+        dapr.io/config: gitops-deployer
+        dapr.io/log-as-json: "true"
+        # Dapr の組み込みの Kubernetes の secret store を使わない (ServiceAccount のトークンを載せないので初期化に失敗する。Secret は読まない)
+        dapr.io/disable-builtin-k8s-secret-store: "true"
+        dapr.io/sidecar-cpu-request: 10m
+        dapr.io/sidecar-memory-request: 48Mi
+        dapr.io/sidecar-memory-limit: 192Mi
+        # SIGTERM の後もアプリが Dapr を呼び終えるまでサイドカーを残す
+        dapr.io/graceful-shutdown-seconds: "20"
+    spec:
+      serviceAccountName: api
+      automountServiceAccountToken: false
+      # preStop の 5 秒 + 受け付け中の処理 (HTTP は 20 秒、Worker は WorkerStopTimeout 20 秒) が収まる長さ
+      terminationGracePeriodSeconds: 40
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          image: kind.local/home-k8s-gitops-deployer:0.1.3
+          command: [/usr/local/bin/api]
+          envFrom:
+            - configMapRef:
+                name: gitops-deployer
+          ports:
+            - name: http
+              containerPort: 8080
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          lifecycle:
+            # Service・Endpoints から外れるのを待ってから SIGTERM を受ける
+            preStop:
+              sleep:
+                seconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]

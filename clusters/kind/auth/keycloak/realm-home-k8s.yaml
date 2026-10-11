@@ -30,6 +30,8 @@ spec:
       secret: {name: keycloak-clients, key: headlamp}
     CLIENT_SECRET_OAUTH2_PROXY:
       secret: {name: keycloak-clients, key: oauth2-proxy}
+    CLIENT_SECRET_GITOPS_DEPLOYER:
+      secret: {name: keycloak-clients, key: gitops-deployer}
   realm:
     realm: home-k8s
     displayName: home-k8s
@@ -82,10 +84,12 @@ spec:
         clientRoles:
           temporal-dev: [temporal-system:admin]
           temporal-prod: [temporal-system:admin]
+          gitops-deployer: [deploy, view]
       - name: viewers
         clientRoles:
           temporal-dev: [temporal-system:read]
           temporal-prod: [temporal-system:read]
+          gitops-deployer: [view]
     roles:
       client:
         temporal-dev:
@@ -94,6 +98,17 @@ spec:
         temporal-prod:
           - name: temporal-system:admin
           - name: temporal-system:read
+        # gitops-deployer の bff の認可 (view: 一覧と状態を読む、deploy: デプロイと削除を依頼する)。docs/cluster/gitops-deployer.md
+        gitops-deployer:
+          - name: deploy
+          - name: view
+    # client gitops-deployer の service account (client credentials のトークンの主体)。人のユーザーはここに置かない (上の注記)
+    users:
+      - username: service-account-gitops-deployer
+        enabled: true
+        serviceAccountClientId: gitops-deployer
+        clientRoles:
+          gitops-deployer: [deploy, view]
     # ID トークン・アクセストークン・userinfo に groups: ["admins", ...] を入れる (full.path=false で先頭の / を付けない)
     clientScopes:
       - name: groups
@@ -315,3 +330,26 @@ spec:
         webOrigins: ["+"]
         attributes:
           post.logout.redirect.uris: "+"
+      # gitops-deployer の bff の API (docs/cluster/gitops-deployer.md)。ブラウザのログインには使わない。testkube の E2E (と後続の Backstage) が
+      # client credentials でトークンを取る。アクセストークンの aud に gitops-deployer を入れ (下の mapper)、client role (view・deploy) は
+      # resource_access.gitops-deployer.roles に入る (既定の roles scope)。APISIX (openid-connect) と bff が確かめる
+      - clientId: gitops-deployer
+        name: gitops-deployer API
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        clientAuthenticatorType: client-secret
+        secret: ${CLIENT_SECRET_GITOPS_DEPLOYER}
+        standardFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: true
+        protocolMappers:
+          - name: audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            consentRequired: false
+            config:
+              included.client.audience: gitops-deployer
+              access.token.claim: "true"
+              id.token.claim: "false"
+              introspection.token.claim: "true"

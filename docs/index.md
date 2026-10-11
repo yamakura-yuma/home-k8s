@@ -4,6 +4,9 @@ kind クラスタで Kubernetes を学ぶ環境と、Claude Code・Orca の観�
 全体の概要と使い方はリポジトリの README にある。
 
 - cluster: kind クラスタ・ArgoCD・Backstage・データの永続化。ゲスト (他の人) の入れ方の比較は [cluster/guest-access.md](cluster/guest-access.md)
+- gitops-deployer: GitOps で k8s のリソースをデプロイする学習用のマイクロサービス (Go・Temporal・Knative・Dapr)。[cluster/gitops-deployer.md](cluster/gitops-deployer.md)、
+  処理のアニメーション [cluster/gitops-deployer-flow.html](cluster/gitops-deployer-flow.html)、仕様書 [cluster/gitops-deployer-spec.html](cluster/gitops-deployer-spec.html)、
+  基盤 [cluster/gitops-deployer-platform.md](cluster/gitops-deployer-platform.md)
 - observability: Claude Code・Orca のテレメトリと Grafana のダッシュボード
 - share (廃止): Grafana・headroom・Backstage を Quick Tunnel で人に見せていた share Pod。2026-10-11 に廃止した。設計の記録は [cluster/share.md](cluster/share.md)、ゲストの入れ方は [cluster/guest-access.md](cluster/guest-access.md)
 - certification: Kubernetes の認定試験の学習ロードマップ

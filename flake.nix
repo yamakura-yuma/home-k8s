@@ -47,6 +47,8 @@
             caddy # Caddyfile の validate と、経路の統合試験 (just/ci.sh)
             nodejs_24 # backstage の jest と tsc (just/ci.sh)。Dockerfile の node:24 と揃える。engines は 22 || 24
             yarn-berry # backstage/.yarnrc.yml の yarnPath (.yarn/releases) の 4.13.0 に委ねる起動役
+            go # services/gitops-deployer の go vet・go test (just/ci.sh)。go.mod の go 1.26 と Dockerfile の golang:1.26.7 と揃える
+            jq # ApplicationSet の git の directory generator の展開 (just/ci.sh)
           ];
         };
       });

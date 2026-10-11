@@ -1,0 +1,90 @@
+# testkube の E2E。クラスタの中から Istio の Gateway → APISIX → bff → api を通して、デプロイと削除を 1 回ずつ依頼し、
+# 完了条件 (401・PR と auto-merge・Application の Synced/Healthy・Signal で完了・Tempo の trace・Dapr state の一覧・Kafka の完了イベント) を確かめる。
+# 中身は services/gitops-deployer/e2e/main.go (同じイメージの /usr/local/bin/e2e)。本物の home-k8s に PR を 2 つ (足す・消す) 作って merge するので、
+# 走らせるのは人が決めたとき (TestWorkflowExecution を作る。docs/cluster/gitops-deployer.md)。
+# Keycloak の client gitops-deployer の資格情報は Secret gitops-deployer-e2e (just up が作る、just/gitops-deployer-secrets.sh)。
+apiVersion: testworkflows.testkube.io/v1
+kind: TestWorkflow
+metadata:
+  name: gitops-deployer-e2e
+  namespace: testkube
+spec:
+  pod:
+    serviceAccountName: gitops-deployer-e2e
+  container:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 512Mi
+  steps:
+    - name: deploy-and-delete
+      timeout: 60m
+      run:
+        image: kind.local/home-k8s-gitops-deployer:0.1.3
+        command: [/usr/local/bin/e2e]
+        # command・workingDir・runAsGroup が揃うと testkube はイメージをレジストリに見に行かない (kind.local は
+        # kind load しただけでレジストリに無い。testkube の NeedsImageData)。値はイメージの USER 65532:65532 と同じ
+        workingDir: /data
+        securityContext:
+          runAsUser: 65532
+          runAsGroup: 65532
+        env:
+          - name: OUT
+            value: /data/e2e.env
+          - name: CLIENT_ID
+            valueFrom:
+              secretKeyRef:
+                name: gitops-deployer-e2e
+                key: client_id
+          - name: CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: gitops-deployer-e2e
+                key: client_secret
+    # 完了イベント (デプロイと削除の 2 つ) が Dapr の pub/sub 経由で Kafka のトピックに届いた (Dapr が包んだ CloudEvent の data に run の ID)
+    - name: kafka-completed-events
+      timeout: 5m
+      run:
+        image: quay.io/strimzi/kafka:1.2.0-kafka-4.3.1
+        shell: |
+          . /data/e2e.env
+          /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server kafka-kafka-bootstrap.kafka.svc.cluster.local:9092 \
+            --topic gitops-deployer-events --from-beginning --timeout-ms 20000 >/data/events.jsonl 2>/dev/null || true
+          echo "トピックのメッセージ: $(wc -l </data/events.jsonl)"
+          for run in "$DEPLOY_RUN" "$DELETE_RUN"; do
+            line=$(grep "\"runId\":\"$run\"" /data/events.jsonl) || { echo "NG: run $run の完了イベントが無い"; exit 1; }
+            echo "OK: $(echo "$line" | grep -o '"type":"[^"]*"' | head -1) run=$run traceparent=$(echo "$line" | grep -o '"traceparent":"[^"]*"' | head -1)"
+          done
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitops-deployer-e2e
+  namespace: testkube
+---
+# E2E は ApplicationSet が作った Application を読む (Synced/Healthy・消滅) だけ
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitops-deployer-e2e
+  namespace: argocd
+rules:
+  - apiGroups: [argoproj.io]
+    resources: [applications]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitops-deployer-e2e
+  namespace: argocd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitops-deployer-e2e
+subjects:
+  - kind: ServiceAccount
+    name: gitops-deployer-e2e
+    namespace: testkube
