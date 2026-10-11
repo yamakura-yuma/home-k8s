@@ -139,6 +139,8 @@ kind の 3 ノード (ホストのメモリ 31GB を共有) に載せるので�
 Kafka の data plane、Dapr の scheduler の PVC 16Gi) を下げ、自分で書いた Pod と values で変えられるものには requests と limits を付けた。
 上流の manifest のままのもの (Knative の control plane など) は上流の requests・limits に従う。
 Dapr の scheduler は chart 1.18.7 が台数を 3 に固定していて values で変えられないので、3 台のまま (各 requests 50m・128Mi)。
+APISIX の nginx の worker は 2 に固定する (`apisix.nginx.workerProcesses`)。既定の auto は CPU の数で、WSL2 のホストでは 22 プロセスになり、
+起動直後で約 430MiB、要求が無くても 30 分に約 30MiB ずつ増えて limit の 512Mi で OOMKilled を繰り返した。limit は 1Gi、requests は 256Mi。
 
 ## kind に合わせて上流から変えたところ
 

@@ -5,13 +5,18 @@
 service:
   # 入口は Istio の Gateway の HTTPRoute だけ。クラスタの外へは出さない
   type: ClusterIP
+# worker を CPU の数 (auto。WSL2 のホストでは 20 で 22 プロセス) にすると、Pod 全体で起動直後に約 430MiB (worker 1 つあたり
+# 約 20MiB の見積もり) になり、要求が無くても 30 分に約 30MiB ずつ増えて 512Mi で OOMKilled になっていた。
+# kind の学習用の流量なら worker は 2 で足り、limit には余裕を持たせる
 resources:
   requests:
     cpu: 50m
-    memory: 128Mi
+    memory: 256Mi
   limits:
-    memory: 512Mi
+    memory: 1Gi
 apisix:
+  nginx:
+    workerProcesses: 2
   deployment:
     mode: standalone
     role: data_plane
