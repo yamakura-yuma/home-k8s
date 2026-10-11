@@ -1,0 +1,14 @@
+# Dapr のサイドカーの設定 (bff・api・store-activity が dapr.io/config で指す)。サイドカーのスパンも既存の OTel Collector へ送り、
+# traceparent を受け継ぐ (bff→api の service invocation と、pub/sub の CloudEvent の traceparent)。mTLS は Istio ambient に任せる
+apiVersion: dapr.io/v1alpha1
+kind: Configuration
+metadata:
+  name: gitops-deployer
+  namespace: gitops-deployer
+spec:
+  tracing:
+    samplingRate: "1"
+    otel:
+      endpointAddress: otel-collector-opentelemetry-collector.observability.svc.cluster.local:4317
+      isSecure: false
+      protocol: grpc

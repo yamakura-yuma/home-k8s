@@ -1,0 +1,79 @@
+# Knative Eventing の配線。ApiServerSource (namespace argocd の Application のうち、ApplicationSet gitops-deployer-apps が作ったもの)
+# → Kafka Broker default → Trigger → event-receiver。届かなければ指数バックオフで 5 回打ち直し、尽きたら Dead Letter の
+# KafkaSink (トピック gitops-deployer-dlq) へ。Trigger は ordered (パーティションの中の順を守る)
+apiVersion: eventing.knative.dev/v1
+kind: Broker
+metadata:
+  name: default
+  namespace: gitops-deployer
+  annotations:
+    eventing.knative.dev/broker.class: Kafka
+spec:
+  config:
+    apiVersion: v1
+    kind: ConfigMap
+    name: kafka-broker-config
+    namespace: knative-eventing
+---
+apiVersion: sources.knative.dev/v1
+kind: ApiServerSource
+metadata:
+  name: argocd-applications
+  namespace: gitops-deployer
+spec:
+  # data は Application そのもの (status.sync・status.health を読む)
+  mode: Resource
+  serviceAccountName: argocd-application-watcher
+  namespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: argocd
+  resources:
+    - apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      selector:
+        matchExpressions:
+          - key: gitops-deployer.home-k8s/app
+            operator: Exists
+  sink:
+    ref:
+      apiVersion: eventing.knative.dev/v1
+      kind: Broker
+      name: default
+---
+apiVersion: eventing.knative.dev/v1
+kind: Trigger
+metadata:
+  name: argocd-application-changes
+  namespace: gitops-deployer
+  annotations:
+    kafka.eventing.knative.dev/delivery.order: ordered
+spec:
+  broker: default
+  filters:
+    - prefix:
+        type: dev.knative.apiserver.resource.
+  subscriber:
+    ref:
+      apiVersion: serving.knative.dev/v1
+      kind: Service
+      name: event-receiver
+  delivery:
+    retry: 5
+    backoffPolicy: exponential
+    backoffDelay: PT1S
+    timeout: PT30S
+    deadLetterSink:
+      ref:
+        apiVersion: eventing.knative.dev/v1alpha1
+        kind: KafkaSink
+        name: gitops-deployer-dlq
+---
+apiVersion: eventing.knative.dev/v1alpha1
+kind: KafkaSink
+metadata:
+  name: gitops-deployer-dlq
+  namespace: gitops-deployer
+spec:
+  topic: gitops-deployer-dlq
+  bootstrapServers:
+    - kafka-kafka-bootstrap.kafka.svc.cluster.local:9092

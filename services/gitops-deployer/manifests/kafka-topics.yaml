@@ -1,0 +1,28 @@
+# Kafka (Strimzi、ブローカー 1 台) のトピック。Topic Operator が作る。
+#   gitops-deployer-events … 完了イベント (store-activity が Dapr の pub/sub pubsub で流す CloudEvent)
+#   gitops-deployer-dlq    … event-receiver に届けられなかった CloudEvent (Trigger の Dead Letter)
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: gitops-deployer-events
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  partitions: 1
+  replicas: 1
+  config:
+    retention.ms: "604800000"
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: gitops-deployer-dlq
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  partitions: 1
+  replicas: 1
+  config:
+    retention.ms: "604800000"

@@ -14,6 +14,10 @@ spec:
       value: redis.redis.svc.cluster.local:6379
     - name: redisPassword
       value: ""
+    # 鍵の頭を app-id でなく Component の名前にする (statestore||<鍵>)。履歴は store-activity が書き api が読むので、
+    # 既定 (app-id ごと) では互いに見えない (services/gitops-deployer の history)
+    - name: keyPrefix
+      value: name
 ---
 apiVersion: dapr.io/v1alpha1
 kind: Component

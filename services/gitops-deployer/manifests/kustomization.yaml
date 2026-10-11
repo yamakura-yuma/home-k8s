@@ -1,0 +1,16 @@
+# gitops-deployer の 6 つの Pod と、Knative Eventing の配線・Dapr の設定・Kafka のトピック・Temporal の namespace・testkube の E2E。
+# Application gitops-deployer-services (clusters/kind/argocd/apps/gitops-deployer-services.yaml) が同期する。構成は docs/cluster/gitops-deployer.md
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - config.yaml
+  - rbac.yaml
+  - temporal-namespace.yaml
+  - dapr.yaml
+  - bff.yaml
+  - api.yaml
+  - workers.yaml
+  - event-receiver.yaml
+  - eventing.yaml
+  - kafka-topics.yaml
+  - e2e.yaml

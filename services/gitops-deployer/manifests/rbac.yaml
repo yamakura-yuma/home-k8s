@@ -1,0 +1,138 @@
+# Pod ごとの ServiceAccount。Kubernetes の API を読む Pod は無いので、どれもトークンを載せない (automount しない)。
+# ApiServerSource のアダプタ (argocd-application-watcher) だけが、namespace argocd の Application を読める。
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: bff
+  namespace: gitops-deployer
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: api
+  namespace: gitops-deployer
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: workflow-engine
+  namespace: gitops-deployer
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: git-activity
+  namespace: gitops-deployer
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: store-activity
+  namespace: gitops-deployer
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: event-receiver
+  namespace: gitops-deployer
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: argocd-application-watcher
+  namespace: gitops-deployer
+---
+# Application を読む (変えない) のは namespace argocd の中だけ
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitops-deployer-application-watcher
+  namespace: argocd
+rules:
+  - apiGroups: [argoproj.io]
+    resources: [applications]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitops-deployer-application-watcher
+  namespace: argocd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitops-deployer-application-watcher
+subjects:
+  - kind: ServiceAccount
+    name: argocd-application-watcher
+    namespace: gitops-deployer
+---
+# ApiServerSource の namespaceSelector は namespace の一覧を読む
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gitops-deployer-namespace-reader
+rules:
+  - apiGroups: [""]
+    resources: [namespaces]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: gitops-deployer-namespace-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: gitops-deployer-namespace-reader
+subjects:
+  - kind: ServiceAccount
+    name: argocd-application-watcher
+    namespace: gitops-deployer
+---
+# アダプタは自分の namespace に Event を書く
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: gitops-deployer-application-watcher-events
+  namespace: gitops-deployer
+rules:
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: gitops-deployer-application-watcher-events
+  namespace: gitops-deployer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: gitops-deployer-application-watcher-events
+subjects:
+  - kind: ServiceAccount
+    name: argocd-application-watcher
+    namespace: gitops-deployer
+---
+# api は bff (の Dapr のサイドカー) からしか呼ばせない。ztunnel が L4 で、mTLS の証明書の ServiceAccount を見る
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: api
+  namespace: gitops-deployer
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals: [cluster.local/ns/gitops-deployer/sa/bff]

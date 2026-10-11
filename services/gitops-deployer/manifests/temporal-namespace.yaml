@@ -1,0 +1,54 @@
+# Temporal (dev) の namespace gitops-deployer。Workflow の履歴は 3 日残す (Temporal UI (dev) で見る)。
+# Argo CD の PreSync の hook で、Worker の Deployment より先に作る。打ち直しても同じ (あれば作らない)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: temporal-namespace
+  namespace: gitops-deployer
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 10
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: create
+          # temporal-dev の chart の schema ジョブと同じイメージ (temporal CLI が入っている。ノードにある)
+          image: temporalio/admin-tools:1.32.0
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              addr=temporal-internal-frontend.dev.svc.cluster.local:7236
+              if temporal operator namespace describe --address "$addr" -n gitops-deployer >/dev/null 2>&1; then
+                echo "namespace gitops-deployer はある"
+              else
+                temporal operator namespace create --address "$addr" -n gitops-deployer --retention 72h
+              fi
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

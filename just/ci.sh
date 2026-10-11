@@ -5,7 +5,8 @@
 #
 #   1. yamllint        リポジトリの YAML (.yamllint.yaml)
 #   2. helm template   clusters/kind/argocd/apps の各 Application が指す chart を、ArgoCD と同じ版・values で描画。
-#                      ApplicationSet (環境ごとの展開) は list generator の要素ごとに Application へ展開してから描画する
+#                      ApplicationSet (環境ごとの展開) は list generator の要素ごとに Application へ展開してから描画する。
+#                      git の directory generator (gitops-deployer-apps の deploys/*) は作業ツリーのディレクトリごとに展開する
 #   3. kustomize build / 素の manifest  同じ Application の path (dashboards、storage、headlamp/manifests)
 #   4. kubeconform     3 までの出力を、kind の Kubernetes の版のスキーマに照らす
 #   5. kube-linter     3 までの出力 (.kube-linter.yaml)
@@ -14,6 +15,7 @@
 #                      URL・ポート・CSP・proxy の突き合わせ、Backstage の tailnet の入口の proxy (clusters/kind/backstage/tailnet-proxy。
 #                      caddy を起動して、ゲストのサインインの経路の表記揺れが届かないこと)、gitops-deployer の基盤 (clusters/kind/gitops-deployer/test_platform.py) の
 #                      ambient に入れる namespace・Gateway と Knative の経路・Kafka と Redis の入口・Dapr の mTLS・APISIX の経路の突き合わせ。クラスタにもネットワークにも出ない
+#   6b. gitops-deployer  services/gitops-deployer の manifest の突き合わせ (test_manifests.py) と、Go の go vet・単体試験 (go test)
 #   7. Secret          Secret を作るスクリプトすべて (注釈・引数に値が残らない作り方、#49・#56) と Grafana・ArgoCD の Secret を偽の kubectl で確かめる
 #                      (just/test_secrets.py)。稼働中のクラスタ・ホストには触れない
 #   7b. Azure の資格情報  just/backstage-azure-secret.sh を偽の kubectl で確かめる (ファイルが無い・空・欠けた項目・CRLF・コメント、値が引数に残らないこと)
@@ -53,14 +55,31 @@ for app in "$apps"/*.yaml; do
         app_files+=("$app")
         continue
     fi
-    if [ "$(yq '[.spec.generators[] | select(has("list") | not)] | length' "$app")" != 0 ]; then
-        echo "ApplicationSet の generator は list だけにする (just ci が展開できない): $app" >&2
+    if [ "$(yq '[.spec.generators[] | select((has("list") or (has("git") and (.git | has("directories")))) | not)] | length' "$app")" != 0 ]; then
+        echo "ApplicationSet の generator は list か git の directories だけにする (just ci が展開できない): $app" >&2
         exit 1
     fi
-    n=$(yq '[.spec.generators[].list.elements[]] | length' "$app")
-    [ "$n" -gt 0 ] || { echo "ApplicationSet に list generator の要素が無い: $app" >&2; exit 1; }
+    # 要素 (JSON 1 行) の並び。git の directories は path.path・path.basename を、作業ツリーで glob に合うディレクトリから作る
+    elements=()
+    while IFS= read -r element; do
+        [ -n "$element" ] && elements+=("$element")
+    done < <(yq -o=json -I=0 '.spec.generators[].list.elements[]' "$app")
+    while IFS= read -r pattern; do
+        [ -n "$pattern" ] || continue
+        for dir in $pattern; do
+            [ -d "$dir" ] || continue
+            elements+=("$(jq -cn --arg p "$dir" --arg b "$(basename "$dir")" '{"path.path": $p, "path.basename": $b}')")
+        done
+    done < <(yq '.spec.generators[].git.directories[].path' "$app")
+    n=${#elements[@]}
+    if [ "$n" -eq 0 ]; then
+        # git の directory generator はディレクトリが無ければ Application を作らない (正しい状態)。list は要素が要る
+        [ "$(yq '[.spec.generators[] | select(has("git"))] | length' "$app")" != 0 ] || { echo "ApplicationSet に list generator の要素が無い: $app" >&2; exit 1; }
+        echo "ApplicationSet $(yq '.metadata.name' "$app") -> (展開するディレクトリが無い)"
+        continue
+    fi
     for ((i = 0; i < n; i++)); do
-        element=$(yq -o=json -I=0 "[.spec.generators[].list.elements[]] | .[$i]" "$app")
+        element=${elements[$i]}
         rendered=$(yq '{"apiVersion": "argoproj.io/v1alpha1", "kind": "Application"} * .spec.template' "$app")
         while IFS=$'\t' read -r key value; do
             rendered=${rendered//"{{.$key}}"/$value}
@@ -133,8 +152,16 @@ python3 -B -m unittest discover -s clusters/kind/backstage -v
 echo "== gitops-deployer の基盤 (ambient の namespace・Gateway と Knative・Kafka の入口・Dapr・APISIX の経路の突き合わせ) =="
 python3 -B -m unittest discover -s clusters/kind/gitops-deployer -p 'test_*.py' -v
 
+echo "== gitops-deployer の manifest の突き合わせ (APISIX の経路・ApplicationSet のラベル・イメージのタグ・Keycloak の client) =="
+python3 -B -m unittest discover -s services/gitops-deployer -p 'test_*.py' -v
+echo "== gitops-deployer の Go (go vet・単体試験。Workflow・Activity・bff・api・event-receiver) =="
+command -v go >/dev/null || { echo "go が無い (devShells.ci に入っているはず)" >&2; exit 1; }
+(cd services/gitops-deployer && GOTOOLCHAIN=local go vet ./... && GOTOOLCHAIN=local go test -count=1 ./...)
+
 echo "== Secret を作るスクリプト (注釈・引数に値が残らない、Grafana・ArgoCD の Secret) =="
 python3 -B -m unittest discover -s just -p 'test_secrets.py' -v
+echo "== gitops-deployer の資格情報の Secret (GitHub のトークンは無くても止めない、E2E の client、値が引数に残らない) =="
+python3 -B -m unittest discover -s just -p 'test_gitops_deployer_secrets.py' -v
 echo "== Azure のタブの資格情報の Secret (ファイルが無くても失敗しない、値が引数に残らない) =="
 python3 -B -m unittest discover -s just -p 'test_backstage_azure_secret.py' -v
 echo "== Tailscale の operator の OAuth client の Secret (ファイルが無ければ止まる、値が引数に残らない) =="

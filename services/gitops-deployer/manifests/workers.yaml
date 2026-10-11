@@ -1,0 +1,236 @@
+# workflow-engine: Workflow Engine Pod。Task Queue workflow-engine で Workflow だけを実行する (外部 I/O なし)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workflow-engine
+  namespace: gitops-deployer
+  labels:
+    app.kubernetes.io/name: workflow-engine
+    app.kubernetes.io/part-of: gitops-deployer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: workflow-engine
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: workflow-engine
+        app.kubernetes.io/part-of: gitops-deployer
+    spec:
+      serviceAccountName: workflow-engine
+      automountServiceAccountToken: false
+      # preStop の 5 秒 + 受け付け中の処理 (HTTP は 20 秒、Worker は WorkerStopTimeout 20 秒) が収まる長さ
+      terminationGracePeriodSeconds: 40
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: workflow-engine
+          image: kind.local/home-k8s-gitops-deployer:0.1.0
+          command: [/usr/local/bin/workflow-engine]
+          envFrom:
+            - configMapRef:
+                name: gitops-deployer
+          ports:
+            - name: http
+              containerPort: 8080
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          lifecycle:
+            # Service・Endpoints から外れるのを待ってから SIGTERM を受ける
+            preStop:
+              sleep:
+                seconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+---
+# git-activity: Task Queue git-activity の Activity (GitHub にブランチと PR を作り、auto-merge を有効にする)。資格情報を持つのはこの Pod だけ
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: git-activity
+  namespace: gitops-deployer
+  labels:
+    app.kubernetes.io/name: git-activity
+    app.kubernetes.io/part-of: gitops-deployer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: git-activity
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: git-activity
+        app.kubernetes.io/part-of: gitops-deployer
+    spec:
+      serviceAccountName: git-activity
+      automountServiceAccountToken: false
+      # preStop の 5 秒 + 受け付け中の処理 (HTTP は 20 秒、Worker は WorkerStopTimeout 20 秒) が収まる長さ
+      terminationGracePeriodSeconds: 40
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: git-activity
+          image: kind.local/home-k8s-gitops-deployer:0.1.0
+          command: [/usr/local/bin/git-activity]
+          envFrom:
+            - configMapRef:
+                name: gitops-deployer
+          env:
+            # GitHub の fine-grained PAT (home-k8s の contents・pull requests の読み書きだけ)。just up が作る Secret
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: github-token
+                  key: token
+          ports:
+            - name: http
+              containerPort: 8080
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          lifecycle:
+            # Service・Endpoints から外れるのを待ってから SIGTERM を受ける
+            preStop:
+              sleep:
+                seconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+---
+# store-activity: Task Queue store-activity の Activity (履歴を Dapr state に残し、完了イベントを Dapr pub/sub に流す)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: store-activity
+  namespace: gitops-deployer
+  labels:
+    app.kubernetes.io/name: store-activity
+    app.kubernetes.io/part-of: gitops-deployer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: store-activity
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: store-activity
+        app.kubernetes.io/part-of: gitops-deployer
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: store-activity
+        dapr.io/app-port: "8080"
+        dapr.io/config: gitops-deployer
+        dapr.io/log-as-json: "true"
+        dapr.io/sidecar-cpu-request: 10m
+        dapr.io/sidecar-memory-request: 48Mi
+        dapr.io/sidecar-memory-limit: 192Mi
+        # SIGTERM の後もアプリが Dapr を呼び終えるまでサイドカーを残す
+        dapr.io/graceful-shutdown-seconds: "20"
+    spec:
+      serviceAccountName: store-activity
+      automountServiceAccountToken: false
+      # preStop の 5 秒 + 受け付け中の処理 (HTTP は 20 秒、Worker は WorkerStopTimeout 20 秒) が収まる長さ
+      terminationGracePeriodSeconds: 40
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: store-activity
+          image: kind.local/home-k8s-gitops-deployer:0.1.0
+          command: [/usr/local/bin/store-activity]
+          envFrom:
+            - configMapRef:
+                name: gitops-deployer
+          ports:
+            - name: http
+              containerPort: 8080
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          lifecycle:
+            # Service・Endpoints から外れるのを待ってから SIGTERM を受ける
+            preStop:
+              sleep:
+                seconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
