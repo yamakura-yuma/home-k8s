@@ -1,7 +1,7 @@
 # ゲスト (他の人) の入れ方 — 比較と推奨
 
-状態: 比較 (2026-10-11) のあと、人が G2 (ブラウザだけ) を選んだ (2026-10-12)。**g1 (グループ `guests`・各 UI の権限・期限・`just guest`) は実装済み**
-(下の「実装 (g1)」)。インターネットへの公開 (g2b、Funnel) はまだ付けていない。tailnet の中でだけ使える。
+状態: 比較 (2026-10-11) のあと、人が G2 (ブラウザだけ) を選んだ (2026-10-12)。**g1 (グループ `guests`・各 UI の権限・期限・`just guest`) と
+g2b (Tailscale Funnel でのインターネットへの公開) は実装済み** (下の「実装 (g1)」と「実装 (g2b)」)。ゲストはブラウザだけで、Keycloak・Grafana (観測スタック)・Backstage に届く。
 
 人の決めたこと (2026-10-12): ゲストはブラウザだけの人 (G2)。期限は **発行した日の次の 3:00 JST** (毎日 3:00 にゲストを全員消す。8 時間の案から変更)。
 headroom は見せない。業務の利用には当たらない (Tailscale Personal の非商用の条件)。
@@ -56,8 +56,8 @@ just guest delete <名前>   # 期限の前に取り消す。Keycloak のセッ�
   画面から写してゲストに渡し、保存しない (失くしたら `just guest delete` して `add` し直す)
 - ゲストは最初のログインで、パスワードの変更と TOTP の設定を求められる (`UPDATE_PASSWORD`・`CONFIGURE_TOTP`)。
   入口は Account Console (`https://keycloak.taild2b611.ts.net/realms/home-k8s/account`) か、Grafana・Backstage のログインのボタン
-- 見せるのは `https://grafana.taild2b611.ts.net` (Viewer) と `https://backstage.taild2b611.ts.net` (読むだけ)。いまは tailnet の中だけで、
-  ブラウザだけのゲストには g2b (Funnel) の後に届く
+- 見せるのは `https://grafana.taild2b611.ts.net` (Viewer) と `https://backstage.taild2b611.ts.net` (読むだけ)。tailnet の外のブラウザからも同じ URL で開ける
+  (Funnel。下の「実装 (g2b)」)。ゲストに渡すのは、この 2 つの URL・ユーザー名 `guest-<名前>`・一時パスワードの 3 つ
 - 人ごとの期限 (`--hours` など) は持たない。延ばしたいときは、翌日にもう一度 `add` する
 
 **ゲストにも TOTP を求める**。ゲストは毎日作り直すので、そのたびに認証アプリに 1 つ登録することになり、手間は増える。それでも残すのは、
@@ -136,6 +136,46 @@ authorization code flow を流した (Python の標準ライブラリ)。テス�
 2. 同じウィンドウで `https://backstage.taild2b611.ts.net` → Keycloak でサインイン (もう一度は聞かれない) → カタログは見えるが、Unregister entity などは拒否される
 3. `https://argocd.taild2b611.ts.net` に入っても Application が出ない。`https://grafana-dev.taild2b611.ts.net` はログインを断る
 4. `just guest list` に `guest-try` と期限が出る → `just guest delete try` → 2 の画面を再読み込みし、10 分以内にサインインの画面に戻る
+
+## 実装 (g2b)
+
+2026-10-12 (JST) に実装した。Keycloak・Grafana (観測スタック)・Backstage の 3 つの Ingress だけに Funnel を付け、インターネットに出した。
+issuer の URL (`https://keycloak.taild2b611.ts.net/realms/home-k8s`) は変えていない。
+
+### 構成
+
+```text
+インターネットのブラウザ ─Funnel─┐
+tailnet の端末 ──────────────────┴▶ proxy (tailscale serve。Funnel の要求に Tailscale-Funnel-Request: ?1) ─▶ 入口の proxy (caddy) ─▶ UI
+```
+
+| Ingress | 入口の proxy | インターネットからの要求 (Funnel) にすること | tailnet からの要求 |
+|---|---|---|---|
+| `auth/keycloak` | `keycloak-front` ([clusters/kind/auth/keycloak-front](../../clusters/kind/auth/keycloak-front)) | realm `home-k8s` と `/resources/` だけを通す。`/admin/`・realm `master`・client の登録の API・`/`・metrics・health は 404 | 全部通す (Admin Console も今までどおり) |
+| `observability/grafana` | `grafana-tailnet` ([clusters/kind/observability/tailnet-proxy](../../clusters/kind/observability/tailnet-proxy)) | パスワードのログイン (`POST /login`) は 403、パスワードのリセットは 404、`Authorization` ヘッダ (Basic・トークン) は消す。ログインは Sign in with Keycloak だけ | 全部通す |
+| `backstage/backstage` | `backstage-tailnet` (単位 4 から) | ゲストのサインイン (`/api/auth/guest`) は 403 | 同じ (tailnet からもゲストは拒む) |
+| ArgoCD・Headlamp・Temporal UI ×2・Grafana (dev・prod) | — | **Funnel を付けない** (インターネットからは名前も引けない) | 今までどおり |
+
+- **Funnel は Ingress の経路を選べない** (最初に確かめた)。operator は注釈 `tailscale.com/funnel` を serve の設定の `AllowFunnel` (`host:443` の単位) に直し、
+  経路ごとの項目は無い (tailscale v1.102.4 の `cmd/k8s-operator/ingress.go`)。動いている Keycloak の proxy の serve の設定も `"/"` の 1 つの handler だけだった。だから経路は前の proxy で絞る
+- **tailnet と Funnel の要求は見分けられる**。tailscale serve は Funnel の要求に `Tailscale-Funnel-Request: ?1` を付け、どの要求でも外から来た同じヘッダを先に消す
+  (`ipn/ipnlocal/serve.go`)。インターネットの側から付けることも消すこともできないので、Ingress を分けず、1 つの名前のまま proxy で分けた。
+  Ingress を分けると Admin Console を別の名前に移すことになり、`hostname-admin` を使っても管理の REST API はフロントの名前から届く (止めるのは proxy) ([keycloak.md](keycloak.md) の「インターネットへの公開」)
+- **ヘッダに頼る弱み**: Tailscale がこのヘッダを付けなくなるとインターネットの要求が tailnet の扱いになり、全部届く。operator を上げたら、下の「確かめた結果」の外からの確認をやり直す
+- **表記揺れ**: インターネットからの要求で、生の path に `%2f`・`%5c`・`%2e`・`%3b`・`%25`・`;`・`\`・`//`・ドットセグメントがあれば 404 にする (Keycloak と Grafana の proxy)。
+  加えて caddy の `path` の matcher は大文字小文字を区別せず、%エンコードを解き、畳んだ path に当たる
+- **Grafana の `admin`・`viewer`** は残す: `just show grafana` はホストの `localhost:3000` (NodePort で Service grafana に直につなぐ) で、入口の proxy を通らない
+- **Keycloak の守り**: ブルートフォースの検知を 5 回の失敗で一時ロック (最大 15 分) に絞り、パスワードのポリシー (12 文字以上など) を足した。恒久ロックにはしない
+  (インターネットの誰でも人のユーザー名で締め出せてしまう)。Git の realm の宣言と動いている Keycloak の両方に入れた ([keycloak.md](keycloak.md))。**ゲストの TOTP は必須のまま**
+- **数の検査**: tailnet のポリシーの `nodeAttrs` で `tag:k8s` の proxy のどれもが Funnel を使える状態なので、`just ci`
+  ([clusters/kind/tailscale/test_funnel.py](../../clusters/kind/tailscale/test_funnel.py)) が `tailscale.com/funnel` の注釈は 3 つの Ingress だけにあり、どれも入口の proxy を指すことを確かめる。
+  同じ試験が、caddy を起動して許可リストと表記揺れを確かめる
+- **人の画面操作**: tailnet のポリシーに `{"target": ["tag:k8s"], "attr": ["funnel"]}` の `nodeAttrs` を足した ([tailscale.md](tailscale.md) の「Funnel」)
+
+### 止めるとき
+
+3 つの Ingress から注釈 `tailscale.com/funnel` を消す (Git の revert)。operator が serve の設定から `AllowFunnel` を外す。入口の proxy は tailnet の要求をそのまま通すので、残しても害は無い。
+急ぐときは `kubectl -n auth annotate ingress keycloak tailscale.com/funnel-` (ArgoCD の selfHeal が戻すので、root と tailscale-ingress の自動同期を止めてから)。
 
 ## 結論
 
@@ -247,7 +287,7 @@ B1 では、ゲストのブラウザが Keycloak のログイン画面に届く�
 | `/` | 出さない | 管理の経路が出てしまう |
 | `/metrics`・`/health` | 出さない | |
 
-Tailscale の Funnel は Ingress の経路を選べず、Service を丸ごと出す [未確認]。そこで、次の形にする。
+Tailscale の Funnel は Ingress の経路を選べず、host:443 を丸ごと出す (g2b で operator のソースと動いている設定で確かめた。上の「実装 (g2b)」)。そこで、次の形にする。
 
 - **Keycloak の Ingress の先に、経路の許可リストを持つ caddy を挟む**。`/realms/home-k8s/`・`/resources/`・`/.well-known/` だけを通し、残り (`/admin/`・`/realms/master/` ほか) は 404 にする。
   Backstage の `backstage-tailnet` と同じ作り (caddy の `path` の matcher と、表記揺れを確かめる `just ci` の試験。[backstage.md](backstage.md))
@@ -334,7 +374,7 @@ Tailscale の共有の招待リンクは、使い回せるものなら 1,000 回
 |---|---|---|---|
 | g1 (**実装済み**、2026-10-12。上の「実装 (g1)」) | `guests` と各 UI | realm に `guests` を足す (Git と kcadm.sh)。Grafana (観測スタック) の `role_attribute_path`、Backstage の `ROLE_GROUPS` に足す。期限 (毎日 3:00 JST) の CronJob を入れる。`just guest add/list/delete` | 使い捨てのテスト用ユーザー (`test-guest`) で、Grafana が Viewer、Backstage が読むだけ、ArgoCD・Temporal・Headlamp・Grafana (dev・prod) で何も見えないこと。期限を短くした workflow で無効になること |
 | g2a | A1 (G1 を選んだら) | Keycloak の proxy の端末を 1 台共有して、タグ付きの端末を共有できるか確かめる。できたら Grafana・Backstage も共有し、手順を書く。できなければ A2 の grants を入れる。結果で [access-control.md](access-control.md) の「タグ付きのマシンは共有できない」の記述も直す | 別のアカウントの tailnet の端末から、3 つの URL が開き `test-guest` で入れる |
-| g2b | B1 (G2 を選んだら) | Funnel が Ingress の経路を選べないこと (前の caddy が要るか) を最初に確かめる。Keycloak の前の caddy (経路の許可リストと `just ci` の試験)、ブルートフォースの設定の見直しとパスワードのポリシー、`nodeAttrs`、3 つの Ingress の Funnel の注釈 | tailnet の外 (スマホの回線など) から `/realms/home-k8s/` は開き、`/admin/`・`/realms/master/` は 404。ログインに TOTP が要る |
+| g2b (**実装済み**、2026-10-12。上の「実装 (g2b)」) | B1 (G2 を選んだら) | Funnel が Ingress の経路を選べないこと (前の caddy が要るか) を最初に確かめる。Keycloak の前の caddy (経路の許可リストと `just ci` の試験)、ブルートフォースの設定の見直しとパスワードのポリシー、`nodeAttrs`、3 つの Ingress の Funnel の注釈 | tailnet の外 (スマホの回線など) から `/realms/home-k8s/` は開き、`/admin/`・`/realms/master/` は 404。ログインに TOTP が要る |
 | g3 | headroom (見せると決めたら) | ホストの中継と oauth2-proxy | `guests` 以外は 403、許可リストの外は 404 |
 
 ## 出典

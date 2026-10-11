@@ -7,13 +7,15 @@ kind のクラスタの namespace `auth` に、IdP の Keycloak と、その DB 
 - Admin Console: `https://keycloak.taild2b611.ts.net/admin/` (realm `master`、ユーザー `admin`。パスワードは下の「Secret」)
 - ユーザーは `yamakura-yuma` (グループ `admins`、TOTP 必須、passkey も登録できる。下の「人のユーザーと MFA」。単位 2c)。各 UI と API server を OIDC につなぐのは単位 3〜6。ArgoCD と Grafana ×3 は単位 3、Temporal UI ×2 と Backstage は単位 4、Headlamp と kind の API server (kubectl) は単位 5 でつないだ (下の「各 UI の OIDC」と [kube-oidc.md](kube-oidc.md))
 - ゲスト (他の人) はグループ `guests` に `just guest add` で入れ、発行した日の次の 3:00 JST に消える ([guest-access.md](guest-access.md) の「実装」)
+- **インターネットにも出している** (Tailscale Funnel、2026-10-12。ゲストはブラウザだけで届く)。インターネットからは realm `home-k8s` と `/resources/` だけが届き、
+  Admin Console (`/admin/`)・realm `master`・client の登録の API などは前の proxy `keycloak-front` が 404 にする。tailnet からは今までどおり全部届く (下の「インターネットへの公開」)
 
 ## 構成
 
 ```text
-tailnet の端末 ─HTTPS─▶ proxy (ts-keycloak-*、Ingress auth/keycloak) ─HTTP─▶ Service keycloak-service:8080 ─▶ Pod keycloak-0
-                                   ▲ tailnet                                                                  │ JDBC
-クラスタの Pod ─DNS─▶ CoreDNS (rewrite) ─▶ egress の proxy (ts-keycloak-tailnet-*) ──┘                         ▼
+tailnet の端末 ─HTTPS─▶ proxy (ts-keycloak-*、Ingress auth/keycloak) ─HTTP─▶ keycloak-front (caddy) ─▶ Service keycloak-service:8080 ─▶ Pod keycloak-0
+インターネット ─Funnel─┘      ▲ tailnet       (インターネットからは realm home-k8s と /resources/ だけ)                │ JDBC
+クラスタの Pod ─DNS─▶ CoreDNS (rewrite) ─▶ egress の proxy (ts-keycloak-tailnet-*) ──┘                                            ▼
                                                                          Service keycloak-postgres:5432 ─▶ Pod keycloak-postgres-0
                                                                                                                 │ PVC data-keycloak-postgres-0
                                                                                                                 ▼
@@ -29,7 +31,8 @@ tailnet の端末 ─HTTPS─▶ proxy (ts-keycloak-*、Ingress auth/keycloak) �
 | PostgreSQL (公式の `postgres:17.6-alpine` の StatefulSet) と `pg_dump` の CronJob | [clusters/kind/auth/postgres](../../clusters/kind/auth/postgres) | `keycloak-postgres` |
 | PV `keycloak-postgres`・`keycloak-postgres-dump` | [clusters/kind/storage](../../clusters/kind/storage) | `storage` |
 | `Keycloak` の CR、realm の `KeycloakRealmImport`、egress の Service | [clusters/kind/auth/keycloak](../../clusters/kind/auth/keycloak) | `keycloak` |
-| tailnet への Ingress | [clusters/kind/tailscale/ingress/keycloak.yaml](../../clusters/kind/tailscale/ingress/keycloak.yaml) | `tailscale-ingress` |
+| tailnet への Ingress (Funnel 付き) | [clusters/kind/tailscale/ingress/keycloak.yaml](../../clusters/kind/tailscale/ingress/keycloak.yaml) | `tailscale-ingress` |
+| Ingress の先の proxy `keycloak-front` (caddy。インターネットからの経路の許可リスト) | [clusters/kind/auth/keycloak-front](../../clusters/kind/auth/keycloak-front) | `keycloak` (2 つ目の source) |
 | ゲストの期限切れを消す CronJob `guest-expiry` (5 分ごと) | [clusters/kind/auth/guest-expiry](../../clusters/kind/auth/guest-expiry) | `guest-expiry` |
 | Secret と CoreDNS の設定 | `just up` の `_keycloak-secrets`・`_coredns-tailnet` ([just/keycloak.just](../../just/keycloak.just)) | (ArgoCD の外) |
 
@@ -80,6 +83,8 @@ Pod からも `https://keycloak.taild2b611.ts.net` で、同じ証明書で届�
 | client scope `groups` | Group Membership mapper (`full.path: "false"`、claim `groups`、ID トークン・アクセストークン・userinfo)。realm の既定の client scope に足したので、全部の client に付く |
 | 既定の client scope | Keycloak の既定 (basic・profile・email・roles・web-origins・acr など) + groups。`clientScopes` を書くと既定のものが作られなくなるので、realm の属性 `CreateDefaultClientScopes: "true"` で作らせた |
 | 自分での登録・パスワードのリセット | 無効 (人は管理者が作る。SMTP は無い) |
+| ブルートフォースの検知 | パスワードと OTP の失敗 5 回で一時ロック。ロックは 5 回ごとに 60 秒ずつ延び、15 分で頭打ち。失敗の数は 12 時間で数え直す。1 秒以内の連続の失敗は 60 秒ロック。**恒久ロックにはしない** (インターネットの誰でも、人のユーザー名で失敗を重ねて締め出せてしまう)。下の「インターネットへの公開」 |
+| パスワードのポリシー | `length(12) and maxLength(128) and notUsername and notEmail and passwordHistory(3)`。変えるときだけ効く (今のパスワードは次に変えるまでそのまま) |
 | MFA | TOTP (HmacSHA1・6 桁・30 秒) が既定の必須アクション (`CONFIGURE_TOTP` の `defaultAction`)。passkey (WebAuthn) も登録できる。下の「人のユーザーと MFA」 |
 
 client (単位 3〜6 で使うものを先に全部置いた)。redirect URI は tailnet の URL。
@@ -280,6 +285,46 @@ Backstage は最大 10 分 (Backstage のトークンの寿命) で見られな�
 グループから外しただけ (ユーザーは残る) のときは、トークンの取り直しが通るので、各 UI がグループを読み直すまで残る [未確認]。
 すぐに切るときは、ArgoCD は `argocd-secret` の `server.secretkey` を消して argocd-server を作り直す (全員のセッションが切れる)、
 Grafana は admin で Server admin → Users → 該当ユーザー → Sessions の Force logout (どちらも試していない [未確認])。
+
+## インターネットへの公開 (Funnel、2026-10-12)
+
+ブラウザだけのゲストがログインできるよう、Ingress `auth/keycloak` に Funnel (`tailscale.com/funnel: "true"`) を付けた ([guest-access.md](guest-access.md) の「実装 (g2b)」)。
+名前は `keycloak` のままなので、issuer (`https://keycloak.taild2b611.ts.net/realms/home-k8s`) と passkey の RP ID は変わらない。
+
+**Funnel は経路を選べない**。operator は Ingress を tailscale serve の設定に直し、Funnel は `AllowFunnel` の `host:443` 単位で付く (tailscale v1.102.4 の
+`cmd/k8s-operator/ingress.go`。動いている proxy の serve の設定も `{"TCP":{"443":…},"Web":{"${TS_CERT_DOMAIN}:443":{"Handlers":{"/":…}}}}` で、経路ごとの項目は無い)。
+そこで、Ingress の先に caddy の proxy `keycloak-front` を挟み、インターネットからの要求だけを絞る。
+
+| 要求 | 届く経路 | 届かない経路 (404) |
+|---|---|---|
+| インターネット (Funnel) | `/realms/home-k8s` とその下 (ログイン・token・userinfo・jwks・Account Console)、`/resources/` (ログイン画面の静的ファイル) | `/admin/` (Admin Console と管理の REST API)、`/realms/master/`、`/realms/home-k8s/clients-registrations/` (client の登録の API)、`/`、`/metrics`・`/health` (Keycloak は 9000 番で出し、Ingress は 8080 番だけを指す)、ほか全部 |
+| tailnet (人の端末・Pod からの egress) | 全部 (今までどおり) | — |
+
+- **見分け方**: tailscale serve は、Funnel から来た要求にヘッダ `Tailscale-Funnel-Request: ?1` を付け、どの要求でも外から来た同じ名前のヘッダを先に消す
+  (tailscale の `ipn/ipnlocal/serve.go` の `addTailscaleIdentityHeaders`)。インターネットの側からは付けることも消すこともできない。caddy はこのヘッダの有無で分ける
+- **Ingress を分けなかった理由**: インターネット用と tailnet 用で Ingress (名前) を分けると、Funnel を付ける側が issuer の名前 `keycloak` になるので、Admin Console を別の名前
+  (`hostname-admin`) に移すことになり、Admin Console の URL が変わる。Keycloak の文書は、`hostname-admin` を設定してもフロントの URL から管理の REST API に届くのは止まらず、
+  止めるのは reverse proxy の仕事だとしている。どちらにしても proxy は要るので、名前を 1 つに保ち、proxy でヘッダを見て分けた
+- **ヘッダに頼ることの弱み**: tailscale serve がこのヘッダを付けなくなると、インターネットからの要求が tailnet の扱いになり全部届く (fail-open)。tailscale (operator の版) を上げたら、
+  下の「確かめ方」の外からの確認 (`/admin/` が 404) をやり直す。tailnet の要求の側には目印が無い (タグ付きの端末の egress には `Tailscale-User-Login` も付かない) ので、逆向きには組めない
+- **表記揺れ**: caddy の `path` の matcher は大文字小文字を区別せず、%エンコードを解き、スラッシュの重なりとドットセグメントを畳んで当てる。加えて、インターネットからの要求で生の path に
+  `%2f`・`%5c`・`%2e`・`%3b`・`%25`・`;`・`\`・`//`・ドットセグメントがあれば、許可リストに当たっても 404 にする (caddy と Keycloak で解き方がずれる余地をなくす)。
+  試験は `just ci` の [clusters/kind/tailscale/test_funnel.py](../../clusters/kind/tailscale/test_funnel.py) (Keycloak に届いた path を寛容に解いても許可リストの中にあること)
+- **X-Forwarded-***: caddy は既定で受けた `X-Forwarded-Proto` を自分の受けた http に書き換えるので、`trusted_proxies private_ranges` で Tailscale の proxy の値をそのまま渡す
+  (Keycloak は `proxy.headers: xforwarded`。無いと http の URL を作る)
+- CronJob `guest-expiry` と `just guest` は Service `keycloak-service` に直につなぐので、この proxy を通らない
+
+### ブルートフォースの検知とパスワードのポリシー
+
+ログイン画面がインターネットに出たので、realm の既定 (30 回で一時ロック、ポリシー無し) から絞った (上の「realm home-k8s」の表)。Git の realm の宣言と、動いている Keycloak の両方に入れた
+(realm の import は realm があると効かないので、`kcadm.sh update realms/home-k8s -s failureFactor=5 …` で入れた)。
+
+- **一時ロックだけにする**。恒久ロック (`permanentLockout`) は、ユーザー名を知った人が誰でもパスワードを外し続けて、人の `yamakura-yuma` を締め出せる。
+  一時ロック (5 回の失敗ごとに 60 秒ずつ延び、最大 15 分) なら、締め出しは最大 15 分で、推測は 1 日におよそ 500 回までに抑えられる。加えて TOTP が要る (ゲストも外さない)
+- OTP の失敗もパスワードの失敗と同じく数える
+- ロックを外すのは tailnet の Admin Console (Users → 対象のユーザー → 「Temporarily locked」の表示で Unlock) か、
+  `kc delete attack-detection/brute-force/users/<id> -r home-k8s`
+- パスワードのポリシーは 12 文字以上。`just guest add` の一時パスワードは 24 文字 (ランダム 18 バイトの base64url) で収まる
 
 ## Secret
 

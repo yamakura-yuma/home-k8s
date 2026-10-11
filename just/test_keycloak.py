@@ -145,6 +145,19 @@ class Realm(unittest.TestCase):
         self.assertEqual([a for a, d in actions.items() if d == "true"], ["CONFIGURE_TOTP"])
         self.assertIn("otpPolicyType: totp\n", self.realm)
 
+    def test_login_is_hardened_for_the_internet(self):
+        # ログイン画面を Funnel でインターネットに出す (g2b)。ブルートフォースは 5 回で一時ロック (恒久ロックは誰でも人を締め出せるので使わない)、
+        # パスワードは 12 文字以上。自分での登録とパスワードのリセットは無効のまま
+        for line in [
+            "bruteForceProtected: true", "permanentLockout: false", "failureFactor: 5", "maxFailureWaitSeconds: 900",
+            "registrationAllowed: false", "resetPasswordAllowed: false",
+        ]:
+            self.assertIn(f"\n    {line}\n", self.realm)
+        policy = re.search(r"^    passwordPolicy: (.+)$", self.realm, re.M).group(1).split(" and ")
+        self.assertIn("length(12)", policy)
+        self.assertIn("notUsername", policy)
+        self.assertIn("passwordHistory(3)", policy)
+
     def test_required_actions_keep_the_keycloak_defaults(self):
         # requiredActions を書くと、無いものは import で作られない (UPDATE_PASSWORD が無いと一時パスワードが使えない)。
         # Keycloak 26.8.0 の realm home-k8s にあった 14 個
