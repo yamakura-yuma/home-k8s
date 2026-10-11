@@ -82,6 +82,20 @@ func TestStructuredDeleteEvent(t *testing.T) {
 	if w.Code != http.StatusAccepted || len(f.signals) != 1 || f.signals[0].Exists {
 		t.Fatalf("%d %s %+v", w.Code, w.Body, f.signals)
 	}
+	// 消える直前の Application の revision (消す PR の merge より前) は渡さない
+	if f.signals[0].Revision != "" {
+		t.Errorf("delete の revision は空のはず: %q", f.signals[0].Revision)
+	}
+}
+
+// Kafka Broker の dispatcher は、CloudEvent でない本文の付いた 2xx を失敗として Dead Letter へ送る
+func TestSuccessHasNoBody(t *testing.T) {
+	if w := post(&Handler{T: &fakeTemporal{status: enumspb.WORKFLOW_EXECUTION_STATUS_RUNNING}}, binary, appJSON); w.Code != http.StatusAccepted || w.Body.Len() != 0 {
+		t.Errorf("Signal した: %d %q", w.Code, w.Body)
+	}
+	if w := post(&Handler{T: &fakeTemporal{missing: true}}, binary, appJSON); w.Code != http.StatusOK || w.Body.Len() != 0 {
+		t.Errorf("捨てた: %d %q", w.Code, w.Body)
+	}
 }
 
 func TestIgnoresWhatIsNotOurs(t *testing.T) {

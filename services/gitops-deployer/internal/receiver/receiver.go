@@ -6,6 +6,11 @@
 //   - 走っている Workflow が無ければ (処理の外の変化) 受け取ったことにして捨てる (2xx。Broker は打ち直さない)
 //   - Temporal に届かなければ 5xx。Broker が打ち直し、尽きたら Dead Letter (Trigger の無い Broker dead-letter) へ送る
 //   - 重複 (at-least-once) は Workflow が CloudEvent の id で捨てる
+//   - 2xx は本文を返さない。Kafka Broker の dispatcher は、CloudEvent でない本文の付いた応答を「読めない応答」として
+//     失敗にし、打ち直さずに Dead Letter へ送る (届いて Signal 済みのイベントまで Dead Letter に溜まる)
+//   - delete のイベントの data は消える直前の Application で、status.sync.revision は最後に同期した (消す PR の merge より前の)
+//     revision のまま。これを渡すと「PR の merge が revision に入っているか」が偽になり Workflow が待ち続けるので、空にする
+//     (Workflow は空の revision なら merge されたかだけを確かめる)
 //   - トレース: Workflow の memo の traceparent を親にし、受けた CloudEvent の traceparent をリンクにする。
 //     Signal は Temporal の interceptor が同じ文脈で運ぶ
 package receiver
@@ -87,10 +92,14 @@ func Parse(r *http.Request, body []byte) (ev workflow.ArgoEvent, ok bool, err er
 	if spec.ValidateName(name) != nil {
 		return ev, false, nil
 	}
-	return workflow.ArgoEvent{
+	ev = workflow.ArgoEvent{
 		ID: id, Type: typ, App: name, Exists: typ != typeDelete,
 		Sync: app.Status.Sync.Status, Health: app.Status.Health.Status, Revision: app.Status.Sync.Revision,
-	}, true, nil
+	}
+	if !ev.Exists {
+		ev.Revision = ""
+	}
+	return ev, true, nil
 }
 
 func (h *Handler) Register(r gin.IRoutes) { r.POST("/", h.receive) }
@@ -105,14 +114,19 @@ func (h *Handler) receive(c *gin.Context) {
 	if err != nil {
 		// 読めないイベントは打ち直しても読めない。受け取ったことにして捨てる (Broker を詰まらせない)
 		slog.WarnContext(c.Request.Context(), "読めない CloudEvent を捨てた", "error", err.Error())
-		c.JSON(http.StatusOK, gin.H{"ignored": err.Error()})
+		c.Status(http.StatusOK)
 		return
 	}
 	if !ok {
-		c.JSON(http.StatusOK, gin.H{"ignored": "gitops-deployer のアプリではない"})
+		c.Status(http.StatusOK)
 		return
 	}
 	status, msg := h.signal(c.Request.Context(), ev)
+	if status < 300 {
+		c.Status(status)
+		return
+	}
+	// 失敗の本文は Dead Letter のイベントの knativeerrordata に残る
 	c.JSON(status, gin.H{"result": msg, "workflowId": workflow.ID(ev.App)})
 }
 

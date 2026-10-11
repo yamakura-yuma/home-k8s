@@ -22,7 +22,7 @@ spec:
     - name: deploy-and-delete
       timeout: 60m
       run:
-        image: kind.local/home-k8s-gitops-deployer:0.1.1
+        image: kind.local/home-k8s-gitops-deployer:0.1.2
         command: [/usr/local/bin/e2e]
         env:
           - name: OUT

@@ -89,7 +89,7 @@
   </table>
   </div>
   <ul class="short">
-    <li>namespace <code>gitops-deployer</code> (Istio ambient)。Go のモジュール 1 つ、イメージ 1 つ (<code>kind.local/home-k8s-gitops-deployer:0.1.1</code>)、<code>/usr/local/bin/&lt;名前&gt;</code> で起動を分ける。設定は ConfigMap <code>gitops-deployer</code>。</li>
+    <li>namespace <code>gitops-deployer</code> (Istio ambient)。Go のモジュール 1 つ、イメージ 1 つ (<code>kind.local/home-k8s-gitops-deployer:0.1.2</code>)、<code>/usr/local/bin/&lt;名前&gt;</code> で起動を分ける。設定は ConfigMap <code>gitops-deployer</code>。</li>
     <li>停止: preStop の sleep 5 秒の間に Service から外れ、SIGTERM で readiness を落とし、<code>http.Server.Shutdown</code> か <code>worker.Stop</code> (WorkerStopTimeout 20 秒) で受け付け中の処理を終える。terminationGracePeriodSeconds 40。</li>
     <li>probe は startup・readiness・liveness (<code>/healthz</code>・<code>/readyz</code>)。requests・limits、読み取り専用の root、非 root。</li>
   </ul>
