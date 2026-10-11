@@ -15,7 +15,7 @@
 #                      URL・ポート・CSP・proxy の突き合わせ、Backstage の tailnet の入口の proxy (clusters/kind/backstage/tailnet-proxy。
 #                      caddy を起動して、ゲストのサインインの経路の表記揺れが届かないこと)、gitops-deployer の基盤 (clusters/kind/gitops-deployer/test_platform.py) の
 #                      ambient に入れる namespace・Gateway と Knative の経路・Kafka と Redis の入口・Dapr の mTLS・APISIX の経路の突き合わせ。クラスタにもネットワークにも出ない
-#   6b. gitops-deployer  services/gitops-deployer の manifest の突き合わせ (test_manifests.py) と、Go の go vet・単体試験 (go test)
+#   6b. gitops-deployer  services/gitops-deployer の manifest の突き合わせ (test_manifests.py) と、Go の gofmt・go vet・単体試験 (go test)
 #   7. Secret          Secret を作るスクリプトすべて (注釈・引数に値が残らない作り方、#49・#56) と Grafana・ArgoCD の Secret を偽の kubectl で確かめる
 #                      (just/test_secrets.py)。稼働中のクラスタ・ホストには触れない
 #   7b. Azure の資格情報  just/backstage-azure-secret.sh を偽の kubectl で確かめる (ファイルが無い・空・欠けた項目・CRLF・コメント、値が引数に残らないこと)
@@ -154,13 +154,13 @@ python3 -B -m unittest discover -s clusters/kind/gitops-deployer -p 'test_*.py' 
 
 echo "== gitops-deployer の manifest の突き合わせ (APISIX の経路・ApplicationSet のラベル・イメージのタグ・Keycloak の client) =="
 python3 -B -m unittest discover -s services/gitops-deployer -p 'test_*.py' -v
-echo "== gitops-deployer の Go (go vet・単体試験。Workflow・Activity・bff・api・event-receiver) =="
+echo "== gitops-deployer の Go (gofmt・go vet・単体試験。Workflow・Activity・bff・api・event-receiver) =="
 command -v go >/dev/null || { echo "go が無い (devShells.ci に入っているはず)" >&2; exit 1; }
-(cd services/gitops-deployer && GOTOOLCHAIN=local go vet ./... && GOTOOLCHAIN=local go test -count=1 ./...)
+(cd services/gitops-deployer && test -z "$(gofmt -l . | tee /dev/stderr)" && GOTOOLCHAIN=local go vet ./... && GOTOOLCHAIN=local go test -count=1 ./...)
 
 echo "== Secret を作るスクリプト (注釈・引数に値が残らない、Grafana・ArgoCD の Secret) =="
 python3 -B -m unittest discover -s just -p 'test_secrets.py' -v
-echo "== gitops-deployer の資格情報の Secret (GitHub のトークンは無くても止めない、E2E の client、値が引数に残らない) =="
+echo "== gitops-deployer の資格情報の Secret (GitHub App の鍵と ID は無くても止めない、E2E の client、値が引数に残らない) =="
 python3 -B -m unittest discover -s just -p 'test_gitops_deployer_secrets.py' -v
 echo "== Azure のタブの資格情報の Secret (ファイルが無くても失敗しない、値が引数に残らない) =="
 python3 -B -m unittest discover -s just -p 'test_backstage_azure_secret.py' -v

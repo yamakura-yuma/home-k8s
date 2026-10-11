@@ -90,8 +90,8 @@ func TestIgnoresWhatIsNotOurs(t *testing.T) {
 		body string
 	}{
 		"ラベルの無い Application": {&fakeTemporal{status: enumspb.WORKFLOW_EXECUTION_STATUS_RUNNING}, `{"metadata":{"name":"keycloak"}}`},
-		"ラベルの値が不正":          {&fakeTemporal{status: enumspb.WORKFLOW_EXECUTION_STATUS_RUNNING}, `{"metadata":{"labels":{"gitops-deployer.home-k8s/app":"../x"}}}`},
-		"読めない data":         {&fakeTemporal{status: enumspb.WORKFLOW_EXECUTION_STATUS_RUNNING}, `not json`},
+		"ラベルの値が不正":           {&fakeTemporal{status: enumspb.WORKFLOW_EXECUTION_STATUS_RUNNING}, `{"metadata":{"labels":{"gitops-deployer.home-k8s/app":"../x"}}}`},
+		"読めない data":          {&fakeTemporal{status: enumspb.WORKFLOW_EXECUTION_STATUS_RUNNING}, `not json`},
 		"Workflow が無い":       {&fakeTemporal{missing: true}, appJSON},
 		"Workflow が終わっている":   {&fakeTemporal{status: enumspb.WORKFLOW_EXECUTION_STATUS_COMPLETED}, appJSON},
 	}

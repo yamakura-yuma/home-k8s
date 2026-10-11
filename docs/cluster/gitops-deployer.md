@@ -32,7 +32,7 @@ namespace `gitops-deployer` (Istio ambient)。イメージは `kind.local/home-k
 | bff | Deployment | なし | あり | なし | `internal/bff`・`internal/auth` |
 | api | Deployment | なし (client) | あり | なし | `internal/api` |
 | workflow-engine | Deployment | `workflow-engine` | なし | なし | `internal/workflow` |
-| git-activity | Deployment | `git-activity` | なし | GitHub の fine-grained PAT | `internal/gitops` |
+| git-activity | Deployment | `git-activity` | なし | GitHub App の秘密鍵 | `internal/gitops` |
 | store-activity | Deployment | `store-activity` | あり | なし | `internal/history` |
 | event-receiver | Knative Service (min 0・max 1) | なし (client) | なし | なし | `internal/receiver` |
 
@@ -51,21 +51,26 @@ manifest は `services/gitops-deployer/manifests` (Application `gitops-deployer-
 | Knative のネットワーク | 基盤の net-gateway-api のまま。event-receiver は cluster-local | Trigger からクラスタの中で呼ぶだけ |
 | Dead Letter | Trigger は指数バックオフで 5 回打ち直し、尽きたら Kafka Broker `dead-letter` (Trigger を持たない) へ | 基盤は KafkaSink の data plane を入れていない。Broker なら同じ data plane でイベントが Kafka のトピックに残る |
 | 履歴の state store | 本 PR の Component `history` (同じ Redis、`keyPrefix: name`、scopes は api と store-activity) | 基盤の `statestore` は鍵の頭が app-id で、store-activity が書いた履歴を api が読めない。基盤の Component は変えない |
-| GitHub の書き込み | fine-grained PAT (home-k8s の Contents・Pull requests の Read and write だけ)。下の「人の作業」 | GitHub App は鍵の管理と installation token の取り直しが要る。学習用の 1 リポジトリなら PAT で足りる |
+| GitHub の書き込み | GitHub App (home-k8s だけに入れ、Contents・Pull requests の Read and write)。git-activity が App の JWT で installation token (1 時間) を取り、切れる 5 分前に取り直す。取るときに home-k8s と contents・pull_requests に絞る。下の「人の作業」 | 人の持ち物 (個人のトークン) に縛られず、権限と入れ先のリポジトリが App の設定で見える。トークンは 1 時間で切れ、漏れても長く使えない。App が作った PR でも GitHub Actions の CI が走る |
 | API の認証 | Keycloak の client `gitops-deployer` (confidential、service account あり、ブラウザのログインは無し)。アクセストークンの aud に `gitops-deployer`、client role `view`・`deploy`。グループ admins に両方、viewers に view | APISIX と bff が同じ issuer・aud を確かめる。後続の Backstage と testkube の E2E は client credentials で取る |
 
 ## 人の作業
 
-### GitHub のトークン
+### GitHub App
 
-1. GitHub → Settings → Developer settings → Fine-grained tokens → Generate new token
-2. Resource owner: `yamakura-yuma`、Repository access: Only select repositories → `home-k8s`
-3. Repository permissions: Contents = Read and write、Pull requests = Read and write (Metadata = Read は自動で付く)。ほかは No access
-4. WSL2 のホストに `~/.config/home-k8s/gitops-deployer-github.env` を作り、`GITHUB_TOKEN=<トークン>` の 1 行を書いて `chmod 600`
+1. GitHub → Settings → Developer settings → GitHub Apps → New GitHub App。Homepage URL は home-k8s のリポジトリ、Webhook の Active は外す
+2. Repository permissions: Contents = Read and write、Pull requests = Read and write (Metadata = Read は自動で付く)。ほかは No access。
+   Where can this GitHub App be installed? は Only on this account
+3. 作った App の画面で Generate a private key (PEM がダウンロードされる)。App ID を控える
+4. Install App → `yamakura-yuma` → Only select repositories → `home-k8s`。入れた後の URL の末尾の数が installation ID
+5. WSL2 のホストに 2 つのファイルを置き、どちらも `chmod 600`
+   - `~/.config/home-k8s/gitops-deployer-github-app.env`: `GITHUB_APP_ID=<App ID>` と `GITHUB_APP_INSTALLATION_ID=<installation ID>` の 2 行
+   - `~/.config/home-k8s/gitops-deployer-github-app.pem`: 3 の秘密鍵
 
-`just up` の `_gitops-deployer-secrets` (`just/gitops-deployer-secrets.sh`) が Secret `gitops-deployer/github-token` にする。
-ファイルが無ければ警告だけ出し、git-activity は起動しない (デプロイの依頼は PR を作れないまま待ち、20 分で失敗する)。
-トークンを変えたら `just up` を打ち直し、`kubectl -n gitops-deployer rollout restart deploy/git-activity`。
+`just up` の `_gitops-deployer-secrets` (`just/gitops-deployer-secrets.sh`) が Secret `gitops-deployer/github-app` (`app-id`・`installation-id`・`private-key.pem`) にする。
+どちらかのファイルが無ければ警告だけ出し、git-activity は起動しない (デプロイの依頼は PR を作れないまま待ち、20 分で失敗する)。
+秘密鍵は環境変数に出さず、git-activity にファイル (`/var/run/secrets/github-app/private-key.pem`) として渡す。
+鍵を取り替えたら `just up` を打ち直す (次の installation token の取り直しから効く。すぐ効かせるなら `kubectl -n gitops-deployer rollout restart deploy/git-activity`)。
 
 ### Keycloak の client (動いている realm に足す)
 

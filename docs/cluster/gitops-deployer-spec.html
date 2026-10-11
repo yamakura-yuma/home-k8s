@@ -82,14 +82,14 @@
       <tr><td><code>bff</code></td><td>Deployment</td><td>外からの唯一の入口 (gin)。JWT の確認・ロール・監査ログ・リンク</td><td>あり</td><td>なし</td></tr>
       <tr><td><code>api</code></td><td>Deployment</td><td>検証・冪等性・同時実行制御・Workflow の開始と照会</td><td>あり</td><td>なし</td></tr>
       <tr><td><code>workflow-engine</code></td><td>Deployment</td><td>Task Queue <code>workflow-engine</code>。Workflow <code>Deploy</code>。外部 I/O なし</td><td>なし</td><td>なし</td></tr>
-      <tr><td><code>git-activity</code></td><td>Deployment</td><td>Task Queue <code>git-activity</code>。OpenPR・PRIncluded・Compensate</td><td>なし</td><td>GitHub の fine-grained PAT (Secret <code>github-token</code>)</td></tr>
+      <tr><td><code>git-activity</code></td><td>Deployment</td><td>Task Queue <code>git-activity</code>。OpenPR・PRIncluded・Compensate</td><td>なし</td><td>GitHub App の秘密鍵 (Secret <code>github-app</code>。installation token は Pod の中で取り直す)</td></tr>
       <tr><td><code>store-activity</code></td><td>Deployment</td><td>Task Queue <code>store-activity</code>。RecordHistory・PublishCompleted</td><td>あり</td><td>なし</td></tr>
       <tr><td><code>event-receiver</code></td><td>Knative Service (0↔1)</td><td>CloudEvent を Workflow への Signal にする</td><td>なし</td><td>なし</td></tr>
     </tbody>
   </table>
   </div>
   <ul class="short">
-    <li>namespace <code>gitops-deployer</code> (Istio ambient)。Go のモジュール 1 つ、イメージ 1 つ (<code>kind.local/home-k8s-gitops-deployer:0.1.0</code>)、<code>/usr/local/bin/&lt;名前&gt;</code> で起動を分ける。設定は ConfigMap <code>gitops-deployer</code>。</li>
+    <li>namespace <code>gitops-deployer</code> (Istio ambient)。Go のモジュール 1 つ、イメージ 1 つ (<code>kind.local/home-k8s-gitops-deployer:0.1.1</code>)、<code>/usr/local/bin/&lt;名前&gt;</code> で起動を分ける。設定は ConfigMap <code>gitops-deployer</code>。</li>
     <li>停止: preStop の sleep 5 秒の間に Service から外れ、SIGTERM で readiness を落とし、<code>http.Server.Shutdown</code> か <code>worker.Stop</code> (WorkerStopTimeout 20 秒) で受け付け中の処理を終える。terminationGracePeriodSeconds 40。</li>
     <li>probe は startup・readiness・liveness (<code>/healthz</code>・<code>/readyz</code>)。requests・limits、読み取り専用の root、非 root。</li>
   </ul>

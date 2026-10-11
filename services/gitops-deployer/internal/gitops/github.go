@@ -1,12 +1,13 @@
 // Package gitops は git-activity の Activity。GitHub の REST と GraphQL で home-k8s に deploys/<名前>/ を変える
-// ブランチと PR を作り、auto-merge を有効にする。main には直接 push しない。資格情報は fine-grained PAT
-// (home-k8s の contents・pull requests の読み書きだけ) を Secret github-token から環境変数で受ける。
+// ブランチと PR を作り、auto-merge を有効にする。main には直接 push しない。資格情報は GitHub App の
+// installation access token (home-k8s の contents・pull requests の書き込みだけに絞って取る。appauth.go)。
 package gitops
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -25,12 +26,18 @@ type GitHub struct {
 	Owner   string
 	Repo    string
 	Base    string // main
-	Token   string
+	Token   TokenSource
 	HTTP    *http.Client
 	Retry   retry.Policy
 }
 
-func NewGitHub(owner, repo, base, token string) *GitHub {
+// TokenSource は API を打つたびに使うトークン。Invalidate は GitHub が 401 を返したときに呼ぶ (次に取り直す)。
+type TokenSource interface {
+	Token(ctx context.Context) (string, error)
+	Invalidate()
+}
+
+func NewGitHub(owner, repo, base string, token TokenSource) *GitHub {
 	return &GitHub{
 		API: "https://api.github.com", GraphQL: "https://api.github.com/graphql",
 		Owner: owner, Repo: repo, Base: base, Token: token,
@@ -48,7 +55,8 @@ type APIError struct {
 func (e *APIError) Error() string { return fmt.Sprintf("github: %d %s", e.Status, e.Message) }
 
 func statusOf(err error) int {
-	if e, ok := err.(*APIError); ok {
+	var e *APIError
+	if errors.As(err, &e) {
 		return e.Status
 	}
 	return 0
@@ -58,22 +66,47 @@ func (g *GitHub) repoPath(format string, args ...any) string {
 	return "/repos/" + g.Owner + "/" + g.Repo + fmt.Sprintf(format, args...)
 }
 
-// call は 5xx・429・通信の失敗を指数バックオフ (jitter 付き) で打ち直す。それ以外の 4xx はすぐ返す。
+// call は 5xx・429・通信の失敗を指数バックオフ (jitter 付き) で打ち直す。401 はトークンを捨てて 1 度だけ打ち直す
+// (取り直したトークンで通らなければそのまま返す)。それ以外の 4xx はすぐ返す。
 func (g *GitHub) call(ctx context.Context, method, rawURL string, body, out any) error {
-	return retry.Do(ctx, g.Retry, func(ctx context.Context) error {
+	for attempt := 0; ; attempt++ {
+		tok, err := g.Token.Token(ctx)
+		if err != nil {
+			return err
+		}
+		err = g.do(ctx, method, rawURL, "Bearer "+tok, body, out)
+		if statusOf(err) == http.StatusUnauthorized && attempt == 0 {
+			g.Token.Invalidate()
+			continue
+		}
+		return err
+	}
+}
+
+// do は 1 つの要求を authorization で打つ (打ち直しは call と同じ規則)。
+func (g *GitHub) do(ctx context.Context, method, rawURL, authorization string, body, out any) error {
+	var payload []byte
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+		payload = b
+	}
+	pol := g.Retry
+	if pol.Attempts == 0 {
+		pol = retry.Policy{Attempts: 4, Base: 500 * time.Millisecond, Max: 8 * time.Second}
+	}
+	return retry.Do(ctx, pol, func(ctx context.Context) error {
 		var rd io.Reader
-		if body != nil {
-			b, err := json.Marshal(body)
-			if err != nil {
-				return retry.Permanent(err)
-			}
-			rd = bytes.NewReader(b)
+		if payload != nil {
+			rd = bytes.NewReader(payload)
 		}
 		req, err := http.NewRequestWithContext(ctx, method, rawURL, rd)
 		if err != nil {
 			return retry.Permanent(err)
 		}
-		req.Header.Set("Authorization", "Bearer "+g.Token)
+		req.Header.Set("Authorization", authorization)
 		req.Header.Set("Accept", "application/vnd.github+json")
 		req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 		resp, err := g.HTTP.Do(req)
@@ -93,10 +126,7 @@ func (g *GitHub) call(ctx context.Context, method, rawURL string, body, out any)
 			}
 			return retry.Permanent(apiErr)
 		}
-		if out != nil && len(b) > 0 {
-			return json.Unmarshal(b, out)
-		}
-		return nil
+		return decodeJSON(b, out)
 	})
 }
 

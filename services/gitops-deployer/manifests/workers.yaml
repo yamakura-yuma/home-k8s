@@ -30,7 +30,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: workflow-engine
-          image: kind.local/home-k8s-gitops-deployer:0.1.0
+          image: kind.local/home-k8s-gitops-deployer:0.1.1
           command: [/usr/local/bin/workflow-engine]
           envFrom:
             - configMapRef:
@@ -99,22 +99,32 @@ spec:
         runAsNonRoot: true
         runAsUser: 65532
         runAsGroup: 65532
+        # 秘密鍵のファイル (0440) をこのグループで読む
+        fsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
       containers:
         - name: git-activity
-          image: kind.local/home-k8s-gitops-deployer:0.1.0
+          image: kind.local/home-k8s-gitops-deployer:0.1.1
           command: [/usr/local/bin/git-activity]
           envFrom:
             - configMapRef:
                 name: gitops-deployer
           env:
-            # GitHub の fine-grained PAT (home-k8s の contents・pull requests の読み書きだけ)。just up が作る Secret
-            - name: GITHUB_TOKEN
+            # GitHub App (home-k8s の Contents・Pull requests の読み書きだけ)。just up が作る Secret github-app。秘密鍵は環境変数に
+            # 出さずファイルで渡し、installation token (1 時間) は Pod の中で取り直す (internal/gitops/appauth.go)
+            - name: GITHUB_APP_ID
               valueFrom:
                 secretKeyRef:
-                  name: github-token
-                  key: token
+                  name: github-app
+                  key: app-id
+            - name: GITHUB_APP_INSTALLATION_ID
+              valueFrom:
+                secretKeyRef:
+                  name: github-app
+                  key: installation-id
+            - name: GITHUB_APP_PRIVATE_KEY_FILE
+              value: /var/run/secrets/github-app/private-key.pem
           ports:
             - name: http
               containerPort: 8080
@@ -150,6 +160,18 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
+          volumeMounts:
+            - name: github-app
+              mountPath: /var/run/secrets/github-app
+              readOnly: true
+      volumes:
+        - name: github-app
+          secret:
+            secretName: github-app
+            items:
+              - key: private-key.pem
+                path: private-key.pem
+            defaultMode: 0440
 ---
 # store-activity: Task Queue store-activity の Activity (履歴を Dapr state に残し、完了イベントを Dapr pub/sub に流す)
 apiVersion: apps/v1
@@ -196,7 +218,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: store-activity
-          image: kind.local/home-k8s-gitops-deployer:0.1.0
+          image: kind.local/home-k8s-gitops-deployer:0.1.1
           command: [/usr/local/bin/store-activity]
           envFrom:
             - configMapRef:

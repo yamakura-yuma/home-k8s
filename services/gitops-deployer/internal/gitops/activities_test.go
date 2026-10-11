@@ -139,7 +139,7 @@ func setup(t *testing.T) (*fakeGitHub, *Activities, *testsuite.TestActivityEnvir
 	f := newFake()
 	srv := httptest.NewServer(f)
 	t.Cleanup(srv.Close)
-	gh := &GitHub{API: srv.URL, GraphQL: srv.URL + "/graphql", Owner: "o", Repo: "r", Base: "main", Token: "tok", HTTP: srv.Client(),
+	gh := &GitHub{API: srv.URL, GraphQL: srv.URL + "/graphql", Owner: "o", Repo: "r", Base: "main", Token: &staticToken{"tok"}, HTTP: srv.Client(),
 		Retry: retry.Policy{Attempts: 3, Base: time.Millisecond, Max: time.Millisecond}}
 	a := &Activities{GH: gh, Registries: []string{"docker.io"}}
 	var s testsuite.WorkflowTestSuite

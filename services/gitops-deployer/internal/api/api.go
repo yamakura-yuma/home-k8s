@@ -59,14 +59,14 @@ func (s *Server) Register(r gin.IRoutes) {
 
 // Operation は開始した (走っている・終わった) Workflow 1 つ。
 type Operation struct {
-	WorkflowID string          `json:"workflowId"`
-	RunID      string          `json:"runId"`
-	App        string          `json:"app"`
-	Op         spec.Op         `json:"op,omitempty"`
-	Status     string          `json:"status"`
-	Phase      string          `json:"phase,omitempty"`
-	PR         *workflow.PR    `json:"pr,omitempty"`
-	Error      string          `json:"error,omitempty"`
+	WorkflowID string       `json:"workflowId"`
+	RunID      string       `json:"runId"`
+	App        string       `json:"app"`
+	Op         spec.Op      `json:"op,omitempty"`
+	Status     string       `json:"status"`
+	Phase      string       `json:"phase,omitempty"`
+	PR         *workflow.PR `json:"pr,omitempty"`
+	Error      string       `json:"error,omitempty"`
 }
 
 type Deployment struct {

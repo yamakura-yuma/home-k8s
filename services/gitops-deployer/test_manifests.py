@@ -57,11 +57,24 @@ class PodsTest(unittest.TestCase):
         go = re.search(r"(?m)^go (\d+\.\d+)", read(HERE / "go.mod")).group(1)
         self.assertRegex(read(HERE / "Dockerfile"), rf"FROM golang:{re.escape(go)}\.\d+-alpine")
 
-    def test_only_git_activity_holds_the_github_token(self):
+    def test_only_git_activity_holds_the_github_app(self):
+        holders = []
         for f in MANIFESTS.glob("*.yaml"):
             for doc in read(f).split("\n---\n"):
-                if "github-token" in doc and "kind: Deployment" in doc:
-                    self.assertIn("name: git-activity\n", doc)
+                if "github-app" in doc and re.search(r"(?m)^kind: (Deployment|Service)$", doc):
+                    holders.append(re.search(r"(?m)^  name: (\S+)", doc).group(1))
+        self.assertEqual(holders, ["git-activity"])
+
+    def test_git_activity_reads_the_private_key_from_the_mounted_file(self):
+        doc = [d for d in read(MANIFESTS / "workers.yaml").split("\n---\n") if "  name: git-activity\n" in d][0]
+        path = re.search(r"GITHUB_APP_PRIVATE_KEY_FILE\n\s+value: (\S+)", doc).group(1)
+        mount = re.search(r"- name: github-app\n\s+mountPath: (\S+)", doc).group(1)
+        self.assertEqual(path, mount + "/private-key.pem")
+        # 0440 を runAsUser のグループで読む
+        self.assertIn("defaultMode: 0440", doc)
+        self.assertIn("fsGroup: 65532", doc)
+        # 既定の値 (cmd/git-activity) とも揃える
+        self.assertIn(f'"GITHUB_APP_PRIVATE_KEY_FILE", "{path}"', read(HERE / "cmd/git-activity/main.go"))
 
 
 class RouteTest(unittest.TestCase):

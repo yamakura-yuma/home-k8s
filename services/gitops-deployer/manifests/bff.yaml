@@ -43,7 +43,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: bff
-          image: kind.local/home-k8s-gitops-deployer:0.1.0
+          image: kind.local/home-k8s-gitops-deployer:0.1.1
           command: [/usr/local/bin/bff]
           envFrom:
             - configMapRef:

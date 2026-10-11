@@ -132,7 +132,7 @@
     ['api', 212, 128, 160, 52, 'api', '検証・冪等・開始'],
     ['apid', 384, 128, 104, 52, 'daprd', 'api の横'],
     ['wfe', 212, 226, 160, 56, 'workflow-engine', 'Workflow Deploy'],
-    ['git', 212, 322, 160, 56, 'git-activity', 'GitHub のトークン'],
+    ['git', 212, 322, 160, 56, 'git-activity', 'GitHub App の鍵'],
     ['store', 212, 418, 160, 56, 'store-activity', '履歴・完了イベント'],
     ['stored', 384, 418, 104, 56, 'daprd', 'store の横'],
     ['er', 212, 572, 160, 60, 'event-receiver', 'Knative Service'],
@@ -243,7 +243,7 @@
       f: [SVC + 'internal/api/api.go', SVC + 'internal/spec/spec.go'] }
   ]).concat(TAIL_START('deploy')).concat([
     { t: 'OpenPR: PR を作る', ph: 'opening-pr', n: ['tmp', 'git', 'pr'], e: ['-git-tmp', 'git-pr'], k: 'PR',
-      w: 'Task Queue <code>git-activity</code>。資格情報 (GitHub の fine-grained PAT、Secret <code>github-token</code>) を持つのはこの Pod だけ。branch <code>gitops-deployer/deploy-&lt;名前&gt;-&lt;runId 8 文字&gt;</code> に <code>deploys/&lt;名前&gt;/app.yaml</code> (検証した値から描いた Deployment と Service、namespace gitops-deployer-apps) を commit し、PR を開き、GraphQL の enablePullRequestAutoMerge (SQUASH)。main と同じ中身なら PR を作らず unchanged で待たない。',
+      w: 'Task Queue <code>git-activity</code>。資格情報 (GitHub App の秘密鍵、Secret <code>github-app</code>) を持つのはこの Pod だけ。App の JWT で installation token (home-k8s の contents・pull_requests だけに絞る、1 時間) を取り、切れる前に取り直す。branch <code>gitops-deployer/deploy-&lt;名前&gt;-&lt;runId 8 文字&gt;</code> に <code>deploys/&lt;名前&gt;/app.yaml</code> (検証した値から描いた Deployment と Service、namespace gitops-deployer-apps) を commit し、PR を開き、GraphQL の enablePullRequestAutoMerge (SQUASH)。main と同じ中身なら PR を作らず unchanged で待たない。',
       f: [SVC + 'internal/gitops/activities.go', SVC + 'internal/gitops/github.go', SVC + 'internal/spec/spec.go'] },
     { t: 'CI が通り、main に入る', ph: 'waiting-for-argocd', n: ['pr', 'ci', 'main'], e: ['pr-ci', 'ci-main'], k: 'merge',
       w: '必須のチェック <code>ci / just ci</code> が通ると、GitHub が squash で main に merge する。gitops-deployer はここに関わらない。',

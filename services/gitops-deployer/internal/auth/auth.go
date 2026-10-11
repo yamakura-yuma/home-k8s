@@ -1,7 +1,9 @@
 // Package auth は bff の認証と認可。APISIX が Keycloak (realm home-k8s) の JWT を検証したうえで、bff も署名・issuer・
 // audience・期限を確かめ直し (二重の確認。APISIX を迂回した呼び出しも通さない)、client gitops-deployer の client role で認可する。
-//   view   … 一覧と状態を読む
-//   deploy … デプロイと削除を依頼する
+//
+//	view   … 一覧と状態を読む
+//	deploy … デプロイと削除を依頼する
+//
 // ロールはアクセストークンの resource_access.gitops-deployer.roles に入る (Keycloak の既定の roles scope)。
 package auth
 

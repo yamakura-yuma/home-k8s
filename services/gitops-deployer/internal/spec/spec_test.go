@@ -46,7 +46,7 @@ func TestValidateRejects(t *testing.T) {
 		"- で終わる名前":       {func(a *App) { a.Name = "hello-" }, "name"},
 		"長すぎる名前":         {func(a *App) { a.Name = strings.Repeat("a", 31) }, "name"},
 		"パスを含む名前":        {func(a *App) { a.Name = "../etc" }, "name"},
-		"改行で YAML を足す名前":  {func(a *App) { a.Name = "x\n  namespace: kube-system" }, "name"},
+		"改行で YAML を足す名前": {func(a *App) { a.Name = "x\n  namespace: kube-system" }, "name"},
 		"レジストリの無いイメージ":   {func(a *App) { a.Image = "nginx:1.29" }, "image"},
 		"タグの無いイメージ":      {func(a *App) { a.Image = "docker.io/library/nginx" }, "image"},
 		"latest":         {func(a *App) { a.Image = "docker.io/library/nginx:latest" }, "image"},

@@ -57,7 +57,7 @@ func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 }
 
 func (h *Handler) WithAttrs(as []slog.Attr) slog.Handler { return &Handler{h.Handler.WithAttrs(as)} }
-func (h *Handler) WithGroup(name string) slog.Handler  { return &Handler{h.Handler.WithGroup(name)} }
+func (h *Handler) WithGroup(name string) slog.Handler    { return &Handler{h.Handler.WithGroup(name)} }
 
 // TraceParent は文脈のスパンを traceparent の文字列にする (Workflow の memo に残し、event-receiver が同じ trace に繋ぐ)。
 func TraceParent(ctx context.Context) string {
