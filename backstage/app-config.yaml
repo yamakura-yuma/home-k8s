@@ -1,6 +1,6 @@
 # home-k8s の Backstage の設定。イメージに入れ、kind クラスタで動かす (clusters/kind/backstage)。
 # 画面は tailnet の https://backstage.taild2b611.ts.net で開く (Keycloak でログイン)。ホストの localhost:7007
-# (NodePort 30707 + kind の extraPortMappings) と share Pod からはゲストで開く (docs/cluster/backstage.md の「ログインと権限」)。
+# (NodePort 30707 + kind の extraPortMappings。127.0.0.1 にだけ開く) からはゲストで開く (docs/cluster/backstage.md の「ログインと権限」)。
 # フロントエンドもバックエンド (app-backend) が配るので、app と backend の baseUrl は同じにする。baseUrl は tailnet の URL にする:
 # OIDC の callback (backend.baseUrl/api/auth/oidc/handler/frame) と、ログインの窓がトークンを渡す先のオリジン (app.baseUrl) になるため。
 # localhost:7007 で開いても、フロントエンドは baseUrl を開いたオリジンに置き換えるので、ゲストの画面はそのまま動く
@@ -139,7 +139,7 @@ azureResources:
 # - oidc: Keycloak の realm home-k8s、client backstage。tailnet の URL で使う。誰になるか (sign-in resolver) と
 #   グループの扱いは packages/backend/src/keycloakAuth.ts。callback は https://backstage.taild2b611.ts.net/api/auth/oidc/handler/frame
 #   (Keycloak の client の redirect URI は /api/auth/* を許す)。prompt: auto は、Keycloak のセッションがあれば画面を出さずに入れる
-# - guest: 127.0.0.1 (localhost:7007) と、人ごとの資格情報つきの share Pod のため。tailnet の入口の proxy が /api/auth/guest を拒むので、
+# - guest: 127.0.0.1 (localhost:7007) の開発用。tailnet の入口の proxy が /api/auth/guest を拒むので、
 #   tailnet からは使えない (clusters/kind/backstage/tailnet-proxy)。ゲストは permission のポリシーで読むだけになる
 # session は OIDC のログインの途中 (state・nonce) を持つ (openid-client が要る)。鍵は Secret backstage-session から
 auth:

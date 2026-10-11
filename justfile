@@ -20,11 +20,10 @@ import 'just/keycloak.just'
 import 'just/kind.just'
 import 'just/observability.just'
 import 'just/orca-exporter.just'
-import 'just/share.just'
 import 'just/tailscale.just'
 
-# 公開レシピはこの 7 つだけ (just --list)。内部用は `_` 付きで隠してあり、just/ 以下に置く。
-# up・down・show・share・ci はここ、orca-exporter と devcontainer は just/ 以下。
+# 公開レシピはこの 6 つだけ (just --list)。内部用は `_` 付きで隠してあり、just/ 以下に置く。
+# up・down・show・ci はここ、orca-exporter と devcontainer は just/ 以下。
 
 # 中身は just/ci.sh。ツールは nix (devShells.ci) から入るので、開発用コンテナを通さず shebang で直に走らせる。
 
@@ -38,17 +37,17 @@ ci:
 # 打ち直しても同じ状態に戻るだけ。
 
 # kind のクラスタを作り、ArgoCD・Secret・観測スタック・Headlamp・Backstage を立ち上げる
-up: _kind-up _kube-oidc-context _tailscale-secrets _backstage-image _argocd-install _grafana-secrets _grafana-env-secrets _argocd-secrets _backstage-azure-secret _share-relay-up _share-secrets _keycloak-secrets _oidc-secrets _coredns-tailnet && _headlamp-token
+up: _kind-up _kube-oidc-context _tailscale-secrets _backstage-image _argocd-install _grafana-secrets _grafana-env-secrets _argocd-secrets _backstage-azure-secret _keycloak-secrets _oidc-secrets _coredns-tailnet && _headlamp-token
     kubectl --context {{kube_context}} apply -f clusters/kind/argocd/root.yaml
     @echo "ArgoCD が子の Application を同期するのを待つ (初回は image の pull で数分かかる)"
     bash just/argocd-wait.sh {{kube_context}} {{argocd_ns}}
 
-# kind のクラスタと、headroom の中継 (ホスト側の caddy コンテナ) を削除する
-down: _share-relay-down
+# kind のクラスタを削除する
+down:
     kind delete cluster --name {{kind_cluster}}
 
 # grafana は localhost:3000 の viewer (閲覧用) で、grafana-admin は自分用。どちらも他の人には渡さない。
-# 他の人に見せる資格情報と公開 URL は `just share add`・`just share get` (docs/cluster/share.md)。
+# 他の人の入れ方は docs/cluster/guest-access.md (just share は廃止した。docs/cluster/share.md)。
 
 # 接続先と資格情報を表示する (what: grafana | grafana-admin | argocd | headlamp | backstage。省略で全部)
 show what="":
@@ -71,10 +70,3 @@ show what="":
     @{{ if what == "" { "echo '== backstage =='" } else { "" } }}
     @{{ if what =~ '^(|backstage)$' { 'echo "  URL:      https://backstage.taild2b611.ts.net (Keycloak でログイン)"' } else { "" } }}
     @{{ if what =~ '^(|backstage)$' { 'echo "            http://localhost:7007 (ゲスト。読むだけ)"' } else { "" } }}
-
-# 公開の本体は常駐する share Pod (clusters/kind/share)。人ごとの資格情報を Secret share-credentials に足す・消す・引く (docs/cluster/share.md)。
-# 検査 (名前・--ttl・--permanent の併用) はクラスタに触れる前に just/share.sh が行う。
-
-# 共有の資格情報を操作する (add <名前> [--ttl 30m|8h] [--permanent] | delete <名前> | list | get <名前> | rotate <名前> | prune | test-smoke)
-share *args:
-    @bash just/share.sh {{kube_context}} {{args}}

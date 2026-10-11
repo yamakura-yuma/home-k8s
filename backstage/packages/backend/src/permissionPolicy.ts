@@ -1,4 +1,4 @@
-// permission framework のポリシー。admins は何でもでき、それ以外 (viewers・127.0.0.1 と share のゲスト) は読むだけ。
+// permission framework のポリシー。admins は何でもでき、それ以外 (viewers・127.0.0.1 のゲスト) は読むだけ。
 //
 // グループは Backstage のトークンの ownership (ent。userInfo サービスが credentials から引く) で見る。Keycloak でサインインした人は keycloakAuth.ts が
 // group:default/admins・group:default/viewers を入れる。ゲスト (user:development/guest) はどちらも持たない。

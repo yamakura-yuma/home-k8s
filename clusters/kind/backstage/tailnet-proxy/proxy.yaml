@@ -1,5 +1,5 @@
 # Backstage の tailnet の入口の proxy (Caddyfile)。ゲストのサインインの経路 /api/auth/guest を拒み、ほかは Service backstage へ渡す。
-# tailnet からだけ通る (Ingress backstage の先)。localhost:7007 (NodePort) と share Pod は Service backstage に直につなぐので、ここを通らない。
+# tailnet からだけ通る (Ingress backstage の先)。localhost:7007 (NodePort) は Service backstage に直につなぐので、ここを通らない。
 apiVersion: apps/v1
 kind: Deployment
 metadata:

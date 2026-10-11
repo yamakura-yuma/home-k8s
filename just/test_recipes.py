@@ -1,4 +1,4 @@
-"""just の公開レシピが 7 個だけで、引数が正しく展開されるかのテスト。
+"""just の公開レシピが 6 個だけで、引数が正しく展開されるかのテスト。
 
 標準ライブラリだけ: python3 -B -m unittest discover -s just -p test_recipes.py
 レシピは実行せず `just --dry-run` / `just --list` の出力だけを見る (クラスタにもコンテナにも触れない)。
@@ -15,7 +15,7 @@ from pathlib import Path
 sys.dont_write_bytecode = True  # __pycache__ をリポジトリに作らない
 
 ROOT = Path(__file__).resolve().parent.parent
-PUBLIC = ["ci", "devcontainer", "down", "orca-exporter", "share", "show", "up"]
+PUBLIC = ["ci", "devcontainer", "down", "orca-exporter", "show", "up"]
 
 
 def just(*args):
@@ -51,26 +51,18 @@ class Recipes(unittest.TestCase):
         steps = ["kind create cluster", "observability/{tempo,prometheus,loki,grafana,keycloak-postgres,keycloak-postgres-dump}", "tailscale-secrets.sh",
                  "docker build -t home-k8s-backstage:", "kind load docker-image home-k8s-backstage:",
                  "helm upgrade --install argocd", "grafana-secrets.sh", "grafana-env-secrets.sh", "argocd-secrets.sh", "backstage-azure-secret.sh",
-                 "share-relay.sh up", "share-secrets.sh", "keycloak-secrets.sh", "oidc-secrets.sh", "coredns-tailnet.sh", "argocd/root.yaml", "argocd-wait.sh", "headlamp-token.sh"]
+                 "keycloak-secrets.sh", "oidc-secrets.sh", "coredns-tailnet.sh", "argocd/root.yaml", "argocd-wait.sh", "headlamp-token.sh"]
         pos = [out.find(step) for step in steps]
         self.assertNotIn(-1, pos, out)
         self.assertEqual(pos, sorted(pos))
 
-    def test_share_relay_follows_the_cluster(self):
-        # 中継は kind の bridge ができた後 (up)・クラスタを消す前 (down) に動く。ポートは Secret share-host の宛先と同じ値を渡す
-        up = just("--dry-run", "up").stderr
-        self.assertRegex(up, r'share-relay\.sh up ".*/share/relay-token" ".+" kind-study-kind 8788\n')
-        down = just("--dry-run", "down").stderr
-        self.assertLess(down.find("share-relay.sh down"), down.find("kind delete cluster"))
-        self.assertNotIn("share-relay", " ".join(just("--list").stdout.split()), "内部用は公開しない")
-
-    def test_share_secrets_exist_before_argocd_syncs_the_pod(self):
-        # share Pod は Secret が無くても起動する (optional) が、新しいクラスタで Pod を作り直さずに済むよう root.yaml (ArgoCD の同期) より前に作る。viewer のパスワードのファイルが要るので _grafana-secrets の後
-        up = just("--dry-run", "up").stderr
-        self.assertRegex(up, r'share-secrets\.sh ".*/grafana-viewer-password" kind-study-kind\n')
-        self.assertLess(up.find("grafana-secrets.sh"), up.find("share-secrets.sh"))
-        self.assertLess(up.find("share-secrets.sh"), up.find("argocd/root.yaml"))
-        self.assertNotIn("share-secrets", " ".join(just("--list").stdout.split()), "内部用は公開しない")
+    def test_share_is_retired(self):
+        # just share は廃止した (docs/cluster/share.md)。up・down は share の Secret もホストの headroom の中継も扱わない
+        for recipe in ("up", "down"):
+            out = just("--dry-run", recipe).stderr
+            self.assertNotRegex(out, r"share-relay|share-secrets|share\.sh|_share", recipe)
+        self.assertFalse((ROOT / "clusters/kind/share").exists())
+        self.assertFalse((ROOT / "clusters/kind/argocd/apps/share.yaml").exists())
 
     def test_argocd_token_secret_is_made_after_argocd_and_before_it_syncs_backstage(self):
         # トークンは動いている ArgoCD (helm の --wait のあと) でしか作れない。Backstage の Pod が起動する前 (root.yaml の同期の前) に Secret が要る。
@@ -132,16 +124,6 @@ class Recipes(unittest.TestCase):
     def test_orca_exporter_passes_action(self):
         for action in ["install", "uninstall", "status"]:
             self.assertRegex(just("--dry-run", "orca-exporter", action).stderr, rf"orca-exporter\.sh\" {action}\n")
-
-    def test_share_passes_its_arguments_to_the_script(self):
-        # 公開レシピは share の 1 本で、サブコマンドの振り分けと検査は just/share.sh (test_share_cli.py)
-        for args in ["add alice", "add alice --ttl 2h", "add boss --permanent", "delete alice", "list", "get alice", "rotate boss", "prune"]:
-            self.assertRegex(just("--dry-run", "share", *args.split()).stderr, rf"bash just/share\.sh kind-study-kind {args}\n")
-
-    def test_share_follows_the_kube_context(self):
-        out = subprocess.run(["just", "--dry-run", "share", "list"], cwd=ROOT, capture_output=True, text=True,
-                             env={**os.environ, "HOME_K8S_KUBE_CONTEXT": "kind-verify"}).stderr
-        self.assertIn("share.sh kind-verify list", out)
 
     def test_bad_arguments_stop_with_usage(self):
         for args in [("show", "nope"), ("orca-exporter", "nope"), ("orca-exporter",), ("devcontainer", "nope")]:

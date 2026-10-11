@@ -10,22 +10,18 @@
 #   4. kubeconform     3 までの出力を、kind の Kubernetes の版のスキーマに照らす
 #   5. kube-linter     3 までの出力 (.kube-linter.yaml)
 #   5b. hostPort       3 までの出力で、同じ hostPort を 2 つ以上のワークロードが使わないこと、環境 (dev・prod) の Collector が hostPort を使わないこと
-#   6. share の公開の入口  share namespace に同期する manifest に NodePort・LoadBalancer の Service と Ingress が無いこと (yq)
-#   7. unittest        share の認証サービスと、share Pod の Caddyfile の経路・manifest (clusters/kind/share)。caddy と認証サービスを空きポートで起動し、
-#                      偽の upstream に向けて、認証なし・許可リスト外・delete・期限切れ・認証サービスに届かないときの拒否を確かめる。クラスタにもネットワークにも出ない
-#   8. share のホスト側  中継 (just/share-relay.Caddyfile) を caddy で起動して認証なし・許可リスト外の拒否を確かめ、Secret を作るスクリプトと
-#                      URL を引く関数と CLI (just share add/delete/...、just/share.sh) を偽の kubectl で確かめる (注釈・引数に値が残らない作り方、#49・#56。
-#                      CLI は上限超えの --ttl・不正な名前・2 つ目の特権・期限付きへの rotate の拒否と、作った項目を実物の認証サービスに通す往復)。
-#                      稼働中のクラスタ・ホストには触れない。あわせて環境ごとのサンプルの API (services/sample-api) の経路と OpenAPI の突き合わせ、
-#                      Temporal (clusters/kind/temporal) の URL・ポート・CSP・proxy の突き合わせ、Backstage の tailnet の入口の proxy
-#                      (clusters/kind/backstage/tailnet-proxy。caddy を起動して、ゲストのサインインの経路の表記揺れが届かないこと)
-#   8b. Azure の資格情報  just/backstage-azure-secret.sh を偽の kubectl で確かめる (ファイルが無い・空・欠けた項目・CRLF・コメント、値が引数に残らないこと)
-#   8c. Tailscale の OAuth client  just/tailscale-secrets.sh を偽の kubectl で確かめる (ファイルが無ければ止まる・欠けた項目・CRLF、値が引数に残らないこと)
-#   8d. Keycloak       just/keycloak-secrets.sh (ファイルを一度だけ作る・値が引数に残らない) と just/coredns-tailnet.sh (rewrite の挿入・打ち直しで変わらない) を
+#   6. unittest        環境ごとのサンプルの API (services/sample-api) の経路と OpenAPI の突き合わせ、Temporal (clusters/kind/temporal) の
+#                      URL・ポート・CSP・proxy の突き合わせ、Backstage の tailnet の入口の proxy (clusters/kind/backstage/tailnet-proxy。
+#                      caddy を起動して、ゲストのサインインの経路の表記揺れが届かないこと)。クラスタにもネットワークにも出ない
+#   7. Secret          Secret を作るスクリプトすべて (注釈・引数に値が残らない作り方、#49・#56) と Grafana・ArgoCD の Secret を偽の kubectl で確かめる
+#                      (just/test_secrets.py)。稼働中のクラスタ・ホストには触れない
+#   7b. Azure の資格情報  just/backstage-azure-secret.sh を偽の kubectl で確かめる (ファイルが無い・空・欠けた項目・CRLF・コメント、値が引数に残らないこと)
+#   7c. Tailscale の OAuth client  just/tailscale-secrets.sh を偽の kubectl で確かめる (ファイルが無ければ止まる・欠けた項目・CRLF、値が引数に残らないこと)
+#   7d. Keycloak       just/keycloak-secrets.sh (ファイルを一度だけ作る・値が引数に残らない) と just/coredns-tailnet.sh (rewrite の挿入・打ち直しで変わらない) を
 #                      偽の kubectl で確かめ、realm の client と Secret keycloak-clients のキーを突き合わせる
-#   8e. OIDC           just/oidc-secrets.sh (client のファイルから各 UI の Secret を作る・ArgoCD のラベル・値が引数に残らない) を偽の kubectl で確かめ、
+#   7e. OIDC           just/oidc-secrets.sh (client のファイルから各 UI の Secret を作る・ArgoCD のラベル・値が引数に残らない) を偽の kubectl で確かめ、
 #                      ArgoCD・Grafana ×3・Temporal UI ×2・Backstage の values (issuer・clientId・コールバック・グループからロール) を realm の client と突き合わせる
-#   9. backstage       yarn install --immutable (yarn.lock のとおりに入れ、ずれていたら落とす) のあと、backend・app の jest (yarn workspace backend/app test) と
+#   8. backstage       yarn install --immutable (yarn.lock のとおりに入れ、ずれていたら落とす) のあと、backend・app の jest (yarn workspace backend/app test) と
 #                      型検査 (yarn tsc)。node_modules は backstage/ に入る (git の管理外・.dockerignore 済み)
 set -euo pipefail
 
@@ -43,7 +39,6 @@ apps=clusters/kind/argocd/apps
 out=$(mktemp -d)
 expanded=$(mktemp -d)  # ApplicationSet を要素ごとの Application に展開したもの (2 で描画する)
 trap 'rm -rf "$out" "$expanded"' EXIT
-share_renders=()  # destination が namespace share の Application が描画した manifest (6 で調べる)
 
 echo "== yamllint =="
 git ls-files -z '*.yaml' '*.yml' | xargs -0 yamllint --strict
@@ -96,7 +91,6 @@ for app in "${app_files[@]}"; do
     while IFS= read -r dir; do
         [ -n "$dir" ] && [ "$dir" != "$apps" ] || continue
         out_file="$out/dir-$(echo "$dir" | tr / -).yaml"
-        [ "$ns" = share ] && share_renders+=("$out_file")
         [ -e "$out_file" ] && continue
         echo "manifest $name ($dir)"
         if [ -f "$dir/kustomization.yaml" ]; then
@@ -114,14 +108,6 @@ kubeconform -strict -summary -ignore-missing-schemas -kubernetes-version "$k8s_v
 echo "== kube-linter =="
 kube-linter lint --config .kube-linter.yaml "$out"
 
-echo "== share の公開の入口 (NodePort・LoadBalancer・Ingress が無いこと) =="
-# share の入口は Cloudflare への外向き接続だけ。クラスタの外に待ち受けを開ける種類を足したら落とす。描画した manifest が 1 つも無いのも落とす (Application が無いと検査にならない)
-[ "${#share_renders[@]}" -gt 0 ] || { echo "namespace share の Application が描画されていない (clusters/kind/argocd/apps/share.yaml)" >&2; exit 1; }
-exposed=$(yq 'select(.kind == "Ingress" or (.kind == "Service" and (.spec.type == "NodePort" or .spec.type == "LoadBalancer")))
-                       | .kind + "/" + .metadata.name' "${share_renders[@]}")
-[ -z "$exposed" ] || { echo "share に公開の入口が入っている: $exposed" >&2; exit 1; }
-echo "ok (${share_renders[*]##*/})"
-
 echo "== hostPort (同じノードに置く Pod が同じ hostPort を取り合わないこと) =="
 # 環境ごとの Collector (daemonset) は chart の既定で 4317・4318 を hostPort に開け、dev と prod が同じノードで取り合って Pending になった。
 # 描画した全ワークロードの hostPort を集め、同じ port/protocol を 2 つ以上のワークロードが使っていたら落とす。環境の Collector は使わない
@@ -137,8 +123,6 @@ echo "ok (hostPort のワークロード: $(grep -c . <<<"$host_ports" || true))
 
 # caddy の試験は caddy が無いと飛ばされるので、CI では無いことを失敗にする
 command -v caddy >/dev/null || { echo "caddy が無い (devShells.ci に入っているはず)" >&2; exit 1; }
-echo "== share 認証の単体試験・Caddyfile の経路・manifest (caddy + 認証サービス + 偽の upstream) =="
-python3 -B -m unittest discover -s clusters/kind/share -v
 echo "== sample-api (環境ごとのサンプルの API の経路と OpenAPI の突き合わせ) =="
 python3 -B -m unittest discover -s services/sample-api -v
 echo "== temporal (環境ごとの UI の URL・ポート・CSP・proxy の突き合わせ) =="
@@ -146,8 +130,8 @@ python3 -B -m unittest discover -s clusters/kind/temporal -v
 echo "== backstage の tailnet の入口 (caddy + 偽の upstream。ゲストのサインインの経路を表記を変えても拒む) =="
 python3 -B -m unittest discover -s clusters/kind/backstage -v
 
-echo "== share のホスト側 (中継の caddy、Secret を作るスクリプト、URL を引く関数、CLI) =="
-python3 -B -m unittest discover -s just -p 'test_share_*.py' -v
+echo "== Secret を作るスクリプト (注釈・引数に値が残らない、Grafana・ArgoCD の Secret) =="
+python3 -B -m unittest discover -s just -p 'test_secrets.py' -v
 echo "== Azure のタブの資格情報の Secret (ファイルが無くても失敗しない、値が引数に残らない) =="
 python3 -B -m unittest discover -s just -p 'test_backstage_azure_secret.py' -v
 echo "== Tailscale の operator の OAuth client の Secret (ファイルが無ければ止まる、値が引数に残らない) =="

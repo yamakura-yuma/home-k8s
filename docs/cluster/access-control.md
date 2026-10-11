@@ -1,6 +1,6 @@
 # 環境へのアクセス権の一元管理 — 比較と推奨
 
-状態: 調査。実装は下の「移行の段取り」の単位ごとに別の話題で行っている (単位 1・2・3・4・5 は実装済み、6 は Temporal UI と oauth2-proxy の判断まで)。調べた日は 2026-10-10。
+状態: 調査。実装は下の「移行の段取り」の単位ごとに別の話題で行っている (単位 1・2・3・4・5 は実装済み、6 は Temporal UI と oauth2-proxy の判断と `just share` の廃止まで)。調べた日は 2026-10-10。
 
 > **IdP の推奨は差し替えた (2026-10-10)**: 下の Dex + GitHub に代えて、Keycloak (DB は PostgreSQL) を唯一の issuer にする。
 > 比較と移行の段取りは [idp-options.md](idp-options.md)。到達経路・各 UI の OIDC の設定・ワーカーと Azure の権限は、この文書のまま。
@@ -21,7 +21,7 @@
 
 ## 構成
 
-### 現状 [観測]
+### 現状 [観測] (2026-10-10 の時点。`just share` の share Pod はその後 2026-10-11 に廃止した、[share.md](share.md))
 
 ```text
 人 (自分) ── 127.0.0.1 ──┬─▶ Backstage :7007   ゲストログインだけ (guest provider、dangerouslyAllowOutsideDevelopment)
@@ -74,7 +74,7 @@ Orca のワーカー
 
 1. **issuer を 1 つにする**。Backstage・ArgoCD・Grafana・Temporal UI・Headlamp・kind の API server が、同じ issuer の ID トークンを受け取る。グループは IdP 側で 1 回決め、各 UI はそのグループを自分のロールに対応づけるだけにする
 2. **groups クレームをそのまま RBAC に書けること**。Kubernetes の RoleBinding、ArgoCD の policy.csv、Grafana の role_attribute_path は、どれもクレームの文字列で照合する。Entra ID の生のクレームはグループの objectId (GUID) になり、書けるが読めない [公式]
-3. **issuer の URL が固定で、他の人のブラウザとクラスタの両方から届くこと**。OIDC はトークンの `iss` と設定の issuer URL の一致を検証する。いまの公開経路 (Cloudflare Quick Tunnel) は share Pod を作り直すと URL が変わる [観測] ので、issuer を置けない。
+3. **issuer の URL が固定で、他の人のブラウザとクラスタの両方から届くこと**。OIDC はトークンの `iss` と設定の issuer URL の一致を検証する。当時の公開経路 (Cloudflare Quick Tunnel。share Pod は廃止した) は Pod を作り直すと URL が変わる [観測] ので、issuer を置けない。
    **到達経路の決定が IdP より先に要る**
 4. **kind の API server からクラスタ内の IdP に届くこと**。API server は kind のノードのコンテナの中で動く。Structured Authentication Configuration (v1.34 で GA。kind が既定で立てる 1.35 で使える) では次の 2 つを別々に書ける [公式]。
    - `issuer.url`: トークンの `iss` と照合する URL
@@ -102,7 +102,7 @@ Orca のワーカー
 | 候補 | 費用 | 人数の上限 | 固定の URL (issuer を置けるか) | 備考 |
 |---|---|---|---|---|
 | 127.0.0.1 だけ (いま) | 無料 | 自分だけ | 置けない (他の人は届かない) | |
-| Cloudflare Quick Tunnel + share (いま) | 無料・アカウント不要 | 制限なし | **置けない** (Pod を作り直すと URL が変わる) [観測] | 見せるだけの用途には向く |
+| Cloudflare Quick Tunnel + share (廃止した。2026-10-11) | 無料・アカウント不要 | 制限なし | **置けない** (Pod を作り直すと URL が変わる) [観測] | 見せるだけの用途には向く |
 | **Tailscale Personal** | 無料 | **6 ユーザー**。端末は無制限。タグ付きのリソースは 50 まで [公式] | 置ける (`*.<tailnet>.ts.net`。Kubernetes operator の Ingress で HTTPS) | **非商用に限る** [公式]。ACL グループは 3 つまで [公式]。ノードの共有は相手のユーザー数に数えないが、タグ付きのマシンは共有できない [公式]。operator の proxy はタグ付きなので、他の人は tailnet に招待する形になる [未確認] |
 | Cloudflare 名前付き Tunnel + Access | Zero Trust の無料プラン。**Cloudflare 上の自分のドメインが要る** (Tunnel のアプリの公開にも Access にも) [公式]。ドメインの登録料がかかる | 無料プランの人数の上限 (50 と言われる) は**未確認** | 置ける (自分のドメイン) | Access の IdP に Entra ID・汎用 OIDC・GitHub を使える [公式]。インターネットに公開する形になる |
 
@@ -110,7 +110,7 @@ Orca のワーカー
 
 | 対象 | OIDC への対応 | グループからロールへ | 無料か | 備考 |
 |---|---|---|---|---|
-| Backstage | `@backstage/plugin-auth-backend-module-oidc-provider` (`auth.providers.oidc`、`metadataUrl`) [公式] | sign-in resolver で User エンティティに対応づけ、権限は permission framework のポリシーで決める。**permission framework は既定で無効で、何もしなければ誰でも何でもできる** [公式] | 無料 (OSS) | resolver はカタログの User を引く。`dangerouslyAllowSignInWithoutUserInCatalog` は本番では非推奨 [公式]。ゲストは本番で出さない想定 [公式]。**実装 (単位 4)**: resolver はカタログを引かず、Keycloak の groups を ownership に入れる。ゲストは 127.0.0.1 と share だけ ([backstage.md](backstage.md)) |
+| Backstage | `@backstage/plugin-auth-backend-module-oidc-provider` (`auth.providers.oidc`、`metadataUrl`) [公式] | sign-in resolver で User エンティティに対応づけ、権限は permission framework のポリシーで決める。**permission framework は既定で無効で、何もしなければ誰でも何でもできる** [公式] | 無料 (OSS) | resolver はカタログの User を引く。`dangerouslyAllowSignInWithoutUserInCatalog` は本番では非推奨 [公式]。ゲストは本番で出さない想定 [公式]。**実装 (単位 4)**: resolver はカタログを引かず、Keycloak の groups を ownership に入れる。ゲストは 127.0.0.1 (localhost:7007) の開発用だけ ([backstage.md](backstage.md)) |
 | ArgoCD | `argocd-cm` の `oidc.config` で外の issuer を直接使う。同梱の Dex を使う方法もある [公式] | `argocd-rbac-cm` の policy.csv に `g, <group>, role:<name>` と書く [公式] | 無料 (OSS) | グループはログインのときにだけ更新される [公式] |
 | Grafana (OSS) ×3 | Generic OAuth [公式] | `role_attribute_path` (JMESPath) で Admin/Editor/Viewer を決め、`allowed_groups` でログインを絞る [公式] | 無料。**Team Sync だけ Enterprise (有料)** [公式] | 3 つの Grafana は client を分けるか、redirect URI を並べる |
 | Temporal Web UI | `TEMPORAL_AUTH_ENABLED`・`_PROVIDER_URL`・`_CLIENT_ID`・`_CLIENT_SECRET`・`_CALLBACK_URL`・`_SCOPES` [公式] | **UI へのログインだけを守る。Temporal Service の認可とは別物** [公式]。サーバーの認可の既定の claim mapper は `permissions` クレーム (`<ns>:read` など) を読む [公式] | 無料 (OSS) | サーバー (gRPC) はクラスタの中にだけ置けば、人は UI を通るしかない。**実装 (単位 4)**: UI のログインに加えてサーバーの認可も入れた (Keycloak の client role を `permissions` に。[temporal.md](temporal.md)) |
@@ -143,7 +143,7 @@ Azure は Entra ID のグループに Azure RBAC を割り当てる。ワーカ�
 | Azure (人) | Entra ID のセキュリティグループに Azure RBAC を割り当てる | 無料。Azure の ID は Entra ID から外せないので、Dex に寄せず Azure の側で持つ |
 | ワーカー (kind) | ServiceAccount `orca-worker`、dev は `edit`・prod は `view`。トークンは `kubectl create token --duration=8h` [未確認] | admin の kubeconfig を使わせない。worktree ごとの kubeconfig (Git の外) を、worktree の setup が作る |
 | ワーカー (Azure) | 専用のサービスプリンシパル (Reader、リソースグループに割り当てる) | workload identity federation はホストのプロセスには当てはまらない。スコープを絞り、シークレットに期限を付ける |
-| `just share` | 当面は残す (アカウントを持たない人に見せるだけの用途) | Tailscale に招待できない相手向けの経路になる。招待で足りるようになったら廃止を決める |
+| `just share` | **廃止した** (2026-10-11、[share.md](share.md))。人の入口を Tailscale と Keycloak にそろえた | Tailscale に招待できない相手・Keycloak のユーザーでない相手 (ゲスト) の入れ方は [guest-access.md](guest-access.md) で比べる |
 
 ### IdP は GitHub に決めた (2026-10-10)
 
@@ -194,9 +194,9 @@ Dex の上流の IdP は **GitHub** に決めた (アクセス管理専用の or
 | 1 | 到達経路 (Tailscale) | Tailscale の Kubernetes operator を入れ、UI と後で置く Dex を `*.<tailnet>.ts.net` に出す。認証はまだ変えない。**実装済み** ([tailscale.md](tailscale.md)。Dex ではなく Keycloak を置く。[idp-options.md](idp-options.md)) | tailnet の別の端末から固定の URL で開ける |
 | 2 | Dex | namespace `auth` に Dex を置き、GitHub connector (org と team) を設定する。クラスタ内から issuer に届かせる方法を決める (上の注意点)。**Keycloak に差し替えて実装済み** ([idp-options.md](idp-options.md) の単位 2a・2b・2c、[keycloak.md](keycloak.md)) | `/.well-known/openid-configuration` がブラウザからも Pod からも引ける |
 | 3 | ArgoCD・Grafana の OIDC | `oidc.config` と policy.csv、3 つの Grafana の generic_oauth と role_attribute_path。admin のパスワードは非常用として残す。**Keycloak で実装済み** ([keycloak.md](keycloak.md) の「各 UI の OIDC」。グループは `admins`・`viewers`) | 管理の team の人は Admin、それ以外は Viewer になる |
-| 4 | Backstage の OIDC と permission framework | oidc provider、GitHub org のユーザーとチームの取り込み、ポリシーを入れる。ゲストは 127.0.0.1 の開発用に限る。**Keycloak で実装済み** ([backstage.md](backstage.md) の「ログインと権限」。グループ `admins` 以外の書き込みを拒否、グループの無い人はサインインできない。ユーザーとグループは取り込まず静的に置いた。ゲストは 127.0.0.1 と share に残し (読むだけ)、tailnet からは入口の proxy で拒む) | org の外の人は入れない。管理の team 以外は書き込みが拒否される |
+| 4 | Backstage の OIDC と permission framework | oidc provider、GitHub org のユーザーとチームの取り込み、ポリシーを入れる。ゲストは 127.0.0.1 の開発用に限る。**Keycloak で実装済み** ([backstage.md](backstage.md) の「ログインと権限」。グループ `admins` 以外の書き込みを拒否、グループの無い人はサインインできない。ユーザーとグループは取り込まず静的に置いた。ゲストは 127.0.0.1 の開発用に残し (読むだけ)、tailnet からは入口の proxy で拒む) | org の外の人は入れない。管理の team 以外は書き込みが拒否される |
 | 5 | kind の API server と Headlamp | AuthenticationConfiguration (kind-config)、kubelogin、Headlamp の `config.oidc`、Group の RBAC。**Keycloak で実装済み** ([kube-oidc.md](kube-oidc.md)。issuer は Keycloak、Group は `oidc:admins`・`oidc:viewers`。API server も CoreDNS の rewrite で issuer を引く) | `kubectl auth whoami` が `oidc:` の Group を返す。Headlamp の権限が RBAC どおりになる |
-| 6 | Temporal UI・oauth2-proxy・share の扱い | `TEMPORAL_AUTH_*` を設定し、headroom の前に oauth2-proxy を置く。`just share` を残すか廃止するかを決める。**Temporal UI は Keycloak で実装済み** ([temporal.md](temporal.md) の「ログインと権限」。サーバーの JWT の認可で `admins`・`viewers` を分ける)。**oauth2-proxy は置いていない**: headroom は tailnet に出しておらず (外からは share だけ)、tailnet に出している UI はどれも OIDC を持つ ([keycloak.md](keycloak.md) の「OIDC を持たない UI と oauth2-proxy」)。share の扱いは別の話題 | どの UI も Dex のログインを経ないと開けない |
+| 6 | Temporal UI・oauth2-proxy・share の扱い | `TEMPORAL_AUTH_*` を設定し、headroom の前に oauth2-proxy を置く。`just share` を残すか廃止するかを決める。**`just share` は廃止した** ([share.md](share.md))。**Temporal UI は Keycloak で実装済み** ([temporal.md](temporal.md) の「ログインと権限」。サーバーの JWT の認可で `admins`・`viewers` を分ける)。**oauth2-proxy は置いていない**: headroom は tailnet に出しておらず (外からの経路だった share は廃止した)、tailnet に出している UI はどれも OIDC を持つ ([keycloak.md](keycloak.md) の「OIDC を持たない UI と oauth2-proxy」)。ゲストの入れ方は [guest-access.md](guest-access.md) | どの UI も Dex のログインを経ないと開けない |
 | 7 | ワーカーの kind の権限 | ServiceAccount `orca-worker` と RoleBinding を作り、worktree の setup が短命の kubeconfig を書くようにする。admin の kubeconfig の読み取りを止める (Claude の deny 設定など) | ワーカーから prod に書き込めない。トークンが期限で切れる |
 | 8 | Azure の権限 | 人: Entra ID のセキュリティグループ (他の人は B2B ゲスト) を作り、リソースグループにロールを割り当てる。ワーカー: 専用のサービスプリンシパルを作る。Backstage の SP のスコープも、サブスクリプションからリソースグループに絞るか検討する | `az role assignment list` が想定どおりになる |
 
@@ -256,7 +256,7 @@ Dex の上流の IdP は **GitHub** に決めた (アクセス管理専用の or
 - この repo
   - [backstage.md](backstage.md)
   - [environments.md](environments.md)
-  - [share.md](share.md)
+  - [share.md](share.md) (廃止)
   - [backstage-argocd.md](backstage-argocd.md)
   - [backstage-azure.md](backstage-azure.md)
   - [temporal.md](temporal.md)

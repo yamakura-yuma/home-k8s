@@ -10,7 +10,7 @@ from pathlib import Path
 sys.dont_write_bytecode = True  # __pycache__ をリポジトリに作らない
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_share_secrets import FakeEnv  # noqa: E402
+from test_secrets import FakeEnv  # noqa: E402
 
 FULL = {
     "AZURE_DOMAIN": "example.onmicrosoft.com",

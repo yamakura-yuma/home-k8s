@@ -190,13 +190,13 @@ kind 標準の StorageClass `standard` (local-path) は使わない (PVC を消�
 ## Grafana の認証
 
 Grafana はログイン必須で、匿名アクセスは付けていない (閲覧のみの匿名も無い)。
-「別の PC から見る」で外に出すことがあるため。人は tailnet の URL (`https://grafana.taild2b611.ts.net`) から Keycloak の SSO で入る
+tailnet に出しているため。人は tailnet の URL (`https://grafana.taild2b611.ts.net`) から Keycloak の SSO で入る
 (グループ admins は Admin、viewers は Viewer。[keycloak.md](../cluster/keycloak.md) の「各 UI の OIDC」)。パスワードのユーザーは 3 つあり、admin は非常用に残す。
 
 | ユーザー | ロール | 使う人 | パスワードのファイル | 表示するコマンド |
 | --- | --- | --- | --- | --- |
 | `admin` | Admin | 自分 (ダッシュボードの編集、Explore) | `grafana-admin-password` | `just show grafana-admin` |
-| `viewer` | Viewer | 公開の Pod (`share`) が人の代わりに Grafana へ入る (人には渡さない。localhost:3000 では自分も使える) | `grafana-viewer-password` | `just show grafana` |
+| `viewer` | Viewer | 自分が localhost:3000 で閲覧用に使う (他の人には渡さない。以前は `just share` の Pod が人の代わりに使っていた。`just share` は廃止した) | `grafana-viewer-password` | `just show grafana` |
 | `backstage` | Viewer | Backstage (ダッシュボードの一覧を読む。人は使わない) | `grafana-backstage-password` | なし |
 
 ファイルはどれも `~/.local/share/home-k8s/observability/` (WSL2 ホスト側、パーミッション 600) に
@@ -233,17 +233,13 @@ backstage も同じサイドカーが同じ処理でそろえる。パスワー�
 Backstage は読み続けられる。Backstage 側の設定は [docs/cluster/backstage.md](../cluster/backstage.md)。
 
 viewer のパスワードを変えるのは、ファイルを書き換えて `just up` を打つときだけ。`just up` は
-Secret `observability/grafana-viewer` と、公開の Pod (`share`) が持つ写し (Secret `share/share-grafana`) を一緒に入れ直す。
+Secret `observability/grafana-viewer` を入れ直す。
 ただし Grafana の DB へは Pod の起動時にサイドカーがそろえるので、`just up` のあとに **`deploy/grafana` を `rollout restart` する**。
-`deploy/share` の `rollout restart` は要らない: share の認証サービスは写しを実行時に API で読む (最大 2 秒の覚え) ので、新しいパスワードは
-再起動なしで次の要求から Grafana に渡り、`share` を作り直さないので 3 つの公開 URL も変わらない ([#58](https://github.com/yamakura-yuma/home-k8s/issues/58))。
-Grafana の再起動が終わるまでは (DB が古いパスワードのままなので) Grafana の経路が 302 (ログイン画面) になる。
-人ごとの資格情報 (`just share add`) は Grafana のユーザーではないので、配るたびには viewer のパスワードは変わらない。
 
 パスワードのファイルの所有者はホストのユーザーにしてあるので、WSL2 のシェルから `cat` しても読める。
 admin のパスワードを変えたいときはファイルを消して (または書き換えて) `just up` を打ち、Secret が変わったあとで
 `kubectl --context kind-study-kind -n observability rollout restart deploy/grafana` とする
-(起動のたびに initContainer が DB の admin を Secret の値にそろえる)。viewer も同じ手順で変わる (`share` の再起動は要らない)。backstage は `rollout restart` のあと Backstage の Pod を作り直す。
+(起動のたびに initContainer が DB の admin を Secret の値にそろえる)。viewer も同じ手順で変わる。backstage は `rollout restart` のあと Backstage の Pod を作り直す。
 
 開発用コンテナは `~/.local/share/home-k8s` をホストと同じパスでマウントしている。この
 マウントが無い古いコンテナで `just up` を打つと、パスワードがコンテナの中にだけ残らない
@@ -264,47 +260,10 @@ Pod の再起動やクラスタの作り直しのあとも残る。
 
 ## 別の PC から見る
 
-クラスタの `share` Pod (`clusters/kind/share/`) が、Grafana・headroom のダッシュボード・Backstage を
-Cloudflare Quick Tunnel (`https://<ランダム>.trycloudflare.com`、アカウント不要) で常に公開している。
-`just up` で一緒に立ち、`just down` で消える。人ごとの資格情報を持たない要求は、どの経路も 401 になる。
-見せたい人には、次で資格情報を発行して渡す (ホストから打ってよい)。
-
-```
-$ just share add alice          # 既定 8h で失効。--ttl 2h で変えられる (上限 24h)
-$ just share get alice          # その人の情報と URL (パスワードは出ない)
-$ just share delete alice       # 即失効 (最大 2 秒)
-```
-
-`add` は名前・パスワードと、Grafana・headroom・Backstage の 3 つの URL を表示する。パスワードが出るのは
-このときだけ (特権 viewer の `rotate` も同じ) で、Secret には PBKDF2 のハッシュしか残らない。1 つの資格情報で
-3 つの URL に入れる。ブラウザの Basic 認証は URL ごとなので、名前とパスワードを URL ごとに打つ。
-URL は `share` Pod を作り直す (再起動・クラスタの作り直し) と変わる。変わったら `just share get` で引き直す。
-構成と全サブコマンドは [docs/cluster/share.md](../cluster/share.md)。
-
-- 渡せるのは閲覧用の `viewer` の権限だけで、admin の資格情報は出さない。自分で編集するときは
-  `just show grafana-admin`。
-- 期限のない資格情報 (`--permanent`、特権 viewer) は全体で 1 つ。期限がないこと以外は他の人と同じ。
-- URL と資格情報は見せたい相手にだけ渡す。使い終わったら `delete` する。
-- Quick Tunnel は試用向けで、稼働の保証は無い。長く使う場合は Cloudflare のアカウントで名前付きトンネルと Access を組む。
-
-### 各対象で通る経路
-
-| 対象 | 通すもの | 通さないもの |
-|---|---|---|
-| Grafana | 画面と読み取りの API。Grafana へは caddy が viewer の Basic に差し替えて渡す | `/profile/password`・`/api/user/password`、`/api/user` と `preferences` への書き込み (人が viewer を壊さないため) |
-| headroom | ダッシュボード用の GET (`/dashboard`・`/health`・`/stats`・`/stats-history`・`/stats-lifetime`・`/transformations/feed`・`/favicon.ico`) だけ。ホストの中継 (caddy) を経由し、headroom 本体は 127.0.0.1:8787 のまま | `/v1/*` (Anthropic へ転送するプロキシ本体)・`/settings`・`/stats/reset`・`/cache/clear` ほか。HEAD も通さない |
-| Backstage | 画面・カタログ・TechDocs の読み取り | `/api/proxy/*` (Grafana の API を Backstage の資格情報で読める)・カタログへの書き込み |
-
-### Grafana の root_url を変えない理由
-
-Grafana の `server.root_url` は既定の `http://localhost:3000/` のままにしている。共有の「Copy link」が作る
-短縮リンク (`/goto/<uid>`) の転送先は `root_url` から作る (`Location: http://localhost:3000/d/...`) ので、
-別の PC ではその localhost が自分自身になり開けない。share の caddy は `Location` の
-`http://localhost:3000/` を `/` に書き換え、Host ヘッダはそのまま Grafana に渡す
-(Grafana はログインの POST の Origin を Host と比べる)。Grafana Live の WebSocket もそのまま通る。
-`root_url` を公開 URL にすると Pod を作り直すたびに URL が変わって Grafana の設定も変わり、
-`root_url = /` (相対) にすると短縮リンクが `invalid app URL configuration` で開けなくなる (Grafana 13.2.3 で確認)。
-公開と無関係に localhost:3000 は Grafana に直接つながる。
+tailnet の端末から `https://grafana.taild2b611.ts.net` を開き、Keycloak でログインする (上の「Grafana の認証」)。
+グループ viewers の人は Viewer で、ダッシュボードを見られるが、保存・編集と Explore はできない。
+tailnet に居ない人に Quick Tunnel で見せていた `just share` は廃止した ([docs/cluster/share.md](../cluster/share.md))。
+ゲストの入れ方は [docs/cluster/guest-access.md](../cluster/guest-access.md) で比べる。
 
 ## ダッシュボード
 

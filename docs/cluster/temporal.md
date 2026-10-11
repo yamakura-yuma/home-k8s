@@ -73,7 +73,7 @@ proxy が触るのは上の 2 つのヘッダーだけで、本文は書き換�
 proxy は tailnet の Ingress `temporal-<環境>` (ログインの callback もここ) と、ホストの 127.0.0.1 の NodePort に出る。どちらの入口でも、
 Web UI はログインを経ないと開けず、サーバーはトークンの無い呼び出しを断る (下の「ログインと権限」)。localhost:8233・8234 で開くと
 ログインの後は callback の tailnet の URL に移るので、localhost の入口は実際には使わない (ポートの予約と NodePort は残してある)。
-共有 (`just share`) の caddy は Temporal UI を通さないので、共有先ではタブの中身は出ない。
+以前の共有 (`just share`) の caddy は Temporal UI を通さなかった。`just share` は廃止した ([share.md](share.md))。
 
 ### ログインと権限 (Keycloak の OIDC、グループ admins・viewers)
 

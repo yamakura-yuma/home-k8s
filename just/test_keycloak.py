@@ -12,7 +12,7 @@ from pathlib import Path
 sys.dont_write_bytecode = True  # __pycache__ をリポジトリに作らない
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_share_secrets import FAKE_RANDOM, FakeEnv  # noqa: E402
+from test_secrets import FAKE_RANDOM, FakeEnv  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 REALM = ROOT / "clusters/kind/auth/keycloak/realm-home-k8s.yaml"

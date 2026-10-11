@@ -9,15 +9,9 @@
   create secret generic <名前> ... (--dry-run 無し)     作った Secret を FAKE_KUBECTL_STDIN に {"verb": "create-secret", ...} で書く
   create namespace <名前> --dry-run=client -o yaml     Namespace の manifest を出す
   replace -f - / create -f - / apply -f -              標準入力を FAKE_KUBECTL_STDIN に書く
-  logs deploy/share -c <コンテナ>                       FAKE_LOGS/<コンテナ> の中身を出す (無ければ 1)
-  delete pod -l app=share --wait=false                 何もせず 0 で終わる (呼ばれたことは FAKE_KUBECTL_LOG に残る。#64 の Pod の作り直し)
-  get secret share-credentials -o go-template=...      FAKE_CREDENTIALS (JSON のファイル {名前: 項目の JSON 文字列}) を "名前<TAB>項目" の行で出す。ファイルが無ければ 1 (Secret が無い)
-  patch secret share-credentials --type merge --patch-file F
-                                                       {"data": {名前: base64 | null}} を FAKE_CREDENTIALS に反映し、FAKE_KUBECTL_STDIN に {"verb": "patch", "manifest": <patch>} で書く
   get secret argocd-initial-admin-secret -o jsonpath=...  FAKE_ARGOCD_ADMIN_PASSWORD を base64 にして出す (argocd-secrets.sh)
   exec -i deploy/argocd-server -- sh -c <スクリプト>       FAKE_ARGOCD_EXECS (回数のファイル) が FAKE_ARGOCD_FAILURES より小さい間は 1 で落ち、それ以降は手元の sh で同じスクリプトを動かす
                                                        (PATH の先頭の偽の argocd を呼ぶ。標準入力はそのまま渡る)
-  exec -i deploy/share -c auth -- python -B -c <コード>  実物の share_auth を FAKE_AUTH_DIR から読んで、手元の python3 で同じコードを動かす (標準入力はそのまま渡る)
   label --local -f - <キー>=<値> -o yaml              標準入力の manifest (JSON) にラベルを足して出す (oidc-secrets.sh)
   get configmap coredns -o jsonpath={.data.Corefile}  FAKE_COREFILE の中身を末尾の改行を除いて出す (実物の jsonpath と同じ)
   patch configmap coredns --type merge --patch-file F  F の中身 (YAML) をそのまま FAKE_KUBECTL_STDIN に {"verb": "patch-configmap", "patch": <文字列>} で書く
@@ -71,36 +65,8 @@ def build_manifest(name):
     return manifest
 
 
-def credentials_path():
-    return os.environ.get("FAKE_CREDENTIALS", "")
-
-
 dry_run = any(a.startswith("--dry-run") for a in args)
-if args[:3] == ["get", "secret", "share-credentials"] and "-o" in args:
-    path = credentials_path()
-    if not path or not os.path.isfile(path):
-        print('Error from server (NotFound): secrets "share-credentials" not found', file=sys.stderr)
-        sys.exit(1)
-    with open(path, encoding="utf-8") as f:
-        for name, entry in sorted(json.load(f).items()):
-            print(f"{name}\t{entry}")
-elif args[:3] == ["patch", "secret", "share-credentials"]:
-    with open(args[args.index("--patch-file") + 1], encoding="utf-8") as f:
-        patch = json.load(f)
-    record({"verb": "patch", "manifest": patch})
-    path = credentials_path()
-    state = {}
-    if path and os.path.isfile(path):
-        with open(path, encoding="utf-8") as f:
-            state = json.load(f)
-    for name, value in patch["data"].items():
-        if value is None:
-            state.pop(name, None)
-        else:
-            state[name] = base64.b64decode(value).decode()
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(state, f)
-elif args[:3] == ["get", "secret", "argocd-initial-admin-secret"] and "-o" in args:
+if args[:3] == ["get", "secret", "argocd-initial-admin-secret"] and "-o" in args:
     sys.stdout.write(base64.b64encode(os.environ["FAKE_ARGOCD_ADMIN_PASSWORD"].encode()).decode())
 elif args[:1] == ["exec"] and "deploy/argocd-server" in args:
     counter = os.environ["FAKE_ARGOCD_EXECS"]
@@ -111,9 +77,6 @@ elif args[:1] == ["exec"] and "deploy/argocd-server" in args:
         print("error: account 'backstage' does not exist", file=sys.stderr)
         sys.exit(1)
     sys.exit(subprocess.run(["sh", "-c", args[args.index("-c") + 1]]).returncode)
-elif args[:1] == ["exec"] and "--" in args:
-    code = args[args.index("-c", args.index("--")) + 1]
-    sys.exit(subprocess.run([sys.executable, "-B", "-c", code], env={**os.environ, "PYTHONPATH": os.environ["FAKE_AUTH_DIR"]}).returncode)
 elif args[:2] == ["label", "--local"]:
     manifest = json.loads(sys.stdin.read())
     for arg in args:
@@ -139,9 +102,3 @@ elif args[:2] == ["create", "namespace"]:
     print(json.dumps({"apiVersion": "v1", "kind": "Namespace", "metadata": {"name": args[2]}}))
 elif args[:1] in (["replace"], ["create"], ["apply"]) and "-f" in args:
     record({"verb": args[0], "manifest": json.loads(sys.stdin.read())})
-elif args[:1] == ["logs"]:
-    path = os.path.join(os.environ.get("FAKE_LOGS", ""), args[args.index("-c") + 1])
-    if not os.path.isfile(path):
-        sys.exit(1)
-    with open(path, encoding="utf-8") as f:
-        sys.stdout.write(f.read())
