@@ -124,7 +124,7 @@ EOF
 ```
 
 結果は TestWorkflowExecution の status には書かれない (testkube 2.14.1)。api-server のログの `Saving execution` に出る
-`executionId` で API から読む (`.result.status` が passed / failed):
+`executionId` で API から読む (`.result.status` が passed / failed)。ホストの shell で打つ (curl・jq を使う):
 
 ```sh
 kubectl --context kind-study-kind -n testkube port-forward svc/testkube-api-server 8088 &
