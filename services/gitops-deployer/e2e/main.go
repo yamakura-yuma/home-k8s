@@ -145,12 +145,18 @@ type deployment struct {
 }
 
 // waitDone は Workflow が終わるまで bff の状態を読む (試験の側の待ち。Workflow 自体は Signal を待つ)。
-func waitDone(token, name, runID string) deployment {
+// 待ちはアクセストークンの寿命 (Keycloak の既定 5 分) より長いので、読むたびにトークンを取り直す。
+func waitDone(name, runID string) deployment {
 	deadline := time.Now().Add(timeout)
 	last := ""
 	for time.Now().Before(deadline) {
-		r := call("GET", "/api/v1/deployments/"+name, token, nil, nil)
-		if r.code == 200 {
+		r := call("GET", "/api/v1/deployments/"+name, clientToken(), nil, nil)
+		if r.code != 200 {
+			if s := fmt.Sprintf("HTTP %d", r.code); s != last {
+				log.Printf("  %s: %s %s", name, s, r.body)
+				last = s
+			}
+		} else {
 			var d deployment
 			r.json(&d)
 			if d.Operation != nil && d.Operation.RunID == runID {
@@ -278,7 +284,8 @@ func main() {
 	check(conflict.code == 409, "走っている間の同じアプリの別の依頼は 409 (%d)", conflict.code)
 
 	// 3. 完了まで
-	d := waitDone(token, name, op.RunID)
+	d := waitDone(name, op.RunID)
+	token = clientToken()
 	check(d.Operation.Status == "completed" && d.Last.RunID == op.RunID && d.Last.Result == "succeeded" && d.Deployed, "デプロイの Workflow が完了し履歴に succeeded (%+v)", d.Last)
 	check(d.Last.PR != nil && strings.Contains(d.Last.PR.URL, "/pull/"), "PR ができた (%v)", d.Last.PR)
 	code, appObj := kube("/apis/argoproj.io/v1alpha1/namespaces/argocd/applications/deploy-" + name)
@@ -309,7 +316,7 @@ func main() {
 	check(r.code == 202, "削除の依頼は 202 (%d %s)", r.code, r.body)
 	var del operation
 	r.json(&del)
-	d = waitDone(token, name, del.RunID)
+	d = waitDone(name, del.RunID)
 	check(d.Operation.Status == "completed" && d.Last.RunID == del.RunID && d.Last.Op == "delete" && d.Last.Result == "succeeded" && !d.Deployed, "削除の Workflow が完了 (%+v)", d.Last)
 	code, _ = kube("/apis/argoproj.io/v1alpha1/namespaces/argocd/applications/deploy-" + name)
 	check(code == 404, "Application deploy-%s が消えた (%d)", name, code)
