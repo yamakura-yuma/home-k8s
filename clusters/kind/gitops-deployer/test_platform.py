@@ -125,6 +125,11 @@ class ApisixTest(unittest.TestCase):
         self.assertIn(f"existingConfigMap: {name}", read("apisix/values.yaml"))
         self.assertIn("mode: standalone", read("apisix/values.yaml"))
 
+    def test_apisix_runs_a_fixed_small_number_of_workers(self):
+        # auto (CPU の数) だと worker が 22 になり、要求が無くても memory の limit で OOMKilled になった
+        values = read("apisix/values.yaml")
+        self.assertRegex(values, r"(?m)^apisix:\n  nginx:\n    workerProcesses: 2$")
+
     def test_routes_end_with_the_end_marker(self):
         # standalone の apisix.yaml は末尾の #END が無いと読み込まれない
         self.assertTrue(self.ROUTES.rstrip().endswith("#END"))
