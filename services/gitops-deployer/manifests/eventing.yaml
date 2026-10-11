@@ -1,6 +1,7 @@
 # Knative Eventing の配線。ApiServerSource (namespace argocd の Application のうち、ApplicationSet gitops-deployer-apps が作ったもの)
 # → Kafka Broker default → Trigger → event-receiver。届かなければ指数バックオフで 5 回打ち直し、尽きたら Dead Letter の
-# KafkaSink (トピック gitops-deployer-dlq) へ。Trigger は ordered (パーティションの中の順を守る)
+# Kafka Broker dead-letter へ (Trigger を持たない。イベントは Kafka のトピック knative-broker-gitops-deployer-dead-letter に残る。
+# 基盤は KafkaSink の data plane を入れていないので、Broker を置き場にする)。Trigger は ordered (パーティションの中の順を守る)
 apiVersion: eventing.knative.dev/v1
 kind: Broker
 metadata:
@@ -64,16 +65,20 @@ spec:
     timeout: PT30S
     deadLetterSink:
       ref:
-        apiVersion: eventing.knative.dev/v1alpha1
-        kind: KafkaSink
-        name: gitops-deployer-dlq
+        apiVersion: eventing.knative.dev/v1
+        kind: Broker
+        name: dead-letter
 ---
-apiVersion: eventing.knative.dev/v1alpha1
-kind: KafkaSink
+apiVersion: eventing.knative.dev/v1
+kind: Broker
 metadata:
-  name: gitops-deployer-dlq
+  name: dead-letter
   namespace: gitops-deployer
+  annotations:
+    eventing.knative.dev/broker.class: Kafka
 spec:
-  topic: gitops-deployer-dlq
-  bootstrapServers:
-    - kafka-kafka-bootstrap.kafka.svc.cluster.local:9092
+  config:
+    apiVersion: v1
+    kind: ConfigMap
+    name: kafka-broker-config
+    namespace: knative-eventing

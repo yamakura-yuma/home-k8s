@@ -118,15 +118,16 @@ class EventsTest(unittest.TestCase):
         self.assertIn(f"name: {topic}\n", self.TOPICS)
         self.assertIn(f"--topic {topic} ", read(MANIFESTS / "e2e.yaml"))
 
-    def test_dead_letter_topic(self):
-        sink = read(MANIFESTS / "eventing.yaml").split("\nkind: KafkaSink\n")[1]
-        topic = re.search(r"topic: (\S+)", sink).group(1)
-        self.assertIn(f"name: {topic}\n", self.TOPICS)
-        self.assertIn("deadLetterSink:", read(MANIFESTS / "eventing.yaml"))
+    def test_dead_letter_goes_to_a_broker_without_triggers(self):
+        eventing = read(MANIFESTS / "eventing.yaml")
+        dls = re.search(r"deadLetterSink:\n      ref:\n(?:        .*\n)+", eventing).group(0)
+        self.assertIn("kind: Broker", dls)
+        name = re.search(r"name: (\S+)", dls).group(1)
+        self.assertIn(f"kind: Broker\nmetadata:\n  name: {name}\n", eventing)
+        self.assertNotIn(f"broker: {name}\n", eventing)
 
     def test_kafka_bootstrap_matches_the_platform(self):
         bootstrap = re.search(r"value: (kafka-kafka-bootstrap\S+)", read(KIND / "gitops-deployer/dapr-components.yaml")).group(1)
-        self.assertIn(f"- {bootstrap}", read(MANIFESTS / "eventing.yaml"))
         self.assertIn(f"--bootstrap-server {bootstrap} ", read(MANIFESTS / "e2e.yaml"))
 
 

@@ -23,6 +23,8 @@ spec:
         dapr.io/app-port: "8080"
         dapr.io/config: gitops-deployer
         dapr.io/log-as-json: "true"
+        # Dapr の組み込みの Kubernetes の secret store を使わない (ServiceAccount のトークンを載せないので初期化に失敗する。Secret は読まない)
+        dapr.io/disable-builtin-k8s-secret-store: "true"
         dapr.io/sidecar-cpu-request: 10m
         dapr.io/sidecar-memory-request: 48Mi
         dapr.io/sidecar-memory-limit: 192Mi
