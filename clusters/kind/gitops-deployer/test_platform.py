@@ -129,6 +129,21 @@ class ApisixTest(unittest.TestCase):
         # standalone の apisix.yaml は末尾の #END が無いと読み込まれない
         self.assertTrue(self.ROUTES.rstrip().endswith("#END"))
 
+    def test_gitops_deployer_route_checks_the_keycloak_jwt_before_the_bff(self):
+        route = self.ROUTES.split("- id: gitops-deployer\n")[1].split("#END")[0]
+        self.assertIn("uri: /gitops-deployer/api/*", route)
+        # トークンを introspect せず JWKS の鍵で確かめる。無い・不正なトークンは 401 で、bff に届かない
+        self.assertIn("bearer_only: true", route)
+        self.assertIn("use_jwks: true", route)
+        self.assertIn("discovery: https://keycloak.taild2b611.ts.net/realms/home-k8s/.well-known/openid-configuration", route)
+        self.assertIn("count: 120\n            time_window: 60", route)
+        self.assertIn("rejected_code: 429", route)
+        # bff は /api/v1/... で受けるので、先頭の /gitops-deployer を外して渡す
+        self.assertIn('regex_uri: ["^/gitops-deployer/(.*)", "/$1"]', route)
+        self.assertEqual(re.findall(r"nodes:\n\s+(\S+): 1", route), ["bff.gitops-deployer.svc.cluster.local:80"])
+        # 疎通確認の経路は先頭のまま変えない
+        self.assertRegex(self.ROUTES, r"routes:\n      - id: platform-ping\n        uri: /_platform/ping\n")
+
     def test_smoke_test_hits_the_gateway_service_and_the_ping_route(self):
         smoke = read("testkube/manifests/platform-smoke.yaml")
         uri = re.search(r"uri: (\S+)", self.ROUTES).group(1)
