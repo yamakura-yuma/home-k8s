@@ -9,6 +9,14 @@ import {
   catalogLocationDeletePermission,
 } from '@backstage/plugin-catalog-common/alpha';
 import {
+  actionExecutePermission,
+  taskCancelPermission,
+  taskCreatePermission,
+  taskReadPermission,
+  templateParameterReadPermission,
+  templateStepReadPermission,
+} from '@backstage/plugin-scaffolder-common/alpha';
+import {
   AuthorizeResult,
   createPermission,
   Permission,
@@ -54,6 +62,10 @@ const writes: Permission[] = [
   catalogLocationCreatePermission,
   catalogLocationDeletePermission,
   createPermission({ name: 'azure.sites.update', attributes: { action: 'update' } }),
+  // Scaffolder のタスク (gitops-deployer のデプロイ・削除の依頼) を始める・止める・アクションを動かすのは admins だけ
+  taskCreatePermission,
+  taskCancelPermission,
+  actionExecutePermission,
   // action の無い、知らない permission も拒む
   createPermission({ name: 'scaffolder.action.execute', attributes: {} }),
 ];
@@ -61,6 +73,10 @@ const reads: Permission[] = [
   catalogEntityReadPermission,
   catalogEntityValidatePermission,
   catalogLocationAnalyzePermission,
+  // テンプレートのフォームとタスクの経過は誰でも読める
+  templateParameterReadPermission,
+  templateStepReadPermission,
+  taskReadPermission,
 ];
 
 async function decide(permission: Permission, u?: PolicyQueryUser) {

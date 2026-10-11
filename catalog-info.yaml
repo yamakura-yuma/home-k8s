@@ -72,3 +72,4 @@ metadata:
 spec:
   targets:
     - ./services/sample-api/catalog-info.yaml
+    - ./services/gitops-deployer/catalog-info.yaml

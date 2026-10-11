@@ -59,8 +59,9 @@
 <body>
 <main>
   <h1>gitops-deployer — 処理のアニメーション</h1>
-  <p class="lead">クライアントの依頼 1 つが、6 つの Pod・Temporal・GitHub・Argo CD・Knative Eventing を通って終わるまでを 1 段ずつ追う。
-    実装は <code>services/gitops-deployer/</code>。仕様は <code>gitops-deployer-spec.html</code>。Space で再生と一時停止、→ で 1 段進める。</p>
+  <p class="lead">Backstage からの依頼 1 つが、Keycloak・6 つの Pod・Temporal・GitHub・Argo CD・Knative Eventing を通って終わるまでを 1 段ずつ追う。
+    E2E など外の利用者は 3 段目 (Gateway) から同じ道を通る。
+    実装は <code>services/gitops-deployer/</code> と Backstage の <code>gitopsDeployer.ts</code>。仕様は <code>gitops-deployer-spec.html</code>、Backstage の側は <code>gitops-deployer-backstage.md</code>。Space で再生と一時停止、→ で 1 段進める。</p>
 
   <div class="ctrl" role="group" aria-label="操作">
     <button id="m-deploy" class="on">デプロイ</button>
@@ -75,7 +76,7 @@
 
   <div class="grid">
     <div class="panel">
-      <svg id="map" viewBox="0 0 1100 700" role="img" aria-label="gitops-deployer の構成要素と、依頼が通る順の図">
+      <svg id="map" viewBox="0 -100 1100 800" role="img" aria-label="Backstage・Keycloak と gitops-deployer の構成要素、依頼が通る順の図">
         <g id="zones"></g>
         <g id="edges"></g>
         <g id="nodes"></g>
@@ -111,6 +112,8 @@
 
   // --- 図の部品 ---
   var ZONES = [
+    [10, -92, 176, 90, '利用者'],
+    [198, -92, 302, 90, 'Keycloak (keycloak.taild2b611.ts.net)'],
     [10, 10, 176, 370, '入口'],
     [10, 400, 176, 110, '観測'],
     [198, 10, 302, 680, 'gitops-deployer (ambient)', 'amb'],
@@ -122,7 +125,9 @@
   ];
   // id, x, y, w, h, 1 行目, 2 行目, 参照だけなら 'ref'
   var NODES = [
-    ['client', 24, 44, 148, 48, 'クライアント', 'HTTP・Bearer JWT'],
+    ['web', 24, -64, 148, 48, 'ブラウザ', 'Create・Deployments'],
+    ['kct', 212, -64, 160, 48, 'token endpoint', 'client credentials'],
+    ['client', 24, 44, 148, 48, 'Backstage', 'gitopsDeployer.ts'],
     ['gw', 24, 120, 148, 48, 'Gateway', 'istio-ingress/gateway'],
     ['apisix', 24, 196, 148, 56, 'APISIX', '/gitops-deployer/api/*'],
     ['kc', 24, 292, 148, 48, 'Keycloak', 'home-k8s の JWKS', 'ref'],
@@ -152,6 +157,8 @@
   ];
   // id, path, 参照だけなら 'ref'
   var EDGES = [
+    ['web-c', 'M98 -16 V44'],
+    ['c-kct', 'M172 56 H192 V-40 H212'],
     ['c-gw', 'M98 92 V120'],
     ['gw-ap', 'M98 168 V196'],
     ['ap-kc', 'M98 252 V292', 'ref'],
@@ -207,9 +214,23 @@
   // t: 題, ph: Workflow の段 (Query status), w: 何が起きるか, f: 実装のファイル, n: 光らせる箱, e: 経路 (- は逆向き),
   // k: トークンの札, at: 経路が無いときにトークンを置く箱, up: event-receiver が 1
   var SVC = 'services/gitops-deployer/';
+  var BS = 'backstage/packages/backend/src/gitopsDeployer.ts';
+  // Backstage からの依頼の頭の 3 段 (op ごとにテンプレートと要求が違う)
+  var HEAD = function (op) {
+    var del = op === 'delete';
+    return [
+      { t: 'Backstage から依頼する', ph: '', n: ['web', 'client'], e: ['web-c'], k: 'task',
+        w: 'Create の画面でテンプレート「gitops-deployer: アプリを' + (del ? '削除する」を選び、名前' : 'デプロイする」を選び、名前・イメージ・ポート・レプリカ数') + 'を入れて Create。Scaffolder がタスクを作り、アクション <code>gitops-deployer:' + op + '</code> を動かす。タスクを始められるのは admins だけ (<code>scaffolder.task.create</code>。ゲスト・viewers は Backstage が 403)。',
+        f: [SVC + 'backstage/' + op + '.yaml', BS, 'backstage/packages/backend/src/permissionPolicy.ts'] },
+      { t: 'Keycloak からトークンを取る', ph: '', n: ['client', 'kct'], e: ['c-kct'], k: 'token',
+        w: 'realm home-k8s の token endpoint に client credentials (client <code>backstage-gitops-deployer</code>、secret は環境変数 <code>GITOPS_DEPLOYER_CLIENT_SECRET</code>)。aud に <code>gitops-deployer</code>、service account に client <code>gitops-deployer</code> の role <code>deploy</code>・<code>view</code>。期限の 1 分前まで使い回す。トークンはバックエンドの中だけで使い、ブラウザには渡さない。',
+        f: [BS, 'backstage/app-config.yaml', 'clusters/kind/auth/keycloak/realm-home-k8s.yaml'] },
+      { t: '依頼を送る', ph: '', n: ['client', 'gw'], e: ['c-gw'], k: 'JWT',
+        w: (del ? '<code>DELETE …/deployments/&lt;名前&gt;</code>' : '<code>POST …/deployments</code> (本文は name・image・port・replicas)') + '。宛先は <code>http://gateway-istio.istio-ingress.svc.cluster.local/gitops-deployer/api/v1</code>。<code>Authorization: Bearer</code> と <code>Idempotency-Key: backstage-&lt;タスクの id&gt;</code> (同じタスクのやり直しは同じ応答)。アクションの span (service.name <code>backstage</code>) の子の fetch が traceparent を付ける。E2E など外の利用者 (client <code>gitops-deployer</code>) はここから同じ道。',
+        f: [BS, 'clusters/kind/istio/gateway/gateway.yaml'] }
+    ];
+  };
   var COMMON = [
-    { t: '依頼を送る', ph: '', n: ['client', 'gw'], e: ['c-gw'], k: 'JWT',
-      f: ['clusters/kind/istio/gateway/gateway.yaml'] },
     { t: 'Gateway から APISIX へ', ph: '', n: ['gw', 'apisix'], e: ['gw-ap'], k: 'JWT',
       w: 'Gateway API の Gateway <code>gateway</code> (Service <code>gateway-istio</code>、ClusterIP) が HTTPRoute <code>apisix</code> で APISIX に渡す。',
       f: ['clusters/kind/apisix/manifests/httproute.yaml'] },
@@ -217,16 +238,16 @@
       w: '経路 <code>/gitops-deployer/api/*</code>。openid-connect (bearer_only・use_jwks) が realm home-k8s の JWKS で署名を確かめる。無い・不正は 401。limit-count は 60 秒に 120 回で、超えると 429。proxy-rewrite が先頭の <code>/gitops-deployer</code> を外す。',
       f: ['clusters/kind/apisix/manifests/routes.yaml'] },
     { t: 'bff がもう一度確かめる', ph: '', n: ['apisix', 'bff'], e: ['ap-bff'], k: 'JWT',
-      w: 'Service <code>bff:80</code> へ。bff (gin) が署名 (JWKS)・iss・aud=<code>gitops-deployer</code>・exp を確かめ直す。ロールは <code>resource_access.gitops-deployer.roles</code>: GET は <code>view</code>、POST・DELETE は <code>deploy</code>。無ければ 403。依頼ごとに監査ログを 1 行 (audit=true、principal・action・app・status)。',
+      w: 'Service <code>bff:80</code> へ。bff (gin) が署名 (JWKS)・iss・aud=<code>gitops-deployer</code>・exp を確かめ直す。ロールは <code>resource_access.gitops-deployer.roles</code>: GET は <code>view</code>、POST・DELETE は <code>deploy</code>。無ければ 403。依頼ごとに監査ログを 1 行 (audit=true、principal・action・app・status)。Backstage の principal は <code>service-account-backstage-gitops-deployer</code> (preferred_username)。',
       f: [SVC + 'internal/auth/auth.go', SVC + 'internal/bff/bff.go'] },
     { t: 'Dapr の service invocation で api へ', ph: '', n: ['bff', 'bffd', 'apid', 'api'], e: ['bff-bffd', 'bffd-apid', 'apid-api'], k: 'HTTP',
-      w: 'bff の daprd → api の daprd → api。Istio の AuthorizationPolicy <code>api</code> が ServiceAccount bff 以外を拒む (ztunnel の mTLS)。ヘッダ <code>X-Request-Deadline</code> (期限の伝播) と <code>X-Requested-By</code> (JWT の呼び出し元) を付ける。',
+      w: 'bff の daprd → api の daprd → api。Istio の AuthorizationPolicy <code>api</code> が ServiceAccount bff 以外を拒む (ztunnel の mTLS)。ヘッダ <code>X-Request-Deadline</code> (期限の伝播) と <code>X-Requested-By</code> (JWT の呼び出し元。Backstage なら <code>service-account-backstage-gitops-deployer</code>) を付ける。',
       f: [SVC + 'internal/bff/bff.go', SVC + 'manifests/rbac.yaml', SVC + 'internal/server/server.go'] }
   ];
   var TAIL_START = function (op) {
     return [
       { t: 'api が Workflow を始める', ph: 'opening-pr', n: ['api', 'tmp'], e: ['api-tmp'], k: 'Start',
-        w: 'Workflow <code>Deploy</code>、ID <code>app-&lt;名前&gt;</code>、Task Queue <code>workflow-engine</code>、memo に <code>traceparent</code>。同じ ID が走っていれば 409 (ConflictPolicy FAIL、終われば同じ ID で次を始める)。202 と workflowId・runId をクライアントへ返す。Temporal は既存の temporal-dev、namespace <code>gitops-deployer</code> (保持 72 時間)。',
+        w: 'Workflow <code>Deploy</code>、ID <code>app-&lt;名前&gt;</code>、Task Queue <code>workflow-engine</code>、memo に <code>traceparent</code>。同じ ID が走っていれば 409 (ConflictPolicy FAIL、終われば同じ ID で次を始める)。202 と workflowId・runId を Backstage へ返す。Temporal は既存の temporal-dev、namespace <code>gitops-deployer</code> (保持 72 時間)。',
         f: [SVC + 'internal/api/api.go', SVC + 'manifests/temporal-namespace.yaml'] },
       { t: 'workflow-engine が Deploy を動かす', ph: 'opening-pr', n: ['tmp', 'wfe'], e: ['-wfe-tmp'], k: 'Task',
         w: 'workflow-engine は外部 I/O を持たない。手順・待機・タイムアウト・Signal・補償を受け持ち、I/O は Activity (別の Pod・Task Queue) に頼む。Query <code>status</code> で今の段が読める。',
@@ -234,12 +255,9 @@
     ];
   };
 
-  var DEPLOY = COMMON.slice();
-  DEPLOY[0] = Object.assign({}, COMMON[0], {
-    w: '<code>POST /gitops-deployer/api/v1/deployments</code>。本文は name・image・port・replicas。<code>Authorization: Bearer</code> (Keycloak の client <code>gitops-deployer</code> のトークン) と、任意で <code>Idempotency-Key</code>・<code>If-Match</code>。' });
-  DEPLOY = DEPLOY.concat([
+  var DEPLOY = HEAD('deploy').concat(COMMON).concat([
     { t: 'api が依頼を確かめる', ph: '', n: ['api', 'apid', 'redis'], at: 'redis', k: 'idem',
-      w: '値の検証 (誤りは 422 の problem+json、<code>errors[]</code> に欄ごと)。<code>Idempotency-Key</code> は Dapr state の <code>idem|&lt;鍵&gt;</code> (24 時間)。同じ鍵・同じ依頼は同じ応答 (<code>Idempotent-Replayed: true</code>)、同じ鍵・違う依頼は 422。<code>If-Match</code> が履歴の ETag と違えば 412。',
+      w: '値の検証 (誤りは 422 の problem+json、<code>errors[]</code> に欄ごと)。<code>Idempotency-Key</code> は Dapr state の <code>idem|&lt;依頼者&gt;|&lt;鍵&gt;</code> (24 時間。依頼者は <code>X-Requested-By</code> を url.PathEscape)。Backstage なら <code>idem|service-account-backstage-gitops-deployer|backstage-&lt;タスクの id&gt;</code>。同じ鍵・同じ依頼は同じ応答 (<code>Idempotent-Replayed: true</code>)、同じ鍵・違う依頼は 422。別の依頼者が同じ鍵を使ってもぶつからない。<code>If-Match</code> が履歴の ETag と違えば 412。',
       f: [SVC + 'internal/api/api.go', SVC + 'internal/spec/spec.go'] }
   ]).concat(TAIL_START('deploy')).concat([
     { t: 'OpenPR: PR を作る', ph: 'opening-pr', n: ['tmp', 'git', 'pr'], e: ['-git-tmp', 'git-pr'], k: 'PR',
@@ -278,20 +296,20 @@
     { t: '完了イベントを流す', ph: 'done', n: ['store', 'stored', 'topic'], e: ['store-stored', 'stored-topic'], k: 'event',
       w: 'PublishCompleted が Dapr の pub/sub <code>pubsub</code> (Kafka) のトピック <code>gitops-deployer-events</code> に出す。CloudEvent の id は <code>&lt;workflowId&gt;/&lt;runId&gt;</code>、type は <code>io.github.yamakura-yuma.gitops-deployer.deploy.succeeded</code>。Dapr が traceparent を入れる。結果は succeeded。',
       f: [SVC + 'internal/history/history.go', SVC + 'manifests/kafka-topics.yaml'] },
-    { t: 'クライアントが状態を読む', ph: 'done', n: ['client', 'bff', 'api', 'redis', 'tmp'], e: ['c-gw', 'gw-ap', 'ap-bff', 'bff-bffd', 'bffd-apid', 'apid-api'], k: 'GET',
-      w: '<code>GET /api/v1/deployments/{name}</code> を繰り返す。api は履歴 (Dapr state、ETag を返す) と DescribeWorkflow・Query <code>status</code> を合わせる。一覧は <code>GET /api/v1/deployments</code> (pageSize・pageToken)。bff が links (temporal・pr・argocd) を足す。',
-      f: [SVC + 'internal/api/api.go', SVC + 'internal/bff/bff.go'] },
-    { t: 'trace は 1 本', ph: 'done', n: ['otel', 'bff', 'api', 'wfe', 'git', 'store', 'er'], at: 'otel', k: 'OTLP',
-      w: '6 つの Pod が OTLP/gRPC で <code>otel-collector-opentelemetry-collector.observability:4317</code> へ送り、Tempo に入る。HTTP は traceparent、Temporal はヘッダ、event-receiver は memo の traceparent で繋ぐ。ログは JSON で trace_id・span_id 付き。',
-      f: [SVC + 'internal/obs/obs.go', SVC + 'internal/temporalx/temporalx.go', SVC + 'manifests/dapr.yaml'] }
+    { t: 'Backstage が終わりを見て結果を出す', ph: 'done', n: ['web', 'client', 'bff', 'api', 'redis', 'tmp'], e: ['c-gw', 'gw-ap', 'ap-bff', 'bff-bffd', 'bffd-apid', 'apid-api'], k: 'GET',
+      w: 'アクションは 202 の後、10 秒ごとに <code>GET /api/v1/deployments/&lt;名前&gt;</code> を読み (上限 30 分)、段 (opening-pr・waiting-for-argocd …) が変わるたびにタスクの画面に出す。api は履歴 (Dapr state) と DescribeWorkflow・Query <code>status</code> を合わせる。同じ runId の記録が履歴 (last) に入れば終わり。出力は result と Temporal・PR・Argo CD のリンク (bff の links)。failed ならタスクも失敗。',
+      f: [BS, SVC + 'internal/api/api.go', SVC + 'internal/bff/bff.go'] },
+    { t: 'Deployments のタブで一覧を見る', ph: 'done', n: ['web', 'client', 'bff', 'api', 'redis'], e: ['web-c', 'c-gw', 'gw-ap', 'ap-bff', 'bff-bffd', 'bffd-apid', 'apid-api'], k: 'list',
+      w: 'カタログの <code>component:default/gitops-deployer</code> のタブ Deployments が、バックエンドの <code>GET /api/gitops-deployer/deployments</code> を読む。バックエンドは bff の <code>GET /api/v1/deployments</code> を全ページ (pageSize 100・pageToken) 読んで返す。名前・状態・イメージ・最後の操作・リンク。サインインした人 (ゲストを含む) が読める。',
+      f: [BS, 'backstage/packages/app/src/modules/environments/GitopsDeployerView.tsx', SVC + 'catalog-info.yaml'] },
+    { t: 'trace は 1 本', ph: 'done', n: ['otel', 'client', 'bff', 'api', 'wfe', 'git', 'store', 'er'], at: 'otel', k: 'OTLP',
+      w: 'Backstage のバックエンド (instrumentation.js、service.name <code>backstage</code>) がアクションの span と、その子の fetch (Keycloak と bff) を OTLP/HTTP で出し、trace の根になる。6 つの Pod は OTLP/gRPC で <code>otel-collector-opentelemetry-collector.observability:4317</code> へ送り、Tempo に入る。HTTP は traceparent、Temporal はヘッダ、event-receiver は memo の traceparent で繋ぐ。ログは JSON で trace_id・span_id 付き。',
+      f: ['backstage/packages/backend/src/instrumentation.js', SVC + 'internal/obs/obs.go', SVC + 'internal/temporalx/temporalx.go', SVC + 'manifests/dapr.yaml'] }
   ]);
 
-  var DELETE = COMMON.slice();
-  DELETE[0] = Object.assign({}, COMMON[0], {
-    w: '<code>DELETE /gitops-deployer/api/v1/deployments/{name}</code>。<code>Authorization: Bearer</code> と、任意で <code>Idempotency-Key</code>・<code>If-Match</code>。' });
-  DELETE = DELETE.concat([
+  var DELETE = HEAD('delete').concat(COMMON).concat([
     { t: 'api が依頼を確かめる', ph: '', n: ['api', 'apid', 'redis'], at: 'redis', k: 'idem',
-      w: '名前だけを確かめる (誤りは 422)。<code>Idempotency-Key</code> と <code>If-Match</code> はデプロイと同じ (<code>idem|&lt;鍵&gt;</code>、412)。',
+      w: '名前だけを確かめる (誤りは 422)。<code>Idempotency-Key</code> と <code>If-Match</code> はデプロイと同じ (<code>idem|&lt;依頼者&gt;|&lt;鍵&gt;</code>、412)。',
       f: [SVC + 'internal/api/api.go', SVC + 'internal/spec/spec.go'] }
   ]).concat(TAIL_START('delete')).concat([
     { t: 'OpenPR: ディレクトリを消す PR', ph: 'opening-pr', n: ['tmp', 'git', 'pr'], e: ['-git-tmp', 'git-pr'], k: 'PR',
@@ -330,11 +348,14 @@
     { t: '完了イベントを流す', ph: 'done', n: ['store', 'stored', 'topic'], e: ['store-stored', 'stored-topic'], k: 'event',
       w: 'トピック <code>gitops-deployer-events</code> に type <code>io.github.yamakura-yuma.gitops-deployer.delete.succeeded</code>、id <code>&lt;workflowId&gt;/&lt;runId&gt;</code>。',
       f: [SVC + 'internal/history/history.go'] },
-    { t: 'クライアントが状態を読む', ph: 'done', n: ['client', 'bff', 'api', 'redis', 'tmp'], e: ['c-gw', 'gw-ap', 'ap-bff', 'bff-bffd', 'bffd-apid', 'apid-api'], k: 'GET',
-      w: '<code>GET /api/v1/deployments/{name}</code>。履歴は残るので 200 で deployed=false。links (temporal・pr・argocd) 付き。',
-      f: [SVC + 'internal/api/api.go', SVC + 'internal/bff/bff.go'] },
-    { t: 'trace は 1 本', ph: 'done', n: ['otel', 'bff', 'api', 'wfe', 'git', 'store', 'er'], at: 'otel', k: 'OTLP',
-      w: 'デプロイと同じ。bff→api→workflow-engine→git-activity・store-activity と event-receiver が 1 本の trace になる。',
+    { t: 'Backstage が終わりを見て結果を出す', ph: 'done', n: ['web', 'client', 'bff', 'api', 'redis', 'tmp'], e: ['c-gw', 'gw-ap', 'ap-bff', 'bff-bffd', 'bffd-apid', 'apid-api'], k: 'GET',
+      w: 'デプロイと同じく 10 秒ごとに <code>GET /api/v1/deployments/&lt;名前&gt;</code> (上限 30 分)。履歴は残るので 200 で deployed=false。同じ runId の記録が last に入れば終わり、result と Temporal・PR・Argo CD のリンクを出す。',
+      f: [BS, SVC + 'internal/api/api.go', SVC + 'internal/bff/bff.go'] },
+    { t: 'Deployments のタブで一覧を見る', ph: 'done', n: ['web', 'client', 'bff', 'api', 'redis'], e: ['web-c', 'c-gw', 'gw-ap', 'ap-bff', 'bff-bffd', 'bffd-apid', 'apid-api'], k: 'list',
+      w: 'デプロイと同じ中継 (<code>GET /api/gitops-deployer/deployments</code> → bff の一覧を全ページ)。消したアプリは状態が「削除済み」(deployed=false) の行になる。',
+      f: [BS, 'backstage/packages/app/src/modules/environments/GitopsDeployerView.tsx'] },
+    { t: 'trace は 1 本', ph: 'done', n: ['otel', 'client', 'bff', 'api', 'wfe', 'git', 'store', 'er'], at: 'otel', k: 'OTLP',
+      w: 'デプロイと同じ。Backstage のアクションの span を根に、bff→api→workflow-engine→git-activity・store-activity と event-receiver が 1 本の trace になる。',
       f: [SVC + 'internal/obs/obs.go', SVC + 'internal/temporalx/temporalx.go'] }
   ]);
 

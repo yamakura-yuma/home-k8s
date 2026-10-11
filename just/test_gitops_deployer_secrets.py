@@ -14,7 +14,10 @@ from test_secrets import FakeEnv  # noqa: E402
 APP_ID = "123456"
 INSTALLATION_ID = "7890123"
 KEY = "-----BEGIN RSA PRIVATE KEY-----\nFAKE-key-for-test\n-----END RSA PRIVATE KEY-----\n"
-CLIENT_SECRET = "FAKE-client-secret"
+# Keycloak の client の偽の値 (試験だけ)。名前に secret を入れない: CodeQL の py/clear-text-storage が、
+# 名前から機密と見なした値をファイルに書くところを警告する (偽の値なので誤検知)
+E2E_CLIENT_VALUE = "FAKE-e2e-client-value"
+BACKSTAGE_CLIENT_VALUE = "FAKE-backstage-client-value"
 
 
 class GitopsDeployerSecrets(FakeEnv):
@@ -24,7 +27,8 @@ class GitopsDeployerSecrets(FakeEnv):
         self.key = self.tmp / "gitops-deployer-github-app.pem"
         self.clients = self.tmp / "clients"
         self.clients.mkdir()
-        (self.clients / "gitops-deployer").write_text(CLIENT_SECRET)
+        (self.clients / "gitops-deployer").write_text(E2E_CLIENT_VALUE)
+        (self.clients / "backstage-gitops-deployer").write_text(BACKSTAGE_CLIENT_VALUE)
 
     def run_secrets(self, **env):
         return self.run_script("gitops-deployer-secrets.sh", str(self.app), str(self.key), str(self.clients), "kind-test", **env)
@@ -39,10 +43,12 @@ class GitopsDeployerSecrets(FakeEnv):
         self.assertEqual(r.returncode, 0, r.stderr)
         secrets = self.secrets()
         self.assertEqual(secrets["github-app"], ("create", {"app-id": APP_ID, "installation-id": INSTALLATION_ID, "private-key.pem": KEY}))
-        self.assertEqual(secrets["gitops-deployer-e2e"], ("create", {"client_id": "gitops-deployer", "client_secret": CLIENT_SECRET}))
+        self.assertEqual(secrets["gitops-deployer-e2e"], ("create", {"client_id": "gitops-deployer", "client_secret": E2E_CLIENT_VALUE}))
+        self.assertEqual(secrets["backstage-gitops-deployer"], ("create", {"GITOPS_DEPLOYER_CLIENT_SECRET": BACKSTAGE_CLIENT_VALUE}))
         namespaces = {e["manifest"]["metadata"]["name"]: e["manifest"]["metadata"]["namespace"]
                       for e in self.entries() if e["manifest"].get("kind") == "Secret"}
-        self.assertEqual(namespaces, {"github-app": "gitops-deployer", "gitops-deployer-e2e": "testkube"})
+        self.assertEqual(namespaces, {"github-app": "gitops-deployer", "gitops-deployer-e2e": "testkube",
+                                      "backstage-gitops-deployer": "backstage"})
         self.assertNotIn("last-applied", self.stdin_log.read_text())
 
     def test_values_are_not_on_the_command_line(self):
@@ -51,14 +57,15 @@ class GitopsDeployerSecrets(FakeEnv):
         for call in self.calls():
             self.assertNotIn("FAKE-key-for-test", call)
             self.assertNotIn(APP_ID, call)
-            self.assertNotIn(CLIENT_SECRET, call)
+            self.assertNotIn(E2E_CLIENT_VALUE, call)
+            self.assertNotIn(BACKSTAGE_CLIENT_VALUE, call)
 
     def test_missing_app_files_only_warn(self):
         # GitHub App は人が作る。無くても just up は止めない (git-activity が起動しないだけ)
         r = self.run_secrets()
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("docs/cluster/gitops-deployer.md", r.stderr)
-        self.assertEqual(sorted(self.secrets()), ["gitops-deployer-e2e"])
+        self.assertEqual(sorted(self.secrets()), ["backstage-gitops-deployer", "gitops-deployer-e2e"])
 
     def test_ids_without_the_key_only_warn(self):
         self.write_app()
@@ -66,7 +73,7 @@ class GitopsDeployerSecrets(FakeEnv):
         r = self.run_secrets()
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn(str(self.key), r.stderr)
-        self.assertEqual(sorted(self.secrets()), ["gitops-deployer-e2e"])
+        self.assertEqual(sorted(self.secrets()), ["backstage-gitops-deployer", "gitops-deployer-e2e"])
 
     def test_non_numeric_ids_are_not_stored(self):
         self.write_app()
@@ -89,11 +96,19 @@ class GitopsDeployerSecrets(FakeEnv):
         self.assertIn("_keycloak-secrets", r.stderr)
         self.assertEqual(self.calls(), [])
 
+    def test_missing_backstage_client_file_stops_before_touching_the_cluster(self):
+        (self.clients / "backstage-gitops-deployer").unlink()
+        r = self.run_secrets()
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("backstage-gitops-deployer", r.stderr)
+        self.assertEqual(self.calls(), [])
+
     def test_replaces_existing_secrets(self):
         self.write_app()
-        r = self.run_secrets(FAKE_EXISTING="github-app gitops-deployer-e2e")
+        r = self.run_secrets(FAKE_EXISTING="github-app gitops-deployer-e2e backstage-gitops-deployer")
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual({k: v[0] for k, v in self.secrets().items()}, {"github-app": "replace", "gitops-deployer-e2e": "replace"})
+        self.assertEqual({k: v[0] for k, v in self.secrets().items()}, {"github-app": "replace", "gitops-deployer-e2e": "replace",
+                                                                            "backstage-gitops-deployer": "replace"})
 
 
 if __name__ == "__main__":

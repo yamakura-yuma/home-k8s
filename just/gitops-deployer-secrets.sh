@@ -8,6 +8,9 @@
 #   testkube/gitops-deployer-e2e   client_id・client_secret  testkube の E2E が Keycloak の client gitops-deployer で client credentials のトークンを取る。
 #                                                 元は keycloak-secrets.sh が作る <client のディレクトリ>/gitops-deployer (realm の import と同じ値)。
 #                                                 ここでは作らない (realm の側とずれる)。無ければ止まる。_keycloak-secrets の後に打つ
+#   backstage/backstage-gitops-deployer  GITOPS_DEPLOYER_CLIENT_SECRET  Backstage のバックエンド (Scaffolder のアクションとタブ) が
+#                                                 Keycloak の client backstage-gitops-deployer で client credentials のトークンを取る。
+#                                                 元は <client のディレクトリ>/backstage-gitops-deployer。chart が環境変数にする (clusters/kind/backstage/values.yaml)
 # ファイルは source せず行を読むだけ (中のコマンドを実行しない)。値は引数に出さず --from-file で渡す (#56)、apply しない (#49)。
 # 引数: <GitHub App の ID のファイル> <GitHub App の秘密鍵のファイル> <client の secret のディレクトリ> <kube context>
 set -euo pipefail
@@ -18,17 +21,20 @@ key_file="$2"
 client_dir="$3"
 ctx="$4"
 client=gitops-deployer
+backstage_client=backstage-gitops-deployer
 if [ -f /.dockerenv ] && ! mountpoint -q "$HOME/.config/home-k8s"; then
     echo "~/.config/home-k8s がホストと共有されていない。just devcontainer down && just devcontainer up で作り直す" >&2
     exit 1
 fi
-if [ ! -s "$client_dir/$client" ]; then
-    echo "client $client の secret のファイル $client_dir/$client が無い。先に _keycloak-secrets (just/keycloak-secrets.sh) を打つ" >&2
-    exit 1
-fi
+for c in "$client" "$backstage_client"; do
+    if [ ! -s "$client_dir/$c" ]; then
+        echo "client $c の secret のファイル $client_dir/$c が無い。先に _keycloak-secrets (just/keycloak-secrets.sh) を打つ" >&2
+        exit 1
+    fi
+done
 tmp="$(umask 077; mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
-for ns in gitops-deployer testkube; do
+for ns in gitops-deployer testkube backstage; do
     kubectl --context "$ctx" create namespace "$ns" --dry-run=client -o yaml \
         | kubectl --context "$ctx" apply -f - >/dev/null
 done
@@ -61,3 +67,7 @@ printf %s "$client" >"$tmp/client_id"
 kubectl --context "$ctx" -n testkube create secret generic gitops-deployer-e2e \
     --from-file="client_id=$tmp/client_id" --from-file="client_secret=$client_dir/$client" \
     --dry-run=client -o yaml | put_secret "$ctx" testkube gitops-deployer-e2e
+
+kubectl --context "$ctx" -n backstage create secret generic backstage-gitops-deployer \
+    --from-file="GITOPS_DEPLOYER_CLIENT_SECRET=$client_dir/$backstage_client" \
+    --dry-run=client -o yaml | put_secret "$ctx" backstage backstage-gitops-deployer

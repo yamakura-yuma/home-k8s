@@ -1,10 +1,14 @@
 // home-k8s の Backstage のバックエンド。カタログ (Git の catalog-info.yaml)、
 // Grafana・ArgoCD・サービスの API を読むためのプロキシ、TechDocs (文書の build と配信) と検索、
 // Azure (azure-sites のバックエンドと、リソースのカタログへの取り込み)、ログイン (Keycloak の OIDC とゲスト) と
-// permission framework を載せる。
+// permission framework、gitops-deployer の Scaffolder (テンプレートからデプロイ・削除を依頼する) と一覧の中継を載せる。
 import { createBackend } from '@backstage/backend-defaults';
 import { azureResourcesFeatureLoader } from './azureResources';
 import { azureSitesFeatureLoader } from './azureSites';
+import {
+  gitopsDeployerPlugin,
+  scaffolderModuleGitopsDeployer,
+} from './gitopsDeployer';
 import { authModuleKeycloakOidc } from './keycloakAuth';
 import { permissionModuleAdminsWritePolicy } from './permissionPolicy';
 import { searchModuleEmptyOnMissingIndex } from './searchEngine';
@@ -43,5 +47,14 @@ backend.add(azureSitesFeatureLoader);
 
 // Azure のリソースを Resource としてカタログに取り込む。資格情報があるときだけ載せる (azureResources.ts)
 backend.add(azureResourcesFeatureLoader);
+
+// gitops-deployer (docs/cluster/gitops-deployer-backstage.md)。テンプレート (kind Template) をカタログに読み込み、
+// Scaffolder のアクション gitops-deployer:deploy・delete で bff に依頼する。タスクを始めるのは admins だけ
+// (scaffolder.task.create は action が create なので、permissionPolicy.ts が admins 以外を拒む)
+backend.add(import('@backstage/plugin-catalog-backend-module-scaffolder-entity-model'));
+backend.add(import('@backstage/plugin-scaffolder-backend'));
+backend.add(scaffolderModuleGitopsDeployer);
+// カタログのページの gitops-deployer のタブが読む一覧 (/api/gitops-deployer/deployments)
+backend.add(gitopsDeployerPlugin);
 
 backend.start();

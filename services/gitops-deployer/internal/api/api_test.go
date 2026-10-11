@@ -120,7 +120,7 @@ func TestConcurrentRequestsForTheSameAppConflict(t *testing.T) {
 
 func TestIdempotencyKeyReplaysAndRejectsReuse(t *testing.T) {
 	f, fd, h := setup(t)
-	hdr := map[string]string{"Idempotency-Key": "k1"}
+	hdr := map[string]string{"Idempotency-Key": "k1", RequestedByHeader: "alice"}
 	first := do(h, "POST", "/internal/v1/deployments", body, hdr)
 	second := do(h, "POST", "/internal/v1/deployments", body, hdr)
 	if first.Code != 202 || second.Code != 202 || first.Body.String() != second.Body.String() || second.Header().Get("Idempotent-Replayed") != "true" {
@@ -129,12 +129,36 @@ func TestIdempotencyKeyReplaysAndRejectsReuse(t *testing.T) {
 	if len(f.starts) != 1 {
 		t.Errorf("Workflow は 1 回だけ始める: %d", len(f.starts))
 	}
-	if fd.TTL["idem|k1"] != "86400" {
-		t.Errorf("鍵は 24 時間で消える: %q", fd.TTL["idem|k1"])
+	if fd.TTL["idem|alice|k1"] != "86400" {
+		t.Errorf("鍵は 24 時間で消える: %v", fd.TTL)
 	}
 	other := do(h, "POST", "/internal/v1/deployments", `{"name":"hello","image":"docker.io/a/b:2"}`, hdr)
 	if other.Code != 422 {
 		t.Errorf("同じ鍵で別の依頼: %d", other.Code)
+	}
+}
+
+// 鍵は依頼者ごと。Backstage と E2E (別の client) が同じ Idempotency-Key を使っても、相手の応答は返らず、それぞれの依頼が始まる
+func TestIdempotencyKeyIsScopedToTheRequester(t *testing.T) {
+	f, fd, h := setup(t)
+	alice := do(h, "POST", "/internal/v1/deployments", body,
+		map[string]string{"Idempotency-Key": "same", RequestedByHeader: "service-account-backstage"})
+	bob := do(h, "POST", "/internal/v1/deployments", `{"name":"other","image":"docker.io/a/b:1"}`,
+		map[string]string{"Idempotency-Key": "same", RequestedByHeader: "service-account-gitops-deployer"})
+	if alice.Code != 202 || bob.Code != 202 || bob.Header().Get("Idempotent-Replayed") != "" {
+		t.Fatalf("%d %s / %d %s", alice.Code, alice.Body, bob.Code, bob.Body)
+	}
+	if len(f.starts) != 2 || f.starts[1].ID != workflow.ID("other") {
+		t.Errorf("依頼者ごとに Workflow を始める: %+v", f.starts)
+	}
+	for _, k := range []string{"idem|service-account-backstage|same", "idem|service-account-gitops-deployer|same"} {
+		if _, ok := fd.TTL[k]; !ok {
+			t.Errorf("%s が無い: %v", k, fd.TTL)
+		}
+	}
+	// 区切りの | を依頼者に入れても、別の依頼者・鍵の組と同じ鍵にならない
+	if idempotencyStateKey("a|b", "c") == idempotencyStateKey("a", "b|c") {
+		t.Error("依頼者の | で鍵が衝突する")
 	}
 }
 

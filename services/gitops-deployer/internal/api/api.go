@@ -1,8 +1,9 @@
 // Package api は api の本体 (gin)。外には出さず、bff から Dapr の service invocation でだけ呼ばれる
 // (AuthorizationPolicy が bff の ServiceAccount 以外を拒む)。Workflow の開始・照会と、履歴 (Dapr state) の読み出し。
 //
-//   - 冪等性: Idempotency-Key ごとに依頼の要約 (sha256) と応答を Dapr state に 24 時間残す。同じ鍵・同じ依頼は同じ応答を返し
-//     (Idempotent-Replayed: true)、同じ鍵・違う依頼は 422
+//   - 冪等性: 依頼者 (X-Requested-By) と Idempotency-Key の組ごとに、依頼の要約 (sha256) と応答を Dapr state に 24 時間残す。
+//     同じ鍵・同じ依頼は同じ応答を返し (Idempotent-Replayed: true)、同じ鍵・違う依頼は 422。鍵は依頼者ごとの名前空間で、
+//     別の依頼者 (Backstage・E2E など別の client) が同じ鍵を使っても前の応答は返らない
 //   - 同時実行制御: Workflow ID はアプリごとに 1 つ (app-<名前>)。走っている間に同じアプリを依頼すると 409。
 //     If-Match があれば、履歴の ETag (楽観ロック) が合わないと 412
 //   - 入力検証: spec.Validate。誤りは 422 の problem+json の errors に欄ごとに入る
@@ -16,6 +17,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -115,6 +117,12 @@ func requestHash(op spec.Op, app spec.App) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// idempotencyStateKey は Idempotency-Key を残す Dapr state の鍵 (idem|<依頼者>|<鍵>)。
+// 依頼者は区切りの | を含まないように PathEscape する (依頼者 "a|b"・鍵 "c" と依頼者 "a"・鍵 "b|c" を分ける)
+func idempotencyStateKey(requestedBy, key string) string {
+	return "idem|" + url.PathEscape(requestedBy) + "|" + key
+}
+
 func (s *Server) start(c *gin.Context, op spec.Op, app spec.App) {
 	ctx := c.Request.Context()
 	key := c.GetHeader("Idempotency-Key")
@@ -123,7 +131,7 @@ func (s *Server) start(c *gin.Context, op spec.Op, app spec.App) {
 		return
 	}
 	hash := requestHash(op, app)
-	idemKey := "idem|" + key
+	idemKey := idempotencyStateKey(c.GetHeader(RequestedByHeader), key)
 	if key != "" {
 		var prev idemRecord
 		_, found, err := s.Store.D.GetState(ctx, idemKey, &prev)

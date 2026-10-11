@@ -228,6 +228,18 @@ catalog:
             dependencyOf:
               - component:default/sample-api
   rules:
-    - allow: [Component, System, API, Resource, Location, User, Group]
+    # Template は Scaffolder のテンプレート (gitops-deployer。services/gitops-deployer/backstage)
+    - allow: [Component, System, API, Resource, Location, User, Group, Template]
   # 読み込む catalog-info.yaml (locations) は clusters/kind/backstage/values.yaml に置く。
   # ArgoCD と同じく GitHub の main を指すので、検証用のブランチではそこも書き換える
+
+# gitops-deployer (services/gitops-deployer) を Backstage から使う (packages/backend/src/gitopsDeployer.ts、
+# docs/cluster/gitops-deployer-backstage.md)。Scaffolder のテンプレートのデプロイ・削除と、カタログのタブの一覧。
+# bff には外の利用者と同じ入口 (Istio の Gateway → APISIX の /gitops-deployer → bff) で届く。トークンは Keycloak の
+# client backstage-gitops-deployer の client credentials。secret は Secret backstage-gitops-deployer (`just up` が作る) から
+# chart が環境変数にする。無ければアクションと一覧は「資格情報が無い」で失敗する
+gitopsDeployer:
+  baseUrl: http://gateway-istio.istio-ingress.svc.cluster.local/gitops-deployer/api/v1
+  tokenUrl: https://keycloak.taild2b611.ts.net/realms/home-k8s/protocol/openid-connect/token
+  clientId: backstage-gitops-deployer
+  clientSecret: ${GITOPS_DEPLOYER_CLIENT_SECRET}

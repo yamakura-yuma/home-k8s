@@ -1,0 +1,67 @@
+# Backstage の Create の画面に出る、gitops-deployer にデプロイを依頼するテンプレート (docs/cluster/gitops-deployer-backstage.md)。
+# フォームの値 (bff の App: internal/bff/openapi.yaml) を、Backstage のバックエンドのアクション gitops-deployer:deploy
+# (backstage/packages/backend/src/gitopsDeployer.ts) が Gateway → APISIX → bff に送り、Workflow が終わるまで待つ。
+# 値の検証の正本は bff (internal/spec/spec.go)。ここの pattern・範囲はフォームで早めに気付くための写し。
+# 実行できるのは Backstage の admins だけ (permissionPolicy.ts)
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: gitops-deployer-deploy
+  title: "gitops-deployer: アプリをデプロイする"
+  description: イメージを指定すると、home-k8s に deploys/<名前>/ を足す PR を作って auto-merge し、Argo CD が Synced/Healthy になるまで待つ
+  tags: [gitops-deployer]
+spec:
+  owner: user:yamakura-yuma
+  type: service
+  parameters:
+    - title: アプリ
+      required: [name, image]
+      properties:
+        name:
+          title: 名前
+          type: string
+          description: 英小文字・数字・ハイフン (先頭は英字、30 文字まで)。Application deploy-<名前> になる。同じ名前なら上書き (イメージの更新)
+          pattern: "^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$"
+          ui:autofocus: true
+        image:
+          title: イメージ
+          type: string
+          description: <レジストリ>/<リポジトリ>:<タグ>。latest は不可。レジストリは docker.io・ghcr.io・quay.io・registry.k8s.io
+          default: docker.io/nginxinc/nginx-unprivileged:1.29-alpine
+        port:
+          title: ポート
+          type: integer
+          description: コンテナが待つポート (Service もこのポート)
+          default: 8080
+          minimum: 1024
+          maximum: 65535
+        replicas:
+          title: レプリカ数
+          type: integer
+          default: 1
+          minimum: 1
+          maximum: 3
+  steps:
+    - id: deploy
+      name: bff に依頼して Workflow の完了を待つ
+      action: gitops-deployer:deploy
+      input:
+        name: ${{ parameters.name }}
+        image: ${{ parameters.image }}
+        port: ${{ parameters.port }}
+        replicas: ${{ parameters.replicas }}
+  output:
+    links:
+      - title: Workflow (Temporal)
+        url: ${{ steps.deploy.output.temporalUrl }}
+      - title: PR
+        url: ${{ steps.deploy.output.prUrl }}
+      - title: Application (Argo CD)
+        url: ${{ steps.deploy.output.argocdUrl }}
+      - title: デプロイ済みの一覧
+        entityRef: component:default/gitops-deployer
+    text:
+      - title: 結果
+        content: |
+          `${{ parameters.name }}` の Workflow `${{ steps.deploy.output.workflowId }}` (run `${{ steps.deploy.output.runId }}`) が
+          **${{ steps.deploy.output.result }}** で終わった。

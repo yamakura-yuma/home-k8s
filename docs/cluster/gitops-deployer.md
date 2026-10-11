@@ -8,6 +8,7 @@ Argo CD の ApplicationSet が作った Application が Synced/Healthy になっ
 - 処理のアニメーション (デプロイと削除を 1 段ずつ): [gitops-deployer-flow.html](gitops-deployer-flow.html)
 - 仕様書 (経路と認証・Workflow の状態遷移・GitOps・Knative Eventing・Dapr・OTel の図): [gitops-deployer-spec.html](gitops-deployer-spec.html)
 - API 契約: `services/gitops-deployer/internal/bff/openapi.yaml` (bff の `GET /api/v1/openapi.yaml` でも返す)
+- Backstage から使う (Create のテンプレートでデプロイ・削除、カタログのタブで一覧): [gitops-deployer-backstage.md](gitops-deployer-backstage.md)
 
 ```text
 クライアント ─▶ istio-ingress/gateway ─ HTTPRoute apisix ─▶ APISIX /gitops-deployer/api/* (Keycloak の JWT・limit-count)
@@ -52,7 +53,7 @@ manifest は `services/gitops-deployer/manifests` (Application `gitops-deployer-
 | Dead Letter | Trigger は指数バックオフで 5 回打ち直し、尽きたら Kafka Broker `dead-letter` (Trigger を持たない) へ。event-receiver の 2xx は本文を付けない (本文が CloudEvent でないと dispatcher は失敗とみなし、打ち直さず Dead Letter へ送る) | 基盤は KafkaSink の data plane を入れていない。Broker なら同じ data plane でイベントが Kafka のトピックに残る |
 | 履歴の state store | 本 PR の Component `history` (同じ Redis、`keyPrefix: name`、scopes は api と store-activity) | 基盤の `statestore` は鍵の頭が app-id で、store-activity が書いた履歴を api が読めない。基盤の Component は変えない |
 | GitHub の書き込み | GitHub App (home-k8s だけに入れ、Contents・Pull requests の Read and write)。git-activity が App の JWT で installation token (1 時間) を取り、切れる 5 分前に取り直す。取るときに home-k8s と contents・pull_requests に絞る。下の「人の作業」 | 人の持ち物 (個人のトークン) に縛られず、権限と入れ先のリポジトリが App の設定で見える。トークンは 1 時間で切れ、漏れても長く使えない。App が作った PR でも GitHub Actions の CI が走る |
-| API の認証 | Keycloak の client `gitops-deployer` (confidential、service account あり、ブラウザのログインは無し)。アクセストークンの aud に `gitops-deployer`、client role `view`・`deploy`。グループ admins に両方、viewers に view | APISIX と bff が同じ issuer・aud を確かめる。後続の Backstage と testkube の E2E は client credentials で取る |
+| API の認証 | Keycloak の client `gitops-deployer` (confidential、service account あり、ブラウザのログインは無し)。アクセストークンの aud に `gitops-deployer`、client role `view`・`deploy`。グループ admins に両方、viewers に view | APISIX と bff が同じ issuer・aud を確かめる。testkube の E2E は client credentials で取る。Backstage は別の client `backstage-gitops-deployer` ([gitops-deployer-backstage.md](gitops-deployer-backstage.md)) |
 
 ## 人の作業
 
