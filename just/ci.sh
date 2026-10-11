@@ -12,7 +12,8 @@
 #   5b. hostPort       3 までの出力で、同じ hostPort を 2 つ以上のワークロードが使わないこと、環境 (dev・prod) の Collector が hostPort を使わないこと
 #   6. unittest        環境ごとのサンプルの API (services/sample-api) の経路と OpenAPI の突き合わせ、Temporal (clusters/kind/temporal) の
 #                      URL・ポート・CSP・proxy の突き合わせ、Backstage の tailnet の入口の proxy (clusters/kind/backstage/tailnet-proxy。
-#                      caddy を起動して、ゲストのサインインの経路の表記揺れが届かないこと)。クラスタにもネットワークにも出ない
+#                      caddy を起動して、ゲストのサインインの経路の表記揺れが届かないこと)、gitops-deployer の基盤 (clusters/kind/gitops-deployer/test_platform.py) の
+#                      ambient に入れる namespace・Gateway と Knative の経路・Kafka と Redis の入口・Dapr の mTLS・APISIX の経路の突き合わせ。クラスタにもネットワークにも出ない
 #   7. Secret          Secret を作るスクリプトすべて (注釈・引数に値が残らない作り方、#49・#56) と Grafana・ArgoCD の Secret を偽の kubectl で確かめる
 #                      (just/test_secrets.py)。稼働中のクラスタ・ホストには触れない
 #   7b. Azure の資格情報  just/backstage-azure-secret.sh を偽の kubectl で確かめる (ファイルが無い・空・欠けた項目・CRLF・コメント、値が引数に残らないこと)
@@ -129,6 +130,8 @@ echo "== temporal (環境ごとの UI の URL・ポート・CSP・proxy の突�
 python3 -B -m unittest discover -s clusters/kind/temporal -v
 echo "== backstage の tailnet の入口 (caddy + 偽の upstream。ゲストのサインインの経路を表記を変えても拒む) =="
 python3 -B -m unittest discover -s clusters/kind/backstage -v
+echo "== gitops-deployer の基盤 (ambient の namespace・Gateway と Knative・Kafka の入口・Dapr・APISIX の経路の突き合わせ) =="
+python3 -B -m unittest discover -s clusters/kind/gitops-deployer -p 'test_*.py' -v
 
 echo "== Secret を作るスクリプト (注釈・引数に値が残らない、Grafana・ArgoCD の Secret) =="
 python3 -B -m unittest discover -s just -p 'test_secrets.py' -v

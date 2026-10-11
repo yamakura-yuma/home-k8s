@@ -37,6 +37,10 @@ Application root (clusters/kind/argocd/apps を同期する app-of-apps)
   └── env-prometheus・env-loki・env-tempo・env-otel-collector・env-grafana
                       ApplicationSet。環境 (dev・prod) ごとの観測スタックを namespace dev・prod に立てる
                       (clusters/kind/env-*/。backstage-grafana.md)
+  └── gateway-api・istio-base・istiod・istio-cni・ztunnel・istio-ingress・apisix・knative-serving・knative-eventing・
+      strimzi・kafka・redis・dapr・testkube・gitops-deployer
+                      gitops-deployer を載せる基盤 (Istio ambient・Gateway API・APISIX・Knative・Kafka・Redis・Dapr・testkube。
+                      版と構成は gitops-deployer-platform.md)
 ```
 
 | Application | chart | 版 | namespace |

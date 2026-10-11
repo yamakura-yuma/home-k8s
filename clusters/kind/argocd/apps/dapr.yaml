@@ -1,0 +1,32 @@
+# Dapr の control plane (namespace dapr-system)。mTLS は切る (暗号化は Istio ambient に任せる、clusters/kind/dapr/values.yaml)。
+# Component (state store・pub/sub) は Application gitops-deployer。基盤の全体は docs/cluster/gitops-deployer-platform.md。
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: dapr
+  namespace: argocd
+  annotations:
+    # CRD を、それを使う Application (wave 0) より先に入れる
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: default
+  sources:
+    - repoURL: https://dapr.github.io/helm-charts
+      chart: dapr
+      targetRevision: 1.18.7
+      helm:
+        releaseName: dapr
+        valueFiles:
+          - $values/clusters/kind/dapr/values.yaml
+    - repoURL: https://github.com/yamakura-yuma/home-k8s
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: dapr-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,48 @@
+# Dapr の control plane (dapr chart、namespace dapr-system)。サイドカーは Pod の注釈 dapr.io/enabled=true で入る。
+# Dapr の mTLS は切る。クラスタ内の暗号化は Istio ambient (ztunnel) の mTLS に任せる (合意書)。二重に包むと、ambient の
+# 認可 (AuthorizationPolicy) が見る送り元と Dapr の証明書の名前が食い違い、どちらの設定も読みにくくなる。docs/cluster/gitops-deployer-platform.md
+global:
+  mtls:
+    enabled: false
+  ha:
+    enabled: false
+dapr_operator:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+dapr_placement:
+  cluster:
+    storageSize: 1Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+dapr_scheduler:
+  cluster:
+    # 既定は 16Gi。Workflow・Jobs の予定を置くだけなので小さくする
+    storageSize: 1Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+dapr_sentry:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+dapr_sidecar_injector:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi

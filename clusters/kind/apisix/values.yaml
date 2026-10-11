@@ -1,0 +1,24 @@
+# APISIX (apisix chart、namespace apisix)。Istio の Gateway (istio-ingress/gateway) の後ろに置く API ゲートウェイ。
+# standalone モード (経路を ConfigMap apisix-routes の apisix.yaml から読む。etcd も Admin API も無い) にする。
+# 経路が Git にだけあり ArgoCD で同期でき、chart の etcd (Bitnami のイメージ) も要らない。
+# 経路の足し方と、Keycloak の JWT の検証に使うプラグイン (openid-connect・jwt-auth) は docs/cluster/gitops-deployer-platform.md。
+service:
+  # 入口は Istio の Gateway の HTTPRoute だけ。クラスタの外へは出さない
+  type: ClusterIP
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 512Mi
+apisix:
+  deployment:
+    mode: standalone
+    role: data_plane
+    standalone:
+      # clusters/kind/apisix/manifests/routes.yaml
+      existingConfigMap: apisix-routes
+  admin:
+    enabled: false
+etcd:
+  enabled: false

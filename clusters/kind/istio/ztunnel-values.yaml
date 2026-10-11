@@ -1,0 +1,8 @@
+# ztunnel (ztunnel chart)。各ノードの DaemonSet で、ambient の Pod の通信を HBONE (mTLS) で包む。
+# 既定の requests (200m・512Mi) は大きいクラスタ向けなので、kind の 3 ノードに合わせて下げる。docs/cluster/gitops-deployer-platform.md
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 512Mi

@@ -1,0 +1,30 @@
+# gitops-deployer の Dapr の building block。アプリは Dapr の API だけを使い、Redis・Kafka のクライアントを直接持たない (合意書)。
+# どちらも資格情報を持たない (Redis はパスワード無しで AuthorizationPolicy が入口を絞る、Kafka は平文の内部 listener)。
+# 暗号化は Istio ambient に任せる。docs/cluster/gitops-deployer-platform.md
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+  namespace: gitops-deployer
+spec:
+  type: state.redis
+  version: v1
+  metadata:
+    - name: redisHost
+      value: redis.redis.svc.cluster.local:6379
+    - name: redisPassword
+      value: ""
+---
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: pubsub
+  namespace: gitops-deployer
+spec:
+  type: pubsub.kafka
+  version: v1
+  metadata:
+    - name: brokers
+      value: kafka-kafka-bootstrap.kafka.svc.cluster.local:9092
+    - name: authType
+      value: none

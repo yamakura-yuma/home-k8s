@@ -1,0 +1,18 @@
+# 外向きの Gateway (istio-ingress/gateway) から APISIX へ。パスを問わず全部を APISIX に渡し、経路と認証は APISIX が決める
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: apisix
+  namespace: apisix
+spec:
+  parentRefs:
+    - name: gateway
+      namespace: istio-ingress
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: apisix-gateway
+          port: 80
