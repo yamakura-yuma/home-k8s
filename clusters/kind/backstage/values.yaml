@@ -7,7 +7,7 @@ backstage:
   image:
     registry: ""
     repository: home-k8s-backstage
-    tag: "0.12.0"
+    tag: "0.13.0"
     pullPolicy: Never
 
   # イメージの app-config.yaml に、下の appConfig (chart が ConfigMap にする) を重ねる
@@ -59,6 +59,23 @@ backstage:
           name: backstage-azure
           key: AZURE_SUBSCRIPTION_ID
           optional: true
+    # gitops-deployer (Scaffolder のテンプレートと Deployments のタブ) が bff を呼ぶ Keycloak の client backstage-gitops-deployer の secret。
+    # `just up` の _gitops-deployer-secrets が Secret backstage-gitops-deployer を作る (just/gitops-deployer-secrets.sh)。
+    # 無くても Pod は起動させ、アクションとタブが「資格情報が無い」を出す (docs/cluster/gitops-deployer-backstage.md)
+    - name: GITOPS_DEPLOYER_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: backstage-gitops-deployer
+          key: GITOPS_DEPLOYER_CLIENT_SECRET
+          optional: true
+    # trace (OpenTelemetry)。gitops-deployer のアクションの span と bff への呼び出しだけを観測スタックの Collector (OTLP/HTTP) へ出す。
+    # 計装はイメージの /app/instrumentation.js (backstage/packages/backend/src/instrumentation.js) を node が先に読む
+    - name: NODE_OPTIONS
+      value: --require /app/instrumentation.js
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: http://otel-collector-opentelemetry-collector.observability.svc.cluster.local:4318
+    - name: OTEL_SERVICE_NAME
+      value: backstage
 
   appConfig:
     catalog:

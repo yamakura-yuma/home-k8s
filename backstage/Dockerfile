@@ -70,6 +70,8 @@ RUN yarn workspaces focus --all --production && rm -rf "$(yarn cache clean)"
 
 COPY --from=build --chown=node:node /app/packages/backend/dist/bundle/ ./
 COPY --chown=node:node app-config.yaml ./
+# trace の計装 (clusters/kind/backstage/values.yaml の NODE_OPTIONS が --require で読む)
+COPY --chown=node:node packages/backend/src/instrumentation.js ./
 
 ENV NODE_ENV=production
 

@@ -32,6 +32,8 @@ spec:
       secret: {name: keycloak-clients, key: oauth2-proxy}
     CLIENT_SECRET_GITOPS_DEPLOYER:
       secret: {name: keycloak-clients, key: gitops-deployer}
+    CLIENT_SECRET_BACKSTAGE_GITOPS_DEPLOYER:
+      secret: {name: keycloak-clients, key: backstage-gitops-deployer}
   realm:
     realm: home-k8s
     displayName: home-k8s
@@ -110,6 +112,12 @@ spec:
       - username: service-account-gitops-deployer
         enabled: true
         serviceAccountClientId: gitops-deployer
+        clientRoles:
+          gitops-deployer: [deploy, view]
+      # client backstage-gitops-deployer の service account (Backstage の Scaffolder とタブが bff を呼ぶときの主体)
+      - username: service-account-backstage-gitops-deployer
+        enabled: true
+        serviceAccountClientId: backstage-gitops-deployer
         clientRoles:
           gitops-deployer: [deploy, view]
     # ID トークン・アクセストークン・userinfo に groups: ["admins", ...] を入れる (full.path=false で先頭の / を付けない)
@@ -333,8 +341,8 @@ spec:
         webOrigins: ["+"]
         attributes:
           post.logout.redirect.uris: "+"
-      # gitops-deployer の bff の API (docs/cluster/gitops-deployer.md)。ブラウザのログインには使わない。testkube の E2E (と後続の Backstage) が
-      # client credentials でトークンを取る。アクセストークンの aud に gitops-deployer を入れ (下の mapper)、client role (view・deploy) は
+      # gitops-deployer の bff の API (docs/cluster/gitops-deployer.md)。ブラウザのログインには使わない。testkube の E2E が
+      # client credentials でトークンを取る (Backstage は下の backstage-gitops-deployer)。アクセストークンの aud に gitops-deployer を入れ (下の mapper)、client role (view・deploy) は
       # resource_access.gitops-deployer.roles に入る (既定の roles scope)。APISIX (openid-connect) と bff が確かめる
       - clientId: gitops-deployer
         name: gitops-deployer API
@@ -343,6 +351,30 @@ spec:
         publicClient: false
         clientAuthenticatorType: client-secret
         secret: ${CLIENT_SECRET_GITOPS_DEPLOYER}
+        standardFlowEnabled: false
+        directAccessGrantsEnabled: false
+        serviceAccountsEnabled: true
+        protocolMappers:
+          - name: audience
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            consentRequired: false
+            config:
+              included.client.audience: gitops-deployer
+              access.token.claim: "true"
+              id.token.claim: "false"
+              introspection.token.claim: "true"
+      # Backstage のバックエンドが bff (Gateway → APISIX → bff) を呼ぶ client (docs/cluster/gitops-deployer-backstage.md)。
+      # testkube の E2E の gitops-deployer と分けて、bff の監査ログと Idempotency-Key の依頼者 (preferred_username の
+      # service-account-backstage-gitops-deployer) で Backstage からの依頼を見分ける。トークンの形は gitops-deployer と同じ
+      # (aud に gitops-deployer、client role は resource_access.gitops-deployer.roles)
+      - clientId: backstage-gitops-deployer
+        name: Backstage から gitops-deployer の API を呼ぶ
+        enabled: true
+        protocol: openid-connect
+        publicClient: false
+        clientAuthenticatorType: client-secret
+        secret: ${CLIENT_SECRET_BACKSTAGE_GITOPS_DEPLOYER}
         standardFlowEnabled: false
         directAccessGrantsEnabled: false
         serviceAccountsEnabled: true

@@ -8,6 +8,10 @@ import { GrafanaView } from './GrafanaView';
 import { ServiceInfo } from './ServiceInfo';
 import { SwaggerView } from './SwaggerView';
 import { TemporalView } from './TemporalView';
+import {
+  GITOPS_DEPLOYER_ANNOTATION,
+  GitopsDeployerView,
+} from './GitopsDeployerView';
 
 // 環境 (dev・prod) を切り替えて中身を出すエンティティのタブを作る。
 // requires は、そのタブが使う環境のキー (annotations.ts の ENV_KEYS)。どの環境にも揃っていないエンティティにはタブを出さない。
@@ -79,6 +83,19 @@ const grafanaContent = createEnvironmentContent({
   render: env => <GrafanaView env={env} />,
 });
 
+// gitops-deployer のデプロイ済みの一覧と状態 (拡張 entity-content:environments/gitops-deployer)。環境の切り替えは無い
+// (gitops-deployer はクラスタに 1 つ)。注釈 home-k8s/gitops-deployer: "true" のエンティティにだけ出す
+const gitopsDeployerContent = EntityContentBlueprint.make({
+  name: 'gitops-deployer',
+  params: {
+    path: '/deployments',
+    title: 'Deployments',
+    filter: entity =>
+      entity.metadata.annotations?.[GITOPS_DEPLOYER_ANNOTATION] === 'true',
+    loader: async () => <GitopsDeployerView />,
+  },
+});
+
 export const environmentsPlugin = createFrontendPlugin({
   pluginId: 'environments',
   extensions: [
@@ -87,5 +104,6 @@ export const environmentsPlugin = createFrontendPlugin({
     argocdContent,
     temporalContent,
     grafanaContent,
+    gitopsDeployerContent,
   ],
 });

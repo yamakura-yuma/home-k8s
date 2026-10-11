@@ -51,7 +51,7 @@
   .chip.hot rect { fill:var(--warn); stroke:var(--warn); }
   .chip.hot text { fill:#fff; font-weight:700; }
   .bar { fill:var(--acc); opacity:0; transition:opacity .3s; }
-  .bar.tmp { fill:var(--warn); } .bar.dap { fill:var(--add); } .bar.er { fill:var(--del); }
+  .bar.tmp { fill:var(--warn); } .bar.dap { fill:var(--add); } .bar.er { fill:var(--del); } .bar.bs { fill:var(--dim); }
   .row text { opacity:0; transition:opacity .3s; }
   .row.on text, .row.on .bar { opacity:1; }
   .log { min-height:3.4em; margin-top:8px; font-size:14px; }
@@ -73,7 +73,7 @@
   <h1>gitops-deployer — 仕様書</h1>
   <p class="lead">クライアントの依頼で、home-k8s の <code>deploys/&lt;名前&gt;/</code> を足す (消す) PR を作り、Argo CD の反映を確かめて終わる。
     手順・待機・補償は Temporal の Workflow が持ち、外部 I/O は Activity の Pod が持つ。
-    実装は <code>services/gitops-deployer/</code>、処理を 1 段ずつ追うのは <code>gitops-deployer-flow.html</code>。Backstage からの呼び出しは後の PR で足す。</p>
+    実装は <code>services/gitops-deployer/</code>、処理を 1 段ずつ追うのは <code>gitops-deployer-flow.html</code>。Backstage からの依頼は 1 (経路と認証)・5 (冪等キー)・6 (trace)、手順は <code>gitops-deployer-backstage.md</code>。</p>
 
   <div class="tw">
   <table>
@@ -89,23 +89,26 @@
   </table>
   </div>
   <ul class="short">
-    <li>namespace <code>gitops-deployer</code> (Istio ambient)。Go のモジュール 1 つ、イメージ 1 つ (<code>kind.local/home-k8s-gitops-deployer:0.1.3</code>)、<code>/usr/local/bin/&lt;名前&gt;</code> で起動を分ける。設定は ConfigMap <code>gitops-deployer</code>。</li>
+    <li>namespace <code>gitops-deployer</code> (Istio ambient)。Go のモジュール 1 つ、イメージ 1 つ (<code>kind.local/home-k8s-gitops-deployer:0.1.4</code>)、<code>/usr/local/bin/&lt;名前&gt;</code> で起動を分ける。設定は ConfigMap <code>gitops-deployer</code>。</li>
     <li>停止: preStop の sleep 5 秒の間に Service から外れ、SIGTERM で readiness を落とし、<code>http.Server.Shutdown</code> か <code>worker.Stop</code> (WorkerStopTimeout 20 秒) で受け付け中の処理を終える。terminationGracePeriodSeconds 40。</li>
     <li>probe は startup・readiness・liveness (<code>/healthz</code>・<code>/readyz</code>)。requests・limits、読み取り専用の root、非 root。</li>
   </ul>
 
   <!-- 1 -->
   <h2>1. 経路と認証</h2>
-  <p class="lead">APISIX と bff が同じ JWT を 2 回確かめる。APISIX は署名 (realm home-k8s の JWKS)、bff は署名・iss・aud・exp とロール。</p>
+  <p class="lead">APISIX と bff が同じ JWT を 2 回確かめる。APISIX は署名 (realm home-k8s の JWKS)、bff は署名・iss・aud・exp とロール。
+    Backstage はバックエンドが client credentials で取ったトークンで、ほかのクライアントと同じ入口 (Gateway) を通る。</p>
   <div class="ctrl" role="group" aria-label="要求の種類">
     <button data-c="none">トークン無し</button>
     <button data-c="bad">不正なトークン</button>
     <button data-c="view">view だけで POST</button>
     <button data-c="ok">正しいトークン (deploy)</button>
     <button data-c="rate">60 秒に 121 回目</button>
+    <button data-c="bs">Backstage から (admins)</button>
+    <button data-c="guest">Backstage のゲスト・viewers</button>
   </div>
   <div class="panel">
-    <svg id="s1" viewBox="0 0 960 240" role="img" aria-label="クライアントから Gateway・APISIX・bff・api・Temporal への経路と、401・403・429・202 の分かれ目">
+    <svg id="s1" viewBox="0 0 960 320" role="img" aria-label="クライアントと Backstage から Gateway・APISIX・bff・api・Temporal への経路と、401・403・429・202 の分かれ目">
       <text class="big" id="s1-res" x="20" y="34"></text>
       <g class="ed-g">
         <path class="ed" id="s1-e1" d="M140 100 H170"/>
@@ -115,8 +118,14 @@
         <path class="ed" id="s1-e5" d="M790 100 H820"/>
         <path class="ed ref" id="s1-e6" d="M395 130 V170"/>
         <path class="ed ref" id="s1-e7" d="M570 130 V188 H470"/>
+        <path class="ed" id="s1-e8" d="M80 258 V230"/>
+        <path class="ed" id="s1-e9" d="M140 214 H155 V283 H170"/>
+        <path class="ed" id="s1-e10" d="M140 186 H230 V130"/>
       </g>
-      <g class="nd" id="s1-client"><rect x="20" y="70" width="120" height="60" rx="8"/><text x="30" y="94">クライアント</text><text class="sub" x="30" y="114">Bearer JWT</text></g>
+      <g class="nd" id="s1-client"><rect x="20" y="70" width="120" height="60" rx="8"/><text x="30" y="94">クライアント</text><text class="sub" x="30" y="114">E2E など</text></g>
+      <g class="nd" id="s1-bs"><rect x="20" y="170" width="120" height="60" rx="8"/><text x="30" y="194">Backstage</text><text class="sub" x="30" y="214">Scaffolder</text></g>
+      <g class="nd" id="s1-web"><rect x="20" y="258" width="120" height="50" rx="8"/><text x="30" y="280">ブラウザ</text><text class="sub" x="30" y="298">Create のフォーム</text></g>
+      <g class="nd" id="s1-kct"><rect x="170" y="258" width="150" height="50" rx="8"/><text x="180" y="280">Keycloak の token</text><text class="sub" x="180" y="298">client credentials</text></g>
       <g class="nd" id="s1-gw"><rect x="170" y="70" width="120" height="60" rx="8"/><text x="180" y="94">Gateway</text><text class="sub" x="180" y="114">HTTPRoute apisix</text></g>
       <g class="nd" id="s1-apisix"><rect x="320" y="70" width="150" height="60" rx="8"/><text x="330" y="94">APISIX</text><text class="sub" x="330" y="114">openid-connect 他</text></g>
       <g class="nd" id="s1-bff"><rect x="500" y="70" width="140" height="60" rx="8"/><text x="510" y="94">bff</text><text class="sub" x="510" y="114">JWT・ロール・監査</text></g>
@@ -124,6 +133,7 @@
       <g class="nd" id="s1-tmp"><rect x="820" y="70" width="120" height="60" rx="8"/><text x="830" y="94">Temporal</text><text class="sub" x="830" y="114">StartWorkflow</text></g>
       <g class="nd ref" id="s1-kc"><rect x="320" y="170" width="150" height="40" rx="8"/><text x="330" y="195">Keycloak の JWKS</text></g>
       <text class="note" x="480" y="226">点線: 鍵を取りに行くだけ (キャッシュする)</text>
+      <text class="note" x="340" y="288">client backstage-gitops-deployer。期限の 1 分前まで使い回す</text>
       <circle class="dot" id="s1-dot" r="8" cx="0" cy="0"/>
     </svg>
     <div class="log" id="s1-log" aria-live="polite">種類を選ぶと、要求が流れて止まる所と状態コードが出る。</div>
@@ -131,6 +141,8 @@
   <ul class="short">
     <li>APISIX の経路 <code>/gitops-deployer/api/*</code>: openid-connect (bearer_only・use_jwks、discovery は <code>https://keycloak.taild2b611.ts.net/realms/home-k8s</code>)、limit-count (60 秒に 120 回、超えると 429)、proxy-rewrite (<code>/gitops-deployer</code> を外す) → Service <code>bff:80</code>。</li>
     <li>bff のロールは client <code>gitops-deployer</code> の client role (<code>resource_access.gitops-deployer.roles</code>): GET は <code>view</code>、POST・DELETE は <code>deploy</code>。POST・DELETE ごとに監査ログ (audit=true・principal・subject・client・action・app・idempotency_key・status)。</li>
+    <li>client credentials の client は 2 つ。E2E の <code>gitops-deployer</code> と、Backstage の <code>backstage-gitops-deployer</code> (confidential、service account のみ)。どちらの service account にも client <code>gitops-deployer</code> の role <code>deploy</code>・<code>view</code> を付ける。principal (preferred_username) は <code>service-account-&lt;client&gt;</code> で、監査ログと履歴の requestedBy で見分けられる。</li>
+    <li>Backstage でタスクを始められるのは admins だけ。ゲスト・viewers は Backstage の permission (<code>scaffolder.task.create</code>) で 403 になり、bff に届かない。</li>
   </ul>
 
   <!-- 2 -->
@@ -273,14 +285,15 @@
     <tbody>
       <tr><td><code>history||app|&lt;名前&gt;</code></td><td>store-activity</td><td>今の状態 (deployed・current・last) と直近 20 件の記録。ETag で楽観ロック (first-write)、ぶつかれば読み直す。同じ runId・op は 2 回書かない</td></tr>
       <tr><td><code>history||apps</code></td><td>store-activity</td><td>アプリの名前の一覧 (並べたもの)。一覧の API の pageSize・pageToken に使う</td></tr>
-      <tr><td><code>history||idem|&lt;鍵&gt;</code></td><td>api</td><td>Idempotency-Key ごとの依頼の sha256 と応答。TTL 24 時間。Workflow を始めた後に書く</td></tr>
+      <tr><td><code>history||idem|&lt;依頼者&gt;|&lt;鍵&gt;</code></td><td>api</td><td>依頼者 (<code>X-Requested-By</code> を url.PathEscape) と Idempotency-Key ごとの依頼の sha256 と応答。TTL 24 時間。Workflow を始めた後に書く。別の依頼者が同じ鍵を使ってもぶつからない (Backstage は鍵に <code>backstage-&lt;タスクの id&gt;</code>)</td></tr>
     </tbody>
   </table>
   </div>
 
   <!-- 6 -->
   <h2>6. OTel の trace</h2>
-  <p class="lead">6 つの Pod と daprd が OTLP/gRPC で <code>otel-collector-opentelemetry-collector.observability:4317</code> に送り、Tempo で 1 本の trace になる。ログは JSON で trace_id・span_id 付き。</p>
+  <p class="lead">6 つの Pod と daprd が OTLP/gRPC で <code>otel-collector-opentelemetry-collector.observability:4317</code> に送り、Tempo で 1 本の trace になる。ログは JSON で trace_id・span_id 付き。
+    Backstage から依頼すると、Backstage のバックエンド (<code>instrumentation.js</code>、service.name <code>backstage</code>、OTLP/HTTP) のアクションの span が根になる。</p>
   <div class="ctrl">
     <button id="s6-run">▶ trace を描く</button>
     <button id="s6-all">全部出す</button>
@@ -288,6 +301,7 @@
   <div class="panel">
     <svg id="s6" viewBox="0 0 960 520" role="img" aria-label="1 つの依頼の span が順に現れる滝の図"></svg>
     <div class="legend">
+      <span><i style="background:var(--dim)"></i>Backstage (アクション・undici)</span>
       <span><i style="background:var(--acc)"></i>HTTP (otelgin・otelhttp)</span>
       <span><i style="background:var(--add)"></i>daprd</span>
       <span><i style="background:var(--warn)"></i>Temporal の interceptor</span>
@@ -320,7 +334,7 @@
       <tr><td>202</td><td>api</td><td>Workflow を始めた。同じ Idempotency-Key・同じ依頼の打ち直しも 202 (<code>Idempotent-Replayed: true</code>)</td></tr>
       <tr><td>400</td><td>api</td><td>JSON が読めない・Idempotency-Key が 128 文字を超える・pageSize や pageToken が読めない</td></tr>
       <tr><td>401</td><td>APISIX・bff</td><td>Bearer トークンが無い・署名・iss・aud・exp が合わない</td></tr>
-      <tr><td>403</td><td>bff</td><td>ロールが無い (GET に view、POST・DELETE に deploy)</td></tr>
+      <tr><td>403</td><td>bff</td><td>ロールが無い (GET に view、POST・DELETE に deploy)。Backstage では、admins 以外がタスクを始めると Backstage が 403 にする</td></tr>
       <tr><td>404</td><td>api</td><td>GET で、そのアプリの履歴も Workflow も無い (名前が規則に合わないときも)</td></tr>
       <tr><td>409</td><td>api</td><td>同じアプリの Workflow (<code>app-&lt;名前&gt;</code>) が走っている</td></tr>
       <tr><td>412</td><td>api</td><td><code>If-Match</code> が履歴の ETag と合わない (履歴が無いときも)</td></tr>
@@ -385,7 +399,19 @@
       [null, null, '<span class="ok">202</span> — workflowId・runId・phase opening-pr を返す。監査ログに status=202', 'ok', '202']],
     rate: [['s1-client', null, '同じ送り元から 60 秒に 121 回目'], ['s1-gw', 's1-e1', 'Gateway → APISIX'],
       ['s1-apisix', 's1-e2', 'limit-count (count 120・time_window 60、送り元の住所ごと) を超えた', 'ng'],
-      [null, null, '<span class="wn">429</span> — APISIX が返す。応答に残りの回数のヘッダ (show_limit_quota_header)', 'ng', '429']]
+      [null, null, '<span class="wn">429</span> — APISIX が返す。応答に残りの回数のヘッダ (show_limit_quota_header)', 'ng', '429']],
+    bs: [['s1-web', null, 'admins がテンプレート「gitops-deployer: アプリをデプロイする」を Create (scaffolder.task.create を許す)'],
+      ['s1-bs', 's1-e8', 'Scaffolder がアクション gitops-deployer:deploy を動かす'],
+      ['s1-kct', 's1-e9', 'client credentials (client backstage-gitops-deployer) でトークンを取る。期限の 1 分前まで使い回す'],
+      ['s1-gw', 's1-e10', 'POST …/gitops-deployer/api/v1/deployments。Bearer と Idempotency-Key: backstage-&lt;タスクの id&gt;'],
+      ['s1-apisix', 's1-e2', '署名が正しい。limit-count・proxy-rewrite'],
+      ['s1-bff', 's1-e3', 'bff: ロール deploy。X-Requested-By: service-account-backstage-gitops-deployer'],
+      ['s1-api', 's1-e4', 'api: 冪等キーを idem|service-account-backstage-gitops-deployer|backstage-&lt;タスクの id&gt; で引く'],
+      ['s1-tmp', 's1-e5', 'Workflow Deploy を始める (ID app-&lt;名前&gt;)', 'ok'],
+      [null, null, '<span class="ok">202</span> — アクションは 10 秒ごとに GET で Workflow (runId) の終わりを待ち (上限 30 分)、段と Temporal・PR・Argo CD のリンクをタスクの画面に出す', 'ok', '202']],
+    guest: [['s1-web', null, 'ゲスト・viewers が Create のフォームを開き、実行する'],
+      ['s1-bs', 's1-e8', 'permissionPolicy.ts が scaffolder.task.create (action create) を admins 以外に拒む', 'ng'],
+      [null, null, '<span class="ng">403</span> — Backstage が返す。タスクはできず、Keycloak にも bff にも行かない。一覧のタブは読める', 'ng', '403']]
   };
   async function runS1(c) {
     var my = ++s1run; pick(null, 'data-c', c); clear(s1);
@@ -550,10 +576,10 @@
       ['s5-bffd', 's5-e1', 'bff の daprd が api の daprd を探す'],
       ['s5-apid', 's5-e2', 'daprd 同士。ztunnel が mTLS で包み、AuthorizationPolicy api が ServiceAccount bff 以外を L4 で拒む'],
       ['s5-api', 's5-e3', 'api の daprd が api の :8080 に渡す。X-Request-Deadline・X-Requested-By はそのまま届く']],
-    idem: [['s5-api', null, 'Idempotency-Key: k1 の POST'],
-      ['s5-apid', 's5-e3', 'GET /v1.0/state/history/idem|k1'],
-      ['s5-redis', 's5-e4', 'Redis の鍵 history||idem|k1。無ければ Workflow を始め、依頼の sha256 と応答を TTL 24 時間で書く'],
-      ['s5-redis', null, 'あれば: sha256 が同じ → 同じ 202 (Idempotent-Replayed: true)。違う → 422']],
+    idem: [['s5-api', null, 'Idempotency-Key: k1 の POST。依頼者 (X-Requested-By) は alice'],
+      ['s5-apid', 's5-e3', 'GET /v1.0/state/history/idem|alice|k1 (依頼者は url.PathEscape して | を含まない)'],
+      ['s5-redis', 's5-e4', 'Redis の鍵 history||idem|alice|k1。無ければ Workflow を始め、依頼の sha256 と応答を TTL 24 時間で書く'],
+      ['s5-redis', null, 'あれば: sha256 が同じ → 同じ 202 (Idempotent-Replayed: true)。違う → 422。別の依頼者 bob の k1 は history||idem|bob|k1 で、ぶつからない']],
     hist: [['s5-store', null, 'RecordHistory (Activity)'],
       ['s5-stored', 's5-e5', 'GET /v1.0/state/history/app|&lt;名前&gt; → 値と ETag'],
       ['s5-redis', 's5-e6', '記録を先頭に足し (20 件まで)、読んだ ETag で書く (concurrency first-write)'],
@@ -575,26 +601,29 @@
   moveDot(s5dot, 's5-bff');
 
   // --- 6. trace の滝 ---
-  // [Pod, span, 始まり, 長さ, 色, 親の文脈の渡り方]
+  // [Pod, span, 始まり, 長さ, 色, 親の文脈の渡り方, 右の列の短い文, 図に出す短い span 名]
   var SP = [
-    ['bff', 'POST /api/v1/deployments', 0, 16, '', 'otelgin (APISIX からの traceparent があれば受ける)', 'HTTP traceparent'],
-    ['bff', 'HTTP POST (otelhttp)', 1, 14, '', 'HTTP traceparent'],
-    ['daprd bff', 'CallLocal/api/internal/v1/deployments', 2, 12, 'dap', 'HTTP traceparent'],
-    ['daprd api', 'CallLocal/api/internal/v1/deployments', 3, 10, 'dap', 'HTTP traceparent (mTLS の中)', 'HTTP traceparent'],
-    ['api', 'POST /internal/v1/deployments', 4, 9, '', 'HTTP traceparent'],
-    ['api', 'StartWorkflow:Deploy', 7, 4, 'tmp', 'Temporal のヘッダ。memo に traceparent も残す', 'Temporal ヘッダ + memo'],
-    ['workflow-engine', 'RunWorkflow:Deploy', 12, 66, 'tmp', 'Temporal のヘッダ'],
-    ['workflow-engine', 'StartActivity:OpenPR', 13, 2, 'tmp', 'Temporal のヘッダ'],
-    ['git-activity', 'RunActivity:OpenPR', 15, 8, 'tmp', 'Temporal のヘッダ。GitHub への HTTP は otelhttp', 'Temporal のヘッダ'],
-    ['event-receiver', 'signal argo-event', 40, 6, 'er', '親は memo の traceparent、受けた CloudEvent はリンク', 'memo が親・CE はリンク'],
-    ['event-receiver', 'SignalWorkflow:argo-event', 41, 3, 'tmp', 'Temporal のヘッダ'],
-    ['workflow-engine', 'HandleSignal:argo-event', 44, 2, 'tmp', 'Temporal のヘッダ'],
-    ['workflow-engine', 'StartActivity:PRIncluded', 47, 2, 'tmp', 'Temporal のヘッダ'],
-    ['git-activity', 'RunActivity:PRIncluded', 49, 6, 'tmp', 'Temporal のヘッダ'],
-    ['store-activity', 'RunActivity:RecordHistory', 57, 9, 'tmp', 'Temporal のヘッダ'],
-    ['daprd store', '/v1.0/state/history', 58, 7, 'dap', 'HTTP traceparent'],
-    ['store-activity', 'RunActivity:PublishCompleted', 67, 9, 'tmp', 'Temporal のヘッダ'],
-    ['daprd store', '/v1.0/publish/pubsub/gitops-deployer-events', 68, 7, 'dap', 'CloudEvent の traceparent', 'CloudEvent traceparent']
+    ['backstage', 'gitops-deployer template:default/gitops-deployer-deploy', 0, 80, 'bs', 'アクションの span (instrumentation.js、OTLP/HTTP)。属性 gitops_deployer.app・backstage.task_id・backstage.user・temporal.workflow_id。202 の後も 10 秒ごとの GET を子に持ち、Workflow の終わりまで続く', 'trace の根', 'gitops-deployer template:…-deploy'],
+    ['backstage', 'POST (undici) Keycloak の token', 0, 1, 'bs', 'undici の計装 (親の span があるときだけ)。client credentials', '親はアクションの span'],
+    ['backstage', 'POST (undici) bff', 1, 18, 'bs', 'undici の計装。traceparent を付けて Gateway → APISIX → bff へ', 'HTTP traceparent'],
+    ['bff', 'POST /api/v1/deployments', 2, 16, '', 'otelgin (Backstage の fetch の traceparent を、Gateway・APISIX を通して受ける)', 'HTTP traceparent'],
+    ['bff', 'HTTP POST (otelhttp)', 3, 14, '', 'HTTP traceparent'],
+    ['daprd bff', 'CallLocal/api/internal/v1/deployments', 4, 12, 'dap', 'HTTP traceparent'],
+    ['daprd api', 'CallLocal/api/internal/v1/deployments', 5, 10, 'dap', 'HTTP traceparent (mTLS の中)', 'HTTP traceparent'],
+    ['api', 'POST /internal/v1/deployments', 6, 9, '', 'HTTP traceparent'],
+    ['api', 'StartWorkflow:Deploy', 9, 4, 'tmp', 'Temporal のヘッダ。memo に traceparent も残す', 'Temporal ヘッダ + memo'],
+    ['workflow-engine', 'RunWorkflow:Deploy', 14, 66, 'tmp', 'Temporal のヘッダ'],
+    ['workflow-engine', 'StartActivity:OpenPR', 15, 2, 'tmp', 'Temporal のヘッダ'],
+    ['git-activity', 'RunActivity:OpenPR', 17, 8, 'tmp', 'Temporal のヘッダ。GitHub への HTTP は otelhttp', 'Temporal のヘッダ'],
+    ['event-receiver', 'signal argo-event', 42, 6, 'er', '親は memo の traceparent、受けた CloudEvent はリンク', 'memo が親・CE はリンク'],
+    ['event-receiver', 'SignalWorkflow:argo-event', 43, 3, 'tmp', 'Temporal のヘッダ'],
+    ['workflow-engine', 'HandleSignal:argo-event', 46, 2, 'tmp', 'Temporal のヘッダ'],
+    ['workflow-engine', 'StartActivity:PRIncluded', 49, 2, 'tmp', 'Temporal のヘッダ'],
+    ['git-activity', 'RunActivity:PRIncluded', 51, 6, 'tmp', 'Temporal のヘッダ'],
+    ['store-activity', 'RunActivity:RecordHistory', 59, 9, 'tmp', 'Temporal のヘッダ'],
+    ['daprd store', '/v1.0/state/history', 60, 7, 'dap', 'HTTP traceparent'],
+    ['store-activity', 'RunActivity:PublishCompleted', 69, 9, 'tmp', 'Temporal のヘッダ'],
+    ['daprd store', '/v1.0/publish/pubsub/gitops-deployer-events', 70, 7, 'dap', 'CloudEvent の traceparent', 'CloudEvent traceparent']
   ];
   var s6 = $('s6'), rows = [], X0 = 330, XW = 360, RH = 26, Y0 = 46;
   el('text', { 'class': 'note', x: 10, y: 24 }, s6, 'Pod');
@@ -602,17 +631,19 @@
   el('text', { 'class': 'note', x: X0, y: 24 }, s6, '時間 (模式)');
   el('text', { 'class': 'note', x: 700, y: 24 }, s6, '親の文脈');
   // 待ちの区切り
-  var bx = X0 + XW * 26 / 80;
+  var bx = X0 + XW * 28 / 80;
+  var iSig = SP.findIndex(function (s) { return s[1] === 'signal argo-event'; });
   el('rect', { x: bx, y: 30, width: XW * 12 / 80, height: SP.length * RH + 10, fill: 'var(--line)', opacity: .35 }, s6);
-  el('text', { 'class': 'note', x: bx + 4, y: Y0 + 9 * RH - 4 }, s6, 'CI・merge・同期');
+  el('text', { 'class': 'note', x: bx + 4, y: Y0 + iSig * RH - 4 }, s6, 'CI・merge・同期');
   SP.forEach(function (s, i) {
     var y = Y0 + i * RH;
     var g = el('g', { 'class': 'row' }, s6);
     el('text', { x: 10, y: y + 14, 'class': 'sub' }, g, s[0]);
     // daprd の span 名 (CallLocal/... など) は長いので、棒の手前 (幅 205) に縮めて収める
     var nm = { x: 120, y: y + 14, style: 'font-size:12px' };
-    if (s[1].length > 30) { nm.textLength = 205; nm.lengthAdjust = 'spacingAndGlyphs'; }
-    el('text', nm, g, s[1]);
+    var label = s[7] || s[1];
+    if (label.length > 30) { nm.textLength = 205; nm.lengthAdjust = 'spacingAndGlyphs'; }
+    el('title', {}, el('text', nm, g, label), s[1]);
     el('rect', { 'class': 'bar ' + s[4], x: X0 + XW * s[2] / 80, y: y + 3, width: Math.max(4, XW * s[3] / 80), height: 14, rx: 3 }, g);
     var via = el('text', { x: 700, y: y + 14, 'class': 'note' }, g, s[6] || s[5]);
     el('title', {}, via, s[5]);
@@ -629,7 +660,7 @@
       $('s6-log').innerHTML = '<b>' + SP[i][0] + '</b> ' + SP[i][1] + ' — ' + SP[i][5];
       if (!all) await wait(520);
     }
-    if (all) $('s6-log').innerHTML = 'bff → api → workflow-engine → git-activity・store-activity と event-receiver が 1 本の trace。daprd のスパンは Configuration gitops-deployer (samplingRate 1) が送る。';
+    if (all) $('s6-log').innerHTML = 'Backstage (アクション) → bff → api → workflow-engine → git-activity・store-activity と event-receiver が 1 本の trace。daprd のスパンは Configuration gitops-deployer (samplingRate 1) が送る。';
   }
   $('s6-run').onclick = function () { runS6(false); };
   $('s6-all').onclick = function () { runS6(true); };

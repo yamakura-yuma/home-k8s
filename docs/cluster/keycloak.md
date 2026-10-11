@@ -93,6 +93,8 @@ client (単位 3〜6 で使うものを先に全部置いた)。redirect URI は
 | `backstage` | confidential | 4 | `https://backstage.taild2b611.ts.net/api/auth/*` (provider の名前で callback のパスが変わるため) |
 | `oauth2-proxy` | confidential | (まだ使っていない) | `https://oauth2-proxy.taild2b611.ts.net/oauth2/callback` (**仮**。単位 4 では置く対象が無かった。下の「OIDC を持たない UI と oauth2-proxy」) |
 | `headlamp` | confidential | 5 | `https://headlamp.taild2b611.ts.net/oidc-callback` |
+| `gitops-deployer` | confidential (service account のみ) | gitops-deployer | なし (client credentials。testkube の E2E。[gitops-deployer.md](gitops-deployer.md)) |
+| `backstage-gitops-deployer` | confidential (service account のみ) | gitops-deployer | なし (client credentials。Backstage のバックエンドが bff を呼ぶ。[gitops-deployer-backstage.md](gitops-deployer-backstage.md)) |
 | `kubernetes` | public + PKCE | 6 (kubelogin) | `http://localhost:8000`、`http://localhost:18000` |
 
 - API server (単位 6) の `audiences` には、ID トークンを渡してくる client の名前 (`kubernetes` と `headlamp`) を書く。ID トークンの `aud` は client の名前になる

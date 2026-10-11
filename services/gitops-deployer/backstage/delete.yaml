@@ -1,0 +1,42 @@
+# Backstage の Create の画面に出る、gitops-deployer に削除を依頼するテンプレート (docs/cluster/gitops-deployer-backstage.md)。
+# アクション gitops-deployer:delete (backstage/packages/backend/src/gitopsDeployer.ts) が bff に依頼し、deploys/<名前>/ を消す PR が
+# merge されて Application が消え、Workflow が終わるまで待つ。実行できるのは Backstage の admins だけ (permissionPolicy.ts)
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: gitops-deployer-delete
+  title: "gitops-deployer: アプリを削除する"
+  description: home-k8s から deploys/<名前>/ を消す PR を作って auto-merge し、Argo CD の Application が消えるまで待つ
+  tags: [gitops-deployer]
+spec:
+  owner: user:yamakura-yuma
+  type: service
+  parameters:
+    - title: アプリ
+      required: [name]
+      properties:
+        name:
+          title: 名前
+          type: string
+          description: 消すアプリの名前 (カタログの gitops-deployer の Deployments のタブにある名前)
+          pattern: "^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$"
+          ui:autofocus: true
+  steps:
+    - id: delete
+      name: bff に依頼して Workflow の完了を待つ
+      action: gitops-deployer:delete
+      input:
+        name: ${{ parameters.name }}
+  output:
+    links:
+      - title: Workflow (Temporal)
+        url: ${{ steps.delete.output.temporalUrl }}
+      - title: PR
+        url: ${{ steps.delete.output.prUrl }}
+      - title: デプロイ済みの一覧
+        entityRef: component:default/gitops-deployer
+    text:
+      - title: 結果
+        content: |
+          `${{ parameters.name }}` の削除の Workflow `${{ steps.delete.output.workflowId }}` (run `${{ steps.delete.output.runId }}`) が
+          **${{ steps.delete.output.result }}** で終わった。

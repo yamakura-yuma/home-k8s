@@ -1,0 +1,43 @@
+# gitops-deployer の Backstage のエンティティ。Component・それが出す API (bff の OpenAPI)・Scaffolder のテンプレート 2 つ
+# (backstage/ の deploy.yaml・delete.yaml) を読む。repo の直下の catalog-info.yaml の Location がこのファイルを読む。
+# ページの「Deployments」のタブが、bff の一覧 (Backstage のバックエンドの /api/gitops-deployer/deployments が中継する) を出す。
+# 使い方は docs/cluster/gitops-deployer-backstage.md
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: gitops-deployer
+  description: 依頼を受けて home-k8s に PR を作り、Argo CD でアプリをデプロイ・削除する (Temporal・Knative Eventing・Dapr)
+  annotations:
+    github.com/project-slug: yamakura-yuma/home-k8s
+    # Deployments のタブを出す (backstage/packages/app/src/modules/environments/GitopsDeployerView.tsx)
+    home-k8s/gitops-deployer: "true"
+  links:
+    - url: https://temporal-dev.taild2b611.ts.net/namespaces/gitops-deployer/workflows
+      title: Temporal (Workflow の履歴)
+spec:
+  type: service
+  lifecycle: experimental
+  owner: user:yamakura-yuma
+  providesApis:
+    - gitops-deployer
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: gitops-deployer
+  description: gitops-deployer の bff の HTTP API (OpenAPI 3。Gateway → APISIX → bff、Keycloak のトークンが要る)
+spec:
+  type: openapi
+  lifecycle: experimental
+  owner: user:yamakura-yuma
+  definition:
+    $text: ./internal/bff/openapi.yaml
+---
+apiVersion: backstage.io/v1alpha1
+kind: Location
+metadata:
+  name: gitops-deployer-templates
+spec:
+  targets:
+    - ./backstage/deploy.yaml
+    - ./backstage/delete.yaml

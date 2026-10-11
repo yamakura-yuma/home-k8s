@@ -14,7 +14,7 @@ owner_ref="$2"
 ctx="$3"
 ns=auth
 # 秘密を持つ client (public の argocd-cli・kubernetes は持たない)。clusters/kind/auth/keycloak/realm-home-k8s.yaml の placeholders と同じ並び
-clients=(argocd grafana grafana-dev grafana-prod temporal-dev temporal-prod backstage headlamp oauth2-proxy gitops-deployer)
+clients=(argocd grafana grafana-dev grafana-prod temporal-dev temporal-prod backstage headlamp oauth2-proxy gitops-deployer backstage-gitops-deployer)
 # 開発用コンテナでは ~/.local/share/home-k8s をホストと共有していないと、パスワードがコンテナの中にだけ残る
 if [ -f /.dockerenv ] && ! mountpoint -q "$HOME/.local/share/home-k8s"; then
     echo "~/.local/share/home-k8s がホストと共有されていない。just devcontainer down && just devcontainer up で作り直す" >&2
