@@ -229,7 +229,7 @@
     <div class="log" id="s4-log" aria-live="polite">流すと、event-receiver が起きて Signal を送る。</div>
   </div>
   <ul class="short">
-    <li>event-receiver の応答: Signal を送れたら 202。Workflow が無い・走っていない・読めないイベントは 200 で捨てる (Broker は打ち直さない)。Temporal に届かなければ 503。</li>
+    <li>event-receiver の応答: Signal を送れたら 202。Workflow が無い・走っていない・読めないイベントは 200 で捨てる (Broker は打ち直さない)。2xx は本文を付けない (Kafka Broker の dispatcher は CloudEvent でない本文の付いた応答を失敗として Dead Letter へ送る)。Temporal に届かなければ 503。</li>
     <li>dead-letter は Trigger を持たない Kafka Broker で、イベントはトピック <code>knative-broker-gitops-deployer-dead-letter</code> に残る。</li>
   </ul>
 

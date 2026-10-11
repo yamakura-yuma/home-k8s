@@ -316,7 +316,7 @@
       w: 'デプロイと同じ配線。event-receiver が 0→1 に起きる。',
       f: [SVC + 'manifests/eventing.yaml', SVC + 'manifests/event-receiver.yaml'] },
     { t: 'Signal exists=false', ph: 'waiting-for-argocd', n: ['er', 'tmp'], e: ['er-tmp'], k: 'Signal', up: true,
-      w: 'type が delete なら <code>exists=false</code> にして SignalWorkflow <code>argo-event</code>。Workflow が走っていなければ 200 で捨てる。',
+      w: 'type が delete なら <code>exists=false</code> にし、revision を空にして SignalWorkflow <code>argo-event</code> (消える直前の Application の revision は、消す PR の merge より前のまま)。Workflow が走っていなければ 200 で捨てる。',
       f: [SVC + 'internal/receiver/receiver.go'] },
     { t: '前のイベント・重複は捨てる', ph: 'waiting-for-argocd', n: ['tmp', 'wfe'], e: ['-wfe-tmp'], k: 'Signal', up: true,
       w: '削除は <code>exists=false</code> まで待つ。片付けの間の update (exists=true) と、同じ CloudEvent id の重複は捨てる。',
