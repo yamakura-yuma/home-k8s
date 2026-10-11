@@ -1,0 +1,20 @@
+# APISIX の経路 (standalone モードの apisix.yaml)。APISIX はこのファイルの変更を読み直す (再起動は要らない)。末尾の #END は必須。
+# 経路を足すのは後続の PR (gitops-deployer の bff への経路と、Keycloak の JWT の検証)。
+# /_platform/ping は基盤の疎通確認用 (Gateway → APISIX → プラグインの応答)。上流を持たず、mocking プラグインが返す
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: apisix-routes
+  namespace: apisix
+data:
+  apisix.yaml: |
+    routes:
+      - id: platform-ping
+        uri: /_platform/ping
+        methods: [GET]
+        plugins:
+          mocking:
+            content_type: text/plain
+            response_status: 200
+            response_example: "pong\n"
+    #END

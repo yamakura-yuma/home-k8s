@@ -1,0 +1,59 @@
+# Kafka (Strimzi、KRaft、1 ノード)。controller と broker を 1 つの Pod に兼ねる (KafkaNodePool dual)。
+# Knative の Kafka Broker (clusters/kind/knative/eventing) と、Dapr の pub/sub (clusters/kind/gitops-deployer) が共用する。
+# 入口は namespace kafka の Service kafka-kafka-bootstrap:9092 (平文。暗号化はクラスタ内の Istio ambient の mTLS に任せる)。
+# 複製は 1 つしか取れないので、内部トピックの複製数も 1 にする。docs/cluster/gitops-deployer-platform.md
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaNodePool
+metadata:
+  name: dual
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: kafka
+spec:
+  replicas: 1
+  roles:
+    - controller
+    - broker
+  # kind の既定の StorageClass (standard、ノードのローカルディスク)。Pod を作り直してもトピックが残る。クラスタを作り直せば消える
+  storage:
+    type: persistent-claim
+    size: 5Gi
+    deleteClaim: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 1Gi
+    limits:
+      memory: 1Gi
+  jvmOptions:
+    -Xms: 512m
+    -Xmx: 512m
+---
+apiVersion: kafka.strimzi.io/v1
+kind: Kafka
+metadata:
+  name: kafka
+  namespace: kafka
+spec:
+  kafka:
+    version: 4.3.1
+    listeners:
+      - name: plain
+        port: 9092
+        type: internal
+        tls: false
+    config:
+      offsets.topic.replication.factor: 1
+      transaction.state.log.replication.factor: 1
+      transaction.state.log.min.isr: 1
+      default.replication.factor: 1
+      min.insync.replicas: 1
+  entityOperator:
+    # KafkaTopic でトピックを宣言できるようにする (Dapr の pub/sub のトピックは後続の PR が置く)。KafkaUser は使わないので userOperator は入れない
+    topicOperator:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 256Mi
+        limits:
+          memory: 384Mi

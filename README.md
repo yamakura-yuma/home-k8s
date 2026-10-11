@@ -78,6 +78,8 @@ home-k8s・knowledge-base・dotfiles の文書を TechDocs で読ませる (tail
 アプリは `backstage/` にあり、イメージは `just up` が手元で build する。構成と本番への反映手順は `docs/cluster/backstage.md`。
 UI は Tailscale の tailnet の `https://<名前>.<tailnet>.ts.net` にも出る (`docs/cluster/tailscale.md`)。IdP の Keycloak (namespace `auth`、realm `home-k8s`) と
 その DB の PostgreSQL は `docs/cluster/keycloak.md`。
+gitops-deployer (GitOps でデプロイする学習用のマイクロサービス) を載せる基盤 (Istio ambient・Gateway API・APISIX・Knative・Kafka・Redis・Dapr・testkube) は
+`docs/cluster/gitops-deployer-platform.md`。
 
 利用可能なrecipe一覧は `just --list` で確認できる。資格取得のロードマップは
 `docs/certification/roadmap.md` を参照。Claude Code のトレース・メトリクス・ログを見る

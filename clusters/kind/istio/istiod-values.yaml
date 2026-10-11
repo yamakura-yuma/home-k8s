@@ -1,0 +1,14 @@
+# Istio の control plane (istiod chart)。ambient モード (サイドカー無し。L4 の mTLS は各ノードの ztunnel、L7 は必要なら waypoint)。
+# ambient に入れるのは namespace にラベル istio.io/dataplane-mode=ambient を付けたものだけ。既存の namespace には付けない。
+# istio-cni・ztunnel も同じ profile と版でそろえる (cni-values.yaml・ztunnel-values.yaml)。docs/cluster/gitops-deployer-platform.md
+profile: ambient
+pilot:
+  # kind の学習用なので 1 台。chart の既定 (HPA 1〜5 台、requests 500m・2Gi) は大きい
+  autoscaleEnabled: false
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi

@@ -1,0 +1,40 @@
+# APISIX (namespace apisix、standalone モード)。Istio の Gateway の後ろに置く API ゲートウェイ。
+# 経路は clusters/kind/apisix/manifests/routes.yaml (ConfigMap)、Gateway からの HTTPRoute は同じディレクトリ。基盤の全体は docs/cluster/gitops-deployer-platform.md。
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: apisix
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://charts.apiseven.com
+      chart: apisix
+      targetRevision: 2.18.0
+      helm:
+        releaseName: apisix
+        valueFiles:
+          - $values/clusters/kind/apisix/values.yaml
+    - repoURL: https://github.com/yamakura-yuma/home-k8s
+      targetRevision: main
+      ref: values
+    - repoURL: https://github.com/yamakura-yuma/home-k8s
+      targetRevision: main
+      path: clusters/kind/apisix/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: apisix
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    # HTTPRoute は Gateway API の CRD (Application gateway-api) が先に要る。無い間は失敗するので再試行する
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m
+    syncOptions:
+      # namespace apisix は manifests/namespace.yaml がラベル付き (ambient・gateway-access) で作る
+      - SkipDryRunOnMissingResource=true

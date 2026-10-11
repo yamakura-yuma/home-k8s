@@ -13,3 +13,10 @@ checks:
     - readiness-port             # 1 件: 同上
     - host-pid                   # 1 件: node-exporter (仕様)
     - host-network               # 1 件: node-exporter (仕様)
+    # 以下は gitops-deployer の基盤 (2026-10-11、docs/cluster/gitops-deployer-platform.md) の上流の manifest で出たもの
+    - pdb-unhealthy-pod-eviction-policy  # 6 件: Knative・Dapr・testkube の PDB が unhealthyPodEvictionPolicy を書かない (上流の既定)
+    - pdb-min-available              # 3 件: Knative の webhook・activator の PDB が 1 台の Deployment に minAvailable 1 を置く (上流の既定)
+    - env-var-secret                 # 4 件: Knative の request-reply と testkube の API の環境変数名が SECRET を含む (値は秘密ではない、上流の既定)
+    - drop-net-raw-capability        # 2 件: istio-cni と ztunnel が NET_RAW を使う (Pod の通信の向け替えに要る、仕様)
+    - privilege-escalation-container # 2 件: istio-cni (SYS_ADMIN) と ztunnel (仕様)
+    - no-anti-affinity               # 1 件: Dapr の scheduler の anti-affinity の topologyKey が zone (上流の既定)

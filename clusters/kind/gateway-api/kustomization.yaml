@@ -1,0 +1,5 @@
+# Gateway API の CRD (standard チャネル)。Istio (ambient) が Gateway・HTTPRoute を実装し、Knative Serving (net-gateway-api) も
+# HTTPRoute で経路を作る。Istio の chart は CRD を入れないので、上流の release をタグで固定して取り込む。
+# 版を上げるときは、Istio と net-gateway-api が対応する版かを各 release notes で確かめる。docs/cluster/gitops-deployer-platform.md
+resources:
+  - https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.3/standard-install.yaml

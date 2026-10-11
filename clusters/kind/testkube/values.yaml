@@ -1,0 +1,26 @@
+# testkube (testkube chart、namespace testkube)。Testkube の Cloud (control plane) に繋がない standalone の agent で、
+# TestWorkflow を kubectl (CRD) と API から動かす。中身は API (operator を兼ねる)・MongoDB (実行の記録)・NATS・MinIO (ログと成果物)。
+# 試験の定義は clusters/kind/testkube/manifests (TestWorkflow)。動かし方は docs/cluster/gitops-deployer-platform.md
+testkube-api:
+  # 利用状況を Testkube の開発元へ送らない
+  analyticsEnabled: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  minio:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 512Mi
+mongodb:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 768Mi
