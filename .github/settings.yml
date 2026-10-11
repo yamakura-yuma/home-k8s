@@ -1,0 +1,112 @@
+# リポジトリ設定の正本。Settings アプリ（https://github.com/repository-settings/app）が
+# 既定ブランチ（main）への push でこのファイルを読み、GitHub に反映する。
+# 初回は導入時点（2026-10-12）の設定をそのまま写し取ったもの。値を変えるときはこのファイルを直す。
+#
+# 注意（アプリのソースで確かめた挙動）
+# - repository: 書いた項目をそのまま PATCH /repos/{owner}/{repo} に渡す。書かない項目は変わらない。
+# - labels: ここに無いラベルは消される。ラベルを足すときも必ずここに書く。color は大文字小文字まで比べる。
+# - branches: protection は PUT で丸ごと置き換える。書かない項目は既定値に戻る。
+
+repository:
+  private: false
+  default_branch: main
+  has_issues: true
+  has_projects: true
+  has_wiki: true
+  has_discussions: false
+  is_template: false
+  allow_forking: true
+  web_commit_signoff_required: false
+  allow_squash_merge: true
+  allow_merge_commit: true
+  allow_rebase_merge: true
+  allow_auto_merge: true
+  delete_branch_on_merge: true
+  allow_update_branch: false
+  squash_merge_commit_title: COMMIT_OR_PR_TITLE
+  squash_merge_commit_message: COMMIT_MESSAGES
+  merge_commit_title: MERGE_MESSAGE
+  merge_commit_message: PR_TITLE
+
+labels:
+  - name: accessibility
+    color: "f143ab"
+    description: Barrier affecting people with disabilities
+  - name: "agent:go"
+    color: "0E8A16"
+    description: 人だけが付ける。エージェントが実行してよい Issue
+  - name: bug
+    color: "d73a4a"
+    description: Something isn't working
+  - name: dependencies
+    color: "0366d6"
+    description: Pull requests that update a dependency file
+  - name: documentation
+    color: "0075ca"
+    description: Improvements or additions to documentation
+  - name: duplicate
+    color: "cfd3d7"
+    description: This issue or pull request already exists
+  - name: enhancement
+    color: "a2eeef"
+    description: New feature or request
+  - name: good first issue
+    color: "7057ff"
+    description: Good for newcomers
+  - name: help wanted
+    color: "008672"
+    description: Extra attention is needed
+  - name: invalid
+    color: "e4e669"
+    description: This doesn't seem right
+  - name: javascript
+    color: "168700"
+    description: Pull requests that update javascript code
+  - name: question
+    color: "d876e3"
+    description: Further information is requested
+  - name: "triage:close-candidate"
+    color: "bfdadc"
+    description: "triage: close 候補"
+  - name: "triage:merge-ready"
+    color: "0e8a16"
+    description: "triage: マージ候補（承認を取ってマージ）"
+  - name: "triage:needs-decision"
+    color: "fbca04"
+    description: "triage: 人の判断が要る"
+  - name: "triage:needs-fix"
+    color: "d93f0b"
+    description: "triage: CI 失敗か競合。直す必要あり"
+  - name: "triage:pending"
+    color: "c5def5"
+    description: "triage: CI 実行中など。次回に回す"
+  - name: "triage:worker-ready"
+    color: "1d76db"
+    description: "triage: ワーカーに出せる"
+  - name: wontfix
+    color: "ffffff"
+    description: This will not be worked on
+
+branches:
+  - name: main
+    protection:
+      # 必須チェックは checks（context と app_id）で書く。app_id 15368 は GitHub Actions。
+      required_status_checks:
+        strict: false
+        checks:
+          - context: ci / just ci
+            app_id: 15368
+      required_pull_request_reviews:
+        dismiss_stale_reviews: false
+        require_code_owner_reviews: true
+        require_last_push_approval: false
+        required_approving_review_count: 0
+      enforce_admins: false
+      restrictions: null
+      required_linear_history: false
+      allow_force_pushes: false
+      allow_deletions: false
+      block_creations: false
+      required_conversation_resolution: false
+      lock_branch: false
+      allow_fork_syncing: false
