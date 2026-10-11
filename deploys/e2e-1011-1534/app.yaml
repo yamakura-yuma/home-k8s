@@ -1,0 +1,82 @@
+# gitops-deployer が生成した (手で直さない)。ApplicationSet gitops-deployer-apps が Application deploy-e2e-1011-1534 にする
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: gitops-deployer
+    app.kubernetes.io/name: e2e-1011-1534
+  name: e2e-1011-1534
+  namespace: gitops-deployer-apps
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: e2e-1011-1534
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/managed-by: gitops-deployer
+        app.kubernetes.io/name: e2e-1011-1534
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: e2e-1011-1534
+              topologyKey: kubernetes.io/hostname
+            weight: 100
+      automountServiceAccountToken: false
+      containers:
+      - image: docker.io/nginxinc/nginx-unprivileged:1.29-alpine
+        livenessProbe:
+          periodSeconds: 10
+          tcpSocket:
+            port: http
+        name: app
+        ports:
+        - containerPort: 8080
+          name: http
+        readinessProbe:
+          periodSeconds: 10
+          tcpSocket:
+            port: http
+        resources:
+          limits:
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 32Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+      - emptyDir: {}
+        name: tmp
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: gitops-deployer
+    app.kubernetes.io/name: e2e-1011-1534
+  name: e2e-1011-1534
+  namespace: gitops-deployer-apps
+spec:
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+  selector:
+    app.kubernetes.io/name: e2e-1011-1534
