@@ -41,6 +41,11 @@ Application root (clusters/kind/argocd/apps を同期する app-of-apps)
       strimzi・kafka・redis・dapr・testkube・gitops-deployer
                       gitops-deployer を載せる基盤 (Istio ambient・Gateway API・APISIX・Knative・Kafka・Redis・Dapr・testkube。
                       版と構成は gitops-deployer-platform.md)
+  └── gitops-deployer-services
+                      gitops-deployer の 6 つの Pod と Knative Eventing の配線 (services/gitops-deployer/manifests。gitops-deployer.md)
+  └── gitops-deployer-apps
+                      ApplicationSet (git の directory generator)。Workflow が PR で main に入れた deploys/<名前>/ ごとに
+                      Application deploy-<名前> を作り、namespace gitops-deployer-apps に同期する
 ```
 
 | Application | chart | 版 | namespace |

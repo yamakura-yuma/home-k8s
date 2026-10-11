@@ -38,7 +38,7 @@ func TestAppendTracksTheCurrentStateAndIsIdempotent(t *testing.T) {
 	if err != nil || !found || etag == "" {
 		t.Fatal(err, found, etag)
 	}
-	if len(st.History) != 2 || !st.Deployed || st.Current == nil || st.Last.RunID != "r2" {
+	if len(st.History) != 2 || !st.Deployed || st.Current == nil || st.Last == nil || st.Last.RunID != "r2" {
 		t.Errorf("%+v", st)
 	}
 	if err := s.Append(ctx, rec("hello", spec.OpDelete, "r3", workflow.ResultSucceeded)); err != nil {

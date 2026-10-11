@@ -36,8 +36,8 @@ type AppState struct {
 	Name     string            `json:"name"`
 	Deployed bool              `json:"deployed"`
 	Current  *spec.App         `json:"current,omitempty"`
-	Last     workflow.Record   `json:"last"`
-	History  []workflow.Record `json:"history"`
+	Last     *workflow.Record  `json:"last,omitempty"`
+	History  []workflow.Record `json:"history,omitempty"`
 }
 
 type Store struct{ D *dapr.Client }
@@ -71,7 +71,7 @@ func (s *Store) Append(ctx context.Context, rec workflow.Record) error {
 			}
 		}
 		st.Name = rec.App
-		st.Last = rec
+		st.Last = &rec
 		st.History = append([]workflow.Record{rec}, st.History...)
 		if len(st.History) > maxHistory {
 			st.History = st.History[:maxHistory]
