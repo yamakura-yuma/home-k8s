@@ -1,5 +1,7 @@
 # APISIX の経路 (standalone モードの apisix.yaml)。APISIX はこのファイルの変更を読み直す (再起動は要らない)。末尾の #END は必須。
-# 経路を足すのは後続の PR (gitops-deployer の bff への経路と、Keycloak の JWT の検証)。
+# /gitops-deployer/api/* は gitops-deployer の bff への経路 (docs/cluster/gitops-deployer-platform.md の「Gateway と APISIX」)。Keycloak (realm home-k8s) の JWT を
+# openid-connect が JWKS で確かめ (トークン無し・不正は 401)、limit-count で絞ってから、先頭の /gitops-deployer を外して bff に渡す。
+# bff も同じトークンをもう一度確かめる (二重の確認)。
 # /_platform/ping は基盤の疎通確認用 (Gateway → APISIX → プラグインの応答)。上流を持たず、mocking プラグインが返す
 apiVersion: v1
 kind: ConfigMap
@@ -17,4 +19,36 @@ data:
             content_type: text/plain
             response_status: 200
             response_example: "pong\n"
+      - id: gitops-deployer
+        uri: /gitops-deployer/api/*
+        plugins:
+          openid-connect:
+            # Keycloak の client gitops-deployer (gitops-deployer のアプリの PR が realm に足す)。bearer_only + use_jwks では aud を見ないので、aud とロールは bff が確かめる
+            client_id: gitops-deployer
+            # bearer_only + use_jwks では使わない (トークンを introspect せず、JWKS の鍵で署名を確かめるだけ)。schema が必須にしている
+            client_secret: unused-bearer-only
+            discovery: https://keycloak.taild2b611.ts.net/realms/home-k8s/.well-known/openid-configuration
+            realm: home-k8s
+            bearer_only: true
+            use_jwks: true
+            set_userinfo_header: false
+            set_id_token_header: false
+          limit-count:
+            count: 120
+            time_window: 60
+            key_type: var_combination
+            key: $remote_addr $http_x_forwarded_for
+            rejected_code: 429
+            policy: local
+            show_limit_quota_header: true
+          proxy-rewrite:
+            regex_uri: ["^/gitops-deployer/(.*)", "/$1"]
+        upstream:
+          type: roundrobin
+          timeout:
+            connect: 3
+            send: 20
+            read: 20
+          nodes:
+            bff.gitops-deployer.svc.cluster.local:80: 1
     #END

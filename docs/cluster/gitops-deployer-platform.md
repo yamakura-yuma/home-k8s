@@ -78,9 +78,11 @@ APISIX は standalone モードで動かす。経路は ConfigMap `apisix/apisix
 etcd と Admin API は無い (chart の etcd は Bitnami のイメージで、無料の配布が止まっている)。APISIX は `apisix.yaml` の変更を
 読み直すので、経路を足しても再起動は要らない。ファイルの末尾の `#END` が無いと読み込まれない。
 
-今ある経路は疎通確認用の `/_platform/ping` だけで、`mocking` プラグインが `pong` を返す。後続の PR は bff への経路に
-`openid-connect` (Keycloak の realm `home-k8s` の discovery と JWT の検証) か `jwt-auth` と `limit-count` を付ける。
-どれも APISIX の既定のプラグインに入っていて、`config.yaml` の `plugins` を書き換えずに使える。
+経路は 2 つ。`/_platform/ping` は疎通確認用で、`mocking` プラグインが `pong` を返す。`/gitops-deployer/api/*` は gitops-deployer の
+bff (`bff.gitops-deployer.svc.cluster.local:80`) への経路で、`openid-connect` が Keycloak (realm `home-k8s`) の JWT を JWKS の鍵で確かめ
+(`bearer_only`。トークンが無い・不正なら 401)、`limit-count` が 60 秒に 120 回で絞り (超えたら 429)、`proxy-rewrite` が先頭の
+`/gitops-deployer` を外す。bff も同じトークンの aud とロールをもう一度確かめる。どのプラグインも APISIX の既定のプラグインに入っていて、
+`config.yaml` の `plugins` を書き換えずに使える。bff は後続の PR (gitops-deployer のアプリ) が足すので、それまでは正しいトークンでも 502 になる。
 
 ## Knative
 
