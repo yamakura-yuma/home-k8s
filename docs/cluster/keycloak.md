@@ -388,7 +388,7 @@ OTP の必須アクションを外して作り、確かめた後に消した) �
 | Grafana ×3 | Admin、`/api/org/users` が 200 | Viewer、`/api/org/users` が 403 | ログインを断る (Grafana のログに `role_attribute_strict_violation`) |
 
 実際のログインで取ったトークンにも `groups` が入ることを、ArgoCD の userinfo (ID トークンから) で確かめた (上の単位 2c の [未確認] のうち `argocd-cli` の分)。
-非常用の admin (ArgoCD の `/api/v1/session`、Grafana 3 つの `/api/user` の Basic 認証) と、Backstage のプロキシ (Grafana ×3 と ArgoCD)・`just share test-smoke` (share Pod の Grafana の経路) も通った。
+非常用の admin (ArgoCD の `/api/v1/session`、Grafana 3 つの `/api/user` の Basic 認証) と、Backstage のプロキシ (Grafana ×3 と ArgoCD)・`just share test-smoke` (share Pod の Grafana の経路。`just share` はその後廃止した、[share.md](share.md)) も通った。
 
 単位 5 (Headlamp と kind の API server・kubectl) の確かめた結果は [kube-oidc.md](kube-oidc.md) の「確かめた結果」。
 
