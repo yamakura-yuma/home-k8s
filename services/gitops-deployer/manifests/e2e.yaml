@@ -24,6 +24,12 @@ spec:
       run:
         image: kind.local/home-k8s-gitops-deployer:0.1.2
         command: [/usr/local/bin/e2e]
+        # command・workingDir・runAsGroup が揃うと testkube はイメージをレジストリに見に行かない (kind.local は
+        # kind load しただけでレジストリに無い。testkube の NeedsImageData)。値はイメージの USER 65532:65532 と同じ
+        workingDir: /data
+        securityContext:
+          runAsUser: 65532
+          runAsGroup: 65532
         env:
           - name: OUT
             value: /data/e2e.env
