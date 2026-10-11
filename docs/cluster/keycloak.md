@@ -327,7 +327,8 @@ $k delete pod keycloak-0
 
   確かめたのは別の DB (`restore_check`) への流し込みまで。動いている DB への流し込みは試していない [未確認]
 
-- dump も DB も無いときは、DB を空から作り直せば realm の設定は Git から戻る (import が走る)。戻らないのはユーザー・パスワード・MFA の登録・セッション
+- dump も DB も無いときは、DB を空から作り直せば realm の設定は Git から戻る (import が走る)。戻らないのはユーザー・パスワード・MFA の登録・セッション。
+  user profile の `unmanagedAttributePolicy: ADMIN_EDIT` (ゲストの期限の属性) も宣言に無いので戻らないが、次の `just guest add` が入れ直す ([guest-access.md](guest-access.md))
 
 ## 鶏と卵
 

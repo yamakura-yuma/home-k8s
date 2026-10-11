@@ -4,7 +4,7 @@
 (just/guest.sh)。この処理は「今の時刻で期限を過ぎた guests を消す」だけで、何度流しても結果は同じ。3:00 に PC が止まっていても、
 クラスタが戻った後の最初の実行で消える (docs/cluster/guest-access.md の「期限」)。
 
-- 期限を過ぎた人、属性が無いか読めない人は期限切れとみなす (期限の無いゲストを残さない)
+- 期限を過ぎた人、属性が無いか読めない人 (タイムゾーンの無い値も読めない扱い) は期限切れとみなす (期限の無いゲストを残さない)
 - ユーザー名が guest- で始まる人は、Keycloak のセッションを切ってからユーザーごと消す
 - guest- で始まらない人 (Admin Console で手で guests に入れた人など) は消さず、guests から外すだけにする (取り違えて人のユーザーを消さない)
 - 標準ライブラリだけ。Keycloak の Admin REST API を、realm master の管理者 (Secret keycloak-bootstrap-admin) で呼ぶ
