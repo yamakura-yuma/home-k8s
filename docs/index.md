@@ -3,8 +3,7 @@
 kind クラスタで Kubernetes を学ぶ環境と、Claude Code・Orca の観測スタックの文書。
 全体の概要と使い方はリポジトリの README にある。
 
-- cluster: kind クラスタ・ArgoCD・Backstage・データの永続化
-- ゲスト (他の人) の入れ方: Tailscale の端末共有・Funnel・Keycloak のグループ guests の比較と推奨は [cluster/guest-access.md](cluster/guest-access.md)
+- cluster: kind クラスタ・ArgoCD・Backstage・データの永続化。ゲスト (他の人) の入れ方の比較は [cluster/guest-access.md](cluster/guest-access.md)
 - observability: Claude Code・Orca のテレメトリと Grafana のダッシュボード
 - share: Grafana・headroom・Backstage を Quick Tunnel で人に見せる share Pod。**[cluster/share.md](cluster/share.md) から読む**（構成・CLI・試験の正本）。コードとの対応は下の表
 - certification: Kubernetes の認定試験の学習ロードマップ
