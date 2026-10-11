@@ -27,6 +27,17 @@ repository:
   squash_merge_commit_message: COMMIT_MESSAGES
   merge_commit_title: MERGE_MESSAGE
   merge_commit_message: PR_TITLE
+  # セキュリティ（2026-10-12 の観測値を写したもの）。dependabot_security_updates と
+  # secret_scanning_validity_checks は PATCH の入力に無いので書かない（前者は enable_automated_security_fixes で表す）。
+  security_and_analysis:
+    secret_scanning:
+      status: enabled
+    secret_scanning_push_protection:
+      status: enabled
+    secret_scanning_non_provider_patterns:
+      status: disabled
+  enable_vulnerability_alerts: true
+  enable_automated_security_fixes: true
 
 labels:
   - name: accessibility
