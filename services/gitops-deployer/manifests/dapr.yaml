@@ -30,7 +30,7 @@ spec:
       value: ""
     - name: keyPrefix
       value: name
-  # 読み書きするのは api と store-activity だけ
-  scopes:
-    - api
-    - store-activity
+# 読み書きするのは api と store-activity だけ (scopes は spec の外)
+scopes:
+  - api
+  - store-activity

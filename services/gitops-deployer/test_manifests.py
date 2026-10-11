@@ -137,7 +137,7 @@ class DaprTest(unittest.TestCase):
         store = config("DAPR_STATESTORE")
         component = read(MANIFESTS / "dapr.yaml").split(f"kind: Component\nmetadata:\n  name: {store}\n")[1]
         self.assertRegex(component, r"- name: keyPrefix\n      value: name\n")
-        self.assertIn("scopes:\n    - api\n    - store-activity", component)
+        self.assertIn("\nscopes:\n  - api\n  - store-activity", component)
         redis = re.search(r"value: (redis\S+)", read(KIND / "gitops-deployer/dapr-components.yaml")).group(1)
         self.assertIn(f"value: {redis}\n", component)
         self.assertIn(f"name: {config('DAPR_PUBSUB')}\n", read(KIND / "gitops-deployer/dapr-components.yaml"))
