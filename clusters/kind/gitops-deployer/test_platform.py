@@ -22,7 +22,7 @@ def read(path):
 
 
 # ambient に入れてよい namespace。gitops-deployer は合意書、redis・apisix は後段への通信を mTLS で包むため。
-# 既存の namespace (観測スタック・Temporal・Keycloak・share・Backstage など) は入れない (合意書)
+# 既存の namespace (観測スタック・Temporal・Keycloak・Backstage など) は入れない (合意書)
 AMBIENT_NAMESPACES = {"gitops-deployer", "redis", "apisix"}
 
 

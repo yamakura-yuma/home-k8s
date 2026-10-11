@@ -47,7 +47,7 @@ wave -1 は CRD を持つ Application で、それを使う Application (wave 0)
 ## Istio ambient
 
 ambient に入れるのは namespace にラベル `istio.io/dataplane-mode: ambient` を付けたものだけで、今は `gitops-deployer`・`redis`・`apisix` の 3 つ。
-既存の namespace (観測スタック・Temporal・Keycloak・share・Backstage など) には付けない (合意書)。どこに付いているかは
+既存の namespace (観測スタック・Temporal・Keycloak・Backstage など) には付けない (合意書)。どこに付いているかは
 `clusters/kind/gitops-deployer/test_platform.py` が `just ci` で確かめる。
 
 - ambient の Pod 同士の通信は、送り元と宛先のノードの ztunnel が HBONE (15008 番、mTLS) で包む。Pod の中にサイドカーは無い
