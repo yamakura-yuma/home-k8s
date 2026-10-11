@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gitops-deployer — 処理のアニメーション</title>
+<style>
+  :root {
+    --bg:#0f1419; --panel:#171e26; --line:#2c3846; --text:#e6edf3; --dim:#8b98a5;
+    --add:#3fb950; --del:#f85149; --acc:#58a6ff; --warn:#d29922;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f6f8fa; --panel:#ffffff; --line:#d0d7de; --text:#1f2328; --dim:#59636e;
+      --add:#1a7f37; --del:#cf222e; --acc:#0969da; --warn:#9a6700; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.65 system-ui,"Hiragino Sans","Noto Sans JP",sans-serif; }
+  main { max-width:1200px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  p.lead { color:var(--dim); margin:0 0 12px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; min-width:0; }
+  .ctrl { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:10px 0; }
+  .ctrl .sep { width:8px; }
+  button { background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 12px; font:inherit; cursor:pointer; }
+  button.on { border-color:var(--acc); color:var(--acc); }
+  #count { font-variant-numeric:tabular-nums; color:var(--dim); margin-left:4px; }
+  .grid { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:12px; align-items:start; }
+  @media (max-width:900px) { .grid { grid-template-columns:minmax(0,1fr); } }
+  svg { width:100%; height:auto; display:block; }
+  svg text { font:14px system-ui,"Noto Sans JP",sans-serif; fill:var(--text); }
+  svg text.sub { fill:var(--dim); font-size:12px; }
+  svg text.zl { fill:var(--dim); font-size:13px; font-weight:700; }
+  svg text.note { fill:var(--dim); font-size:10px; }
+  .zone { fill:none; stroke:var(--line); stroke-dasharray:3 4; }
+  .zone.amb { stroke:var(--acc); stroke-opacity:.5; }
+  .nd rect { fill:var(--panel); stroke:var(--line); stroke-width:1.4; transition:stroke .25s, fill .25s; }
+  .nd.ref rect { stroke-dasharray:5 4; }
+  .nd.hot rect { stroke:var(--acc); stroke-width:3; fill:color-mix(in srgb, var(--acc) 12%, var(--panel)); }
+  .nd.hot text:first-of-type { font-weight:700; }
+  .ed { stroke:var(--line); stroke-width:1.6; fill:none; transition:stroke .25s; }
+  .ed.ref { stroke-dasharray:4 4; }
+  .ed.hot { stroke:var(--acc); stroke-width:3; }
+  .pill rect { fill:var(--bg); stroke:var(--line); }
+  .pill.up rect { fill:var(--add); stroke:var(--add); }
+  .pill.up text { fill:#fff; font-weight:700; }
+  #tok circle { fill:var(--acc); stroke:#fff; stroke-width:1.5; }
+  #tok text { font-size:13px; font-weight:700; fill:var(--acc); paint-order:stroke; stroke:var(--bg); stroke-width:3px; }
+  #side h2 { font-size:16px; margin:0 0 6px; }
+  #side .ph { font-size:13px; color:var(--dim); margin:0 0 8px; }
+  #side .what { font-size:14px; margin:0 0 10px; }
+  #side .files { font-size:13px; color:var(--dim); }
+  #side .files code { display:inline-block; margin:2px 0; word-break:break-all; }
+  code { background:var(--bg); border:1px solid var(--line); border-radius:4px; padding:0 4px; font-size:12.5px; }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; color:var(--dim); font-size:13px; margin-top:8px; }
+  .legend i { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:6px; vertical-align:-1px; }
+  @media (prefers-reduced-motion: reduce) { .nd rect, .ed { transition:none; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>gitops-deployer — 処理のアニメーション</h1>
+  <p class="lead">クライアントの依頼 1 つが、6 つの Pod・Temporal・GitHub・Argo CD・Knative Eventing を通って終わるまでを 1 段ずつ追う。
+    実装は <code>services/gitops-deployer/</code>。仕様は <code>gitops-deployer-spec.html</code>。Space で再生と一時停止、→ で 1 段進める。</p>
+
+  <div class="ctrl" role="group" aria-label="操作">
+    <button id="m-deploy" class="on">デプロイ</button>
+    <button id="m-delete">削除</button>
+    <span class="sep"></span>
+    <button id="play">▶ 再生</button>
+    <button id="pause">❚❚ 一時停止</button>
+    <button id="next">⏭ 1 段進める</button>
+    <button id="reset">⏮ 最初から</button>
+    <span id="count" aria-live="polite">1 / 1</span>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <svg id="map" viewBox="0 0 1100 700" role="img" aria-label="gitops-deployer の構成要素と、依頼が通る順の図">
+        <g id="zones"></g>
+        <g id="edges"></g>
+        <g id="nodes"></g>
+        <g id="tok"><circle r="8"></circle><text x="11" y="-9"></text></g>
+      </svg>
+      <div class="legend">
+        <span><i style="background:var(--acc)"></i>今の段で動く部品と経路</span>
+        <span><i style="border:1px dashed var(--dim)"></i>点線の箱は参照だけ (鍵の取得)</span>
+        <span><i style="background:var(--add)"></i>event-receiver の Pod 数 (0 か 1)</span>
+      </div>
+    </div>
+    <div class="panel" id="side" aria-live="polite">
+      <h2 id="s-title"></h2>
+      <p class="ph" id="s-phase"></p>
+      <p class="what" id="s-what"></p>
+      <div class="files">実装: <span id="s-files"></span></div>
+    </div>
+  </div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var NS = 'http://www.w3.org/2000/svg';
+  function $(id) { return document.getElementById(id); }
+  function el(tag, attrs, parent, text) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+
+  // --- 図の部品 ---
+  var ZONES = [
+    [10, 10, 176, 370, '入口'],
+    [10, 400, 176, 110, '観測'],
+    [198, 10, 302, 680, 'gitops-deployer (ambient)', 'amb'],
+    [528, 200, 180, 104, 'Temporal (dev)'],
+    [528, 318, 180, 236, 'GitHub'],
+    [528, 568, 180, 84, 'Redis'],
+    [726, 10, 364, 180, 'Argo CD'],
+    [726, 204, 364, 486, 'Knative Eventing + Kafka']
+  ];
+  // id, x, y, w, h, 1 行目, 2 行目, 参照だけなら 'ref'
+  var NODES = [
+    ['client', 24, 44, 148, 48, 'クライアント', 'HTTP・Bearer JWT'],
+    ['gw', 24, 120, 148, 48, 'Gateway', 'istio-ingress/gateway'],
+    ['apisix', 24, 196, 148, 56, 'APISIX', '/gitops-deployer/api/*'],
+    ['kc', 24, 292, 148, 48, 'Keycloak', 'home-k8s の JWKS', 'ref'],
+    ['otel', 24, 436, 148, 56, 'OTel Collector', '→ Tempo'],
+    ['bff', 212, 44, 160, 52, 'bff', 'JWT・ロール・監査'],
+    ['bffd', 384, 44, 104, 52, 'daprd', 'bff の横'],
+    ['api', 212, 128, 160, 52, 'api', '検証・冪等・開始'],
+    ['apid', 384, 128, 104, 52, 'daprd', 'api の横'],
+    ['wfe', 212, 226, 160, 56, 'workflow-engine', 'Workflow Deploy'],
+    ['git', 212, 322, 160, 56, 'git-activity', 'GitHub のトークン'],
+    ['store', 212, 418, 160, 56, 'store-activity', '履歴・完了イベント'],
+    ['stored', 384, 418, 104, 56, 'daprd', 'store の横'],
+    ['er', 212, 572, 160, 60, 'event-receiver', 'Knative Service'],
+    ['tmp', 540, 230, 156, 60, 'frontend :7236', 'ns gitops-deployer'],
+    ['pr', 540, 348, 156, 52, 'PR (branch)', 'auto-merge (SQUASH)'],
+    ['ci', 540, 414, 156, 44, 'check ci / just ci', ''],
+    ['main', 540, 472, 156, 56, 'main', 'deploys/<名前>/'],
+    ['redis', 540, 594, 156, 48, 'state store history', 'Dapr Component'],
+    ['as', 738, 44, 168, 56, 'ApplicationSet', 'gitops-deployer-apps'],
+    ['app', 918, 44, 160, 56, 'Application', 'deploy-<名前>'],
+    ['ns', 918, 124, 160, 52, 'アプリ', 'gitops-deployer-apps'],
+    ['src', 738, 240, 168, 56, 'ApiServerSource', 'argocd-applications'],
+    ['br', 918, 240, 160, 56, 'Broker default', 'Kafka のトピック'],
+    ['tr', 918, 330, 160, 56, 'Trigger', 'argocd-application-…'],
+    ['dl', 738, 330, 168, 56, 'Broker dead-letter', 'Trigger なし'],
+    ['topic', 738, 594, 168, 52, 'pubsub (Kafka)', 'gitops-deployer-events']
+  ];
+  // id, path, 参照だけなら 'ref'
+  var EDGES = [
+    ['c-gw', 'M98 92 V120'],
+    ['gw-ap', 'M98 168 V196'],
+    ['ap-kc', 'M98 252 V292', 'ref'],
+    ['ap-bff', 'M172 224 H190 V70 H212'],
+    ['bff-bffd', 'M372 70 H384'],
+    ['bffd-apid', 'M436 96 V128'],
+    ['apid-api', 'M384 154 H372'],
+    ['api-tmp', 'M292 180 V196 H618 V230'],
+    ['wfe-tmp', 'M372 254 H540'],
+    ['git-tmp', 'M372 336 H506 V272 H540'],
+    ['store-tmp', 'M372 432 H513 V280 H540'],
+    ['er-tmp', 'M372 586 H520 V288 H540'],
+    ['git-pr', 'M372 364 H540'],
+    ['pr-ci', 'M618 400 V414'],
+    ['ci-main', 'M618 458 V472'],
+    ['main-as', 'M696 500 H717 V72 H738'],
+    ['as-app', 'M906 72 H918'],
+    ['app-ns', 'M998 100 V124'],
+    ['app-src', 'M930 100 V112 H822 V240'],
+    ['src-br', 'M906 268 H918'],
+    ['br-tr', 'M998 296 V330'],
+    ['tr-dl', 'M918 358 H906'],
+    ['tr-er', 'M998 386 V560 H420 V602 H372'],
+    ['store-stored', 'M372 446 H384'],
+    ['stored-redis', 'M440 474 V618 H540'],
+    ['stored-topic', 'M470 474 V668 H822 V646']
+  ];
+
+  var Z = $('zones'), E = $('edges'), N = $('nodes');
+  var nodeEl = {}, edgeEl = {}, nodeBox = {};
+  ZONES.forEach(function (z) {
+    el('rect', { 'class': 'zone' + (z[5] ? ' ' + z[5] : ''), x: z[0], y: z[1], width: z[2], height: z[3], rx: 12 }, Z);
+    el('text', { 'class': 'zl', x: z[0] + 10, y: z[1] + 18 }, Z, z[4]);
+  });
+  EDGES.forEach(function (d) {
+    edgeEl[d[0]] = el('path', { 'class': 'ed' + (d[2] ? ' ' + d[2] : ''), d: d[1], id: 'e-' + d[0] }, E);
+  });
+  el('text', { 'class': 'note', x: 442, y: 116 }, E, 'SA bff だけ');
+  NODES.forEach(function (n) {
+    var g = el('g', { 'class': 'nd' + (n[7] ? ' ' + n[7] : ''), id: 'n-' + n[0] }, N);
+    el('rect', { x: n[1], y: n[2], width: n[3], height: n[4], rx: 8 }, g);
+    el('text', { x: n[1] + 9, y: n[2] + 21 }, g, n[5]);
+    if (n[6]) el('text', { 'class': 'sub', x: n[1] + 9, y: n[2] + 40 }, g, n[6]);
+    nodeEl[n[0]] = g;
+    nodeBox[n[0]] = { x: n[1], y: n[2], w: n[3], h: n[4] };
+  });
+  // event-receiver の Pod 数 (min-scale 0、max-scale 1)
+  var pill = el('g', { 'class': 'pill' }, N);
+  el('rect', { x: 312, y: 610, width: 52, height: 16, rx: 8 }, pill);
+  var pillText = el('text', { x: 319, y: 622, 'class': 'note' }, pill, 'Pod 0');
+
+  // --- 段 ---
+  // t: 題, ph: Workflow の段 (Query status), w: 何が起きるか, f: 実装のファイル, n: 光らせる箱, e: 経路 (- は逆向き),
+  // k: トークンの札, at: 経路が無いときにトークンを置く箱, up: event-receiver が 1
+  var SVC = 'services/gitops-deployer/';
+  var COMMON = [
+    { t: '依頼を送る', ph: '', n: ['client', 'gw'], e: ['c-gw'], k: 'JWT',
+      f: ['clusters/kind/istio/gateway/gateway.yaml'] },
+    { t: 'Gateway から APISIX へ', ph: '', n: ['gw', 'apisix'], e: ['gw-ap'], k: 'JWT',
+      w: 'Gateway API の Gateway <code>gateway</code> (Service <code>gateway-istio</code>、ClusterIP) が HTTPRoute <code>apisix</code> で APISIX に渡す。',
+      f: ['clusters/kind/apisix/manifests/httproute.yaml'] },
+    { t: 'APISIX が JWT を確かめる', ph: '', n: ['apisix', 'kc'], e: ['ap-kc'], k: 'JWT',
+      w: '経路 <code>/gitops-deployer/api/*</code>。openid-connect (bearer_only・use_jwks) が realm home-k8s の JWKS で署名を確かめる。無い・不正は 401。limit-count は 60 秒に 120 回で、超えると 429。proxy-rewrite が先頭の <code>/gitops-deployer</code> を外す。',
+      f: ['clusters/kind/apisix/manifests/routes.yaml'] },
+    { t: 'bff がもう一度確かめる', ph: '', n: ['apisix', 'bff'], e: ['ap-bff'], k: 'JWT',
+      w: 'Service <code>bff:80</code> へ。bff (gin) が署名 (JWKS)・iss・aud=<code>gitops-deployer</code>・exp を確かめ直す。ロールは <code>resource_access.gitops-deployer.roles</code>: GET は <code>view</code>、POST・DELETE は <code>deploy</code>。無ければ 403。依頼ごとに監査ログを 1 行 (audit=true、principal・action・app・status)。',
+      f: [SVC + 'internal/auth/auth.go', SVC + 'internal/bff/bff.go'] },
+    { t: 'Dapr の service invocation で api へ', ph: '', n: ['bff', 'bffd', 'apid', 'api'], e: ['bff-bffd', 'bffd-apid', 'apid-api'], k: 'HTTP',
+      w: 'bff の daprd → api の daprd → api。Istio の AuthorizationPolicy <code>api</code> が ServiceAccount bff 以外を拒む (ztunnel の mTLS)。ヘッダ <code>X-Request-Deadline</code> (期限の伝播) と <code>X-Requested-By</code> (JWT の呼び出し元) を付ける。',
+      f: [SVC + 'internal/bff/bff.go', SVC + 'manifests/rbac.yaml', SVC + 'internal/server/server.go'] }
+  ];
+  var TAIL_START = function (op) {
+    return [
+      { t: 'api が Workflow を始める', ph: 'opening-pr', n: ['api', 'tmp'], e: ['api-tmp'], k: 'Start',
+        w: 'Workflow <code>Deploy</code>、ID <code>app-&lt;名前&gt;</code>、Task Queue <code>workflow-engine</code>、memo に <code>traceparent</code>。同じ ID が走っていれば 409 (ConflictPolicy FAIL、終われば同じ ID で次を始める)。202 と workflowId・runId をクライアントへ返す。Temporal は既存の temporal-dev、namespace <code>gitops-deployer</code> (保持 72 時間)。',
+        f: [SVC + 'internal/api/api.go', SVC + 'manifests/temporal-namespace.yaml'] },
+      { t: 'workflow-engine が Deploy を動かす', ph: 'opening-pr', n: ['tmp', 'wfe'], e: ['-wfe-tmp'], k: 'Task',
+        w: 'workflow-engine は外部 I/O を持たない。手順・待機・タイムアウト・Signal・補償を受け持ち、I/O は Activity (別の Pod・Task Queue) に頼む。Query <code>status</code> で今の段が読める。',
+        f: [SVC + 'internal/workflow/deploy.go', SVC + 'cmd/workflow-engine/main.go'] }
+    ];
+  };
+
+  var DEPLOY = COMMON.slice();
+  DEPLOY[0] = Object.assign({}, COMMON[0], {
+    w: '<code>POST /gitops-deployer/api/v1/deployments</code>。本文は name・image・port・replicas。<code>Authorization: Bearer</code> (Keycloak の client <code>gitops-deployer</code> のトークン) と、任意で <code>Idempotency-Key</code>・<code>If-Match</code>。' });
+  DEPLOY = DEPLOY.concat([
+    { t: 'api が依頼を確かめる', ph: '', n: ['api', 'apid', 'redis'], at: 'redis', k: 'idem',
+      w: '値の検証 (誤りは 422 の problem+json、<code>errors[]</code> に欄ごと)。<code>Idempotency-Key</code> は Dapr state の <code>idem|&lt;鍵&gt;</code> (24 時間)。同じ鍵・同じ依頼は同じ応答 (<code>Idempotent-Replayed: true</code>)、同じ鍵・違う依頼は 422。<code>If-Match</code> が履歴の ETag と違えば 412。',
+      f: [SVC + 'internal/api/api.go', SVC + 'internal/spec/spec.go'] }
+  ]).concat(TAIL_START('deploy')).concat([
+    { t: 'OpenPR: PR を作る', ph: 'opening-pr', n: ['tmp', 'git', 'pr'], e: ['-git-tmp', 'git-pr'], k: 'PR',
+      w: 'Task Queue <code>git-activity</code>。資格情報 (GitHub の fine-grained PAT、Secret <code>github-token</code>) を持つのはこの Pod だけ。branch <code>gitops-deployer/deploy-&lt;名前&gt;-&lt;runId 8 文字&gt;</code> に <code>deploys/&lt;名前&gt;/app.yaml</code> (検証した値から描いた Deployment と Service、namespace gitops-deployer-apps) を commit し、PR を開き、GraphQL の enablePullRequestAutoMerge (SQUASH)。main と同じ中身なら PR を作らず unchanged で待たない。',
+      f: [SVC + 'internal/gitops/activities.go', SVC + 'internal/gitops/github.go', SVC + 'internal/spec/spec.go'] },
+    { t: 'CI が通り、main に入る', ph: 'waiting-for-argocd', n: ['pr', 'ci', 'main'], e: ['pr-ci', 'ci-main'], k: 'merge',
+      w: '必須のチェック <code>ci / just ci</code> が通ると、GitHub が squash で main に merge する。gitops-deployer はここに関わらない。',
+      f: ['.github/workflows/ci.yml'] },
+    { t: 'Workflow は Signal を待つ', ph: 'waiting-for-argocd', n: ['wfe', 'tmp'], at: 'wfe', k: '待機',
+      w: 'ポーリングしない。Signal <code>argo-event</code> を <code>ReceiveWithTimeout</code> で待つ (上限 <code>WAIT_TIMEOUT</code> 20m)。この間に Argo CD の同期が別に進む。上限を過ぎたら補償 (仕様書の 2)。',
+      f: [SVC + 'internal/workflow/deploy.go', SVC + 'manifests/config.yaml'] },
+    { t: 'ApplicationSet が Application を作る', ph: 'waiting-for-argocd', n: ['main', 'as', 'app'], e: ['main-as', 'as-app'], k: 'git',
+      w: 'ApplicationSet <code>gitops-deployer-apps</code> の git directory generator (<code>deploys/*</code>、requeueAfterSeconds 30) が <code>deploys/&lt;名前&gt;/</code> を見つけ、Application <code>deploy-&lt;名前&gt;</code> (ラベル <code>gitops-deployer.home-k8s/app</code>、finalizer resources-finalizer) を作る。',
+      f: ['clusters/kind/argocd/apps/gitops-deployer-apps.yaml'] },
+    { t: 'Argo CD が同期する', ph: 'waiting-for-argocd', n: ['app', 'ns'], e: ['app-ns'], k: 'sync',
+      w: 'Application が namespace gitops-deployer-apps に Deployment と Service を入れる (automated・prune・selfHeal)。status は OutOfSync・Progressing を経て Synced・Healthy になる。',
+      f: ['clusters/kind/argocd/apps/gitops-deployer-apps.yaml'] },
+    { t: 'ApiServerSource が変化を Broker へ', ph: 'waiting-for-argocd', n: ['app', 'src', 'br'], e: ['app-src', 'src-br'], k: 'CloudEvent',
+      w: 'ApiServerSource <code>argocd-applications</code> (mode Resource、namespace argocd、ラベル <code>gitops-deployer.home-k8s/app</code> を持つ Application) が、変化のたびに Application そのものを data にした CloudEvent を Kafka Broker <code>default</code> へ出す。',
+      f: [SVC + 'manifests/eventing.yaml', SVC + 'manifests/rbac.yaml'] },
+    { t: 'Trigger が event-receiver を起こす', ph: 'waiting-for-argocd', n: ['br', 'tr', 'er'], e: ['br-tr', 'tr-er'], k: 'CloudEvent', up: true,
+      w: 'Trigger <code>argocd-application-changes</code> (type の頭 <code>dev.knative.apiserver.resource.</code>、ordered)。event-receiver は min-scale 0・max-scale 1 で、イベントが来ると 0→1 に起きる。届かなければ指数バックオフで 5 回打ち直し (1 秒から、各 30 秒まで)、尽きたら Broker <code>dead-letter</code>。',
+      f: [SVC + 'manifests/eventing.yaml', SVC + 'manifests/event-receiver.yaml'] },
+    { t: 'event-receiver が Signal を送る', ph: 'waiting-for-argocd', n: ['er', 'tmp'], e: ['er-tmp'], k: 'Signal', up: true,
+      w: 'ラベルからアプリ名を読み、DescribeWorkflowExecution(<code>app-&lt;名前&gt;</code>)。走っていなければ 200 で捨てる。memo の traceparent を親にして SignalWorkflow <code>argo-event</code> {id (CloudEvent の id)・exists・sync・health・revision}。Temporal に届かなければ 503 で、Broker が打ち直す。',
+      f: [SVC + 'internal/receiver/receiver.go'] },
+    { t: '古いイベント・重複は捨てる', ph: 'waiting-for-argocd', n: ['tmp', 'wfe'], e: ['-wfe-tmp'], k: 'Signal', up: true,
+      w: '同じ CloudEvent id の Signal は 2 回目以降を捨てる (配信は at-least-once)。デプロイは exists・Synced・Healthy・revision がそろうまで待ち続ける。OutOfSync・Progressing のイベントはここで捨てて次の Signal を待つ。',
+      f: [SVC + 'internal/workflow/deploy.go'] },
+    { t: 'PRIncluded: revision に PR が入ったか', ph: 'waiting-for-argocd', n: ['wfe', 'tmp', 'git', 'pr'], e: ['-git-tmp', 'git-pr'], k: 'PRIncluded', up: true,
+      w: 'Synced・Healthy の revision が来たら、git-activity が PR の merge と、GitHub の compare (merge commit...revision) が ahead か identical かを確かめる。merge 前の古い Synced・Healthy では終わらない。false なら次の Signal を待つ。',
+      f: [SVC + 'internal/gitops/activities.go', SVC + 'internal/workflow/deploy.go'] },
+    { t: '履歴を残す', ph: 'recording', n: ['tmp', 'store', 'stored', 'redis'], e: ['-store-tmp', 'store-stored', 'stored-redis'], k: 'state',
+      w: 'RecordHistory (Task Queue <code>store-activity</code>) が Dapr の state store <code>history</code> (Redis) に書く。鍵は <code>history||app|&lt;名前&gt;</code> (今の状態と直近 20 件) と <code>history||apps</code> (一覧)。ETag の楽観ロックで、ぶつかれば読み直す。同じ runId は 2 回書かない。event-receiver はイベントが来なくなると 0 に戻る。',
+      f: [SVC + 'internal/history/history.go', SVC + 'manifests/dapr.yaml'] },
+    { t: '完了イベントを流す', ph: 'done', n: ['store', 'stored', 'topic'], e: ['store-stored', 'stored-topic'], k: 'event',
+      w: 'PublishCompleted が Dapr の pub/sub <code>pubsub</code> (Kafka) のトピック <code>gitops-deployer-events</code> に出す。CloudEvent の id は <code>&lt;workflowId&gt;/&lt;runId&gt;</code>、type は <code>io.github.yamakura-yuma.gitops-deployer.deploy.succeeded</code>。Dapr が traceparent を入れる。結果は succeeded。',
+      f: [SVC + 'internal/history/history.go', SVC + 'manifests/kafka-topics.yaml'] },
+    { t: 'クライアントが状態を読む', ph: 'done', n: ['client', 'bff', 'api', 'redis', 'tmp'], e: ['c-gw', 'gw-ap', 'ap-bff', 'bff-bffd', 'bffd-apid', 'apid-api'], k: 'GET',
+      w: '<code>GET /api/v1/deployments/{name}</code> を繰り返す。api は履歴 (Dapr state、ETag を返す) と DescribeWorkflow・Query <code>status</code> を合わせる。一覧は <code>GET /api/v1/deployments</code> (pageSize・pageToken)。bff が links (temporal・pr・argocd) を足す。',
+      f: [SVC + 'internal/api/api.go', SVC + 'internal/bff/bff.go'] },
+    { t: 'trace は 1 本', ph: 'done', n: ['otel', 'bff', 'api', 'wfe', 'git', 'store', 'er'], at: 'otel', k: 'OTLP',
+      w: '6 つの Pod が OTLP/gRPC で <code>otel-collector-opentelemetry-collector.observability:4317</code> へ送り、Tempo に入る。HTTP は traceparent、Temporal はヘッダ、event-receiver は memo の traceparent で繋ぐ。ログは JSON で trace_id・span_id 付き。',
+      f: [SVC + 'internal/obs/obs.go', SVC + 'internal/temporalx/temporalx.go', SVC + 'manifests/dapr.yaml'] }
+  ]);
+
+  var DELETE = COMMON.slice();
+  DELETE[0] = Object.assign({}, COMMON[0], {
+    w: '<code>DELETE /gitops-deployer/api/v1/deployments/{name}</code>。<code>Authorization: Bearer</code> と、任意で <code>Idempotency-Key</code>・<code>If-Match</code>。' });
+  DELETE = DELETE.concat([
+    { t: 'api が依頼を確かめる', ph: '', n: ['api', 'apid', 'redis'], at: 'redis', k: 'idem',
+      w: '名前だけを確かめる (誤りは 422)。<code>Idempotency-Key</code> と <code>If-Match</code> はデプロイと同じ (<code>idem|&lt;鍵&gt;</code>、412)。',
+      f: [SVC + 'internal/api/api.go', SVC + 'internal/spec/spec.go'] }
+  ]).concat(TAIL_START('delete')).concat([
+    { t: 'OpenPR: ディレクトリを消す PR', ph: 'opening-pr', n: ['tmp', 'git', 'pr'], e: ['-git-tmp', 'git-pr'], k: 'PR',
+      w: 'branch <code>gitops-deployer/delete-&lt;名前&gt;-&lt;runId 8 文字&gt;</code> で <code>deploys/&lt;名前&gt;/</code> の下のファイルをすべて消し、PR を開いて auto-merge (SQUASH)。main にディレクトリが無ければ NotFound (打ち直さない) で失敗にする。',
+      f: [SVC + 'internal/gitops/activities.go', SVC + 'internal/gitops/github.go'] },
+    { t: 'CI が通り、main から消える', ph: 'waiting-for-argocd', n: ['pr', 'ci', 'main'], e: ['pr-ci', 'ci-main'], k: 'merge',
+      w: '必須のチェック <code>ci / just ci</code> が通ると squash で merge。main から <code>deploys/&lt;名前&gt;/</code> が無くなる。',
+      f: ['.github/workflows/ci.yml'] },
+    { t: 'Workflow は Signal を待つ', ph: 'waiting-for-argocd', n: ['wfe', 'tmp'], at: 'wfe', k: '待機',
+      w: 'デプロイと同じ。Signal を最大 20m 待つ。削除が待つのは Application の消滅。',
+      f: [SVC + 'internal/workflow/deploy.go'] },
+    { t: 'ApplicationSet が Application を消す', ph: 'waiting-for-argocd', n: ['main', 'as', 'app'], e: ['main-as', 'as-app'], k: 'git',
+      w: 'git directory generator からディレクトリが消えるので、ApplicationSet が Application <code>deploy-&lt;名前&gt;</code> を消す。',
+      f: ['clusters/kind/argocd/apps/gitops-deployer-apps.yaml'] },
+    { t: 'finalizer がアプリを片付ける', ph: 'waiting-for-argocd', n: ['app', 'ns'], e: ['app-ns'], k: 'prune',
+      w: 'finalizer <code>resources-finalizer.argocd.argoproj.io</code> が gitops-deployer-apps の Deployment と Service を消してから、Application が無くなる。',
+      f: ['clusters/kind/argocd/apps/gitops-deployer-apps.yaml'] },
+    { t: 'delete のイベント', ph: 'waiting-for-argocd', n: ['app', 'src', 'br'], e: ['app-src', 'src-br'], k: 'CloudEvent',
+      w: 'Application が消えると ApiServerSource が type <code>dev.knative.apiserver.resource.delete</code> の CloudEvent を出す。その前の片付けの間の変化は update のイベントとして出る。',
+      f: [SVC + 'manifests/eventing.yaml'] },
+    { t: 'Trigger が event-receiver を起こす', ph: 'waiting-for-argocd', n: ['br', 'tr', 'er'], e: ['br-tr', 'tr-er'], k: 'CloudEvent', up: true,
+      w: 'デプロイと同じ配線。event-receiver が 0→1 に起きる。',
+      f: [SVC + 'manifests/eventing.yaml', SVC + 'manifests/event-receiver.yaml'] },
+    { t: 'Signal exists=false', ph: 'waiting-for-argocd', n: ['er', 'tmp'], e: ['er-tmp'], k: 'Signal', up: true,
+      w: 'type が delete なら <code>exists=false</code> にして SignalWorkflow <code>argo-event</code>。Workflow が走っていなければ 200 で捨てる。',
+      f: [SVC + 'internal/receiver/receiver.go'] },
+    { t: '前のイベント・重複は捨てる', ph: 'waiting-for-argocd', n: ['tmp', 'wfe'], e: ['-wfe-tmp'], k: 'Signal', up: true,
+      w: '削除は <code>exists=false</code> まで待つ。片付けの間の update (exists=true) と、同じ CloudEvent id の重複は捨てる。',
+      f: [SVC + 'internal/workflow/deploy.go'] },
+    { t: 'PRIncluded: PR が merge されたか', ph: 'waiting-for-argocd', n: ['wfe', 'tmp', 'git', 'pr'], e: ['-git-tmp', 'git-pr'], k: 'PRIncluded', up: true,
+      w: '削除では revision が空。git-activity は PR が merge されたかだけを見る。true なら待ちを終える。',
+      f: [SVC + 'internal/gitops/activities.go'] },
+    { t: '履歴を残す', ph: 'recording', n: ['tmp', 'store', 'stored', 'redis'], e: ['-store-tmp', 'store-stored', 'stored-redis'], k: 'state',
+      w: 'RecordHistory が <code>history||app|&lt;名前&gt;</code> に記録を足し、deployed=false・current を空にする。ETag の楽観ロック、同じ runId は 2 回書かない。',
+      f: [SVC + 'internal/history/history.go'] },
+    { t: '完了イベントを流す', ph: 'done', n: ['store', 'stored', 'topic'], e: ['store-stored', 'stored-topic'], k: 'event',
+      w: 'トピック <code>gitops-deployer-events</code> に type <code>io.github.yamakura-yuma.gitops-deployer.delete.succeeded</code>、id <code>&lt;workflowId&gt;/&lt;runId&gt;</code>。',
+      f: [SVC + 'internal/history/history.go'] },
+    { t: 'クライアントが状態を読む', ph: 'done', n: ['client', 'bff', 'api', 'redis', 'tmp'], e: ['c-gw', 'gw-ap', 'ap-bff', 'bff-bffd', 'bffd-apid', 'apid-api'], k: 'GET',
+      w: '<code>GET /api/v1/deployments/{name}</code>。履歴は残るので 200 で deployed=false。links (temporal・pr・argocd) 付き。',
+      f: [SVC + 'internal/api/api.go', SVC + 'internal/bff/bff.go'] },
+    { t: 'trace は 1 本', ph: 'done', n: ['otel', 'bff', 'api', 'wfe', 'git', 'store', 'er'], at: 'otel', k: 'OTLP',
+      w: 'デプロイと同じ。bff→api→workflow-engine→git-activity・store-activity と event-receiver が 1 本の trace になる。',
+      f: [SVC + 'internal/obs/obs.go', SVC + 'internal/temporalx/temporalx.go'] }
+  ]);
+
+  var LISTS = { deploy: DEPLOY, 'delete': DELETE };
+  var mode = 'deploy', idx = 0, timer = null, anim = 0;
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var tok = $('tok'), tokText = tok.querySelector('text');
+
+  function center(id) { var b = nodeBox[id]; return { x: b.x + b.w - 14, y: b.y + 10 }; }
+  function place(p) { tok.setAttribute('transform', 'translate(' + p.x.toFixed(1) + ' ' + p.y.toFixed(1) + ')'); }
+
+  // 経路を順にたどる (- は逆向き)。動きを減らす設定なら終点へ飛ぶ
+  function travel(list) {
+    var my = ++anim;
+    var segs = list.map(function (s) {
+      var rev = s.charAt(0) === '-';
+      var p = edgeEl[rev ? s.slice(1) : s];
+      return { p: p, rev: rev, len: p.getTotalLength() };
+    });
+    function at(seg, t) { var L = seg.len * (seg.rev ? 1 - t : t); return seg.p.getPointAtLength(L); }
+    if (reduce || !window.requestAnimationFrame) { place(at(segs[segs.length - 1], 1)); return; }
+    var per = Math.max(260, 900 / segs.length), i = 0, t0 = null;
+    function frame(ts) {
+      if (my !== anim) return;
+      if (t0 === null) t0 = ts;
+      var t = Math.min(1, (ts - t0) / per);
+      place(at(segs[i], t));
+      if (t >= 1) { i++; t0 = null; if (i >= segs.length) return; }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function render() {
+    var list = LISTS[mode], s = list[idx];
+    Object.keys(nodeEl).forEach(function (k) { nodeEl[k].classList.toggle('hot', s.n.indexOf(k) >= 0); });
+    var hotE = (s.e || []).map(function (x) { return x.replace(/^-/, ''); });
+    Object.keys(edgeEl).forEach(function (k) { edgeEl[k].classList.toggle('hot', hotE.indexOf(k) >= 0); });
+    pill.classList.toggle('up', !!s.up);
+    pillText.textContent = s.up ? 'Pod 1' : 'Pod 0';
+    tokText.textContent = s.k || '';
+    if (s.e && s.e.length) travel(s.e); else { anim++; place(center(s.at || s.n[0])); }
+    $('count').textContent = (idx + 1) + ' / ' + list.length;
+    $('s-title').textContent = (idx + 1) + '. ' + s.t;
+    $('s-phase').innerHTML = s.ph ? 'Workflow の段 (Query status): <code>' + s.ph + '</code>' : 'Workflow はまだ無い';
+    $('s-what').innerHTML = s.w;
+    $('s-files').innerHTML = s.f.map(function (f) { return '<code>' + f + '</code>'; }).join(' ');
+  }
+  function step() {
+    var list = LISTS[mode];
+    if (idx < list.length - 1) { idx++; render(); return true; }
+    stop(); return false;
+  }
+  function play() {
+    if (timer) return;
+    if (idx >= LISTS[mode].length - 1) { idx = 0; render(); }
+    $('play').classList.add('on');
+    timer = setInterval(step, 2600);
+  }
+  function stop() { clearInterval(timer); timer = null; $('play').classList.remove('on'); }
+  function setMode(m) {
+    stop(); mode = m; idx = 0;
+    $('m-deploy').classList.toggle('on', m === 'deploy');
+    $('m-delete').classList.toggle('on', m === 'delete');
+    render();
+  }
+  $('m-deploy').onclick = function () { setMode('deploy'); };
+  $('m-delete').onclick = function () { setMode('delete'); };
+  $('play').onclick = play;
+  $('pause').onclick = stop;
+  $('next').onclick = function () { stop(); step(); };
+  $('reset').onclick = function () { stop(); idx = 0; render(); };
+  document.addEventListener('keydown', function (e) {
+    var tag = e.target && e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (e.key === ' ' || e.code === 'Space') {
+      // ボタンに焦点があれば Space はそのボタンを押す (二重に動かさない)
+      if (tag === 'BUTTON') return;
+      e.preventDefault(); if (timer) stop(); else play();
+    }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); stop(); step(); }
+  });
+  render();
+})();
+</script>
+</body>
+</html>

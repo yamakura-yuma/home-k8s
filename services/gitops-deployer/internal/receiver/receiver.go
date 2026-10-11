@@ -4,7 +4,7 @@
 //   - CloudEvent の data は Application そのもの (ApiServerSource の mode Resource)。アプリの名前は ApplicationSet が付ける
 //     ラベル gitops-deployer.home-k8s/app から読む
 //   - 走っている Workflow が無ければ (処理の外の変化) 受け取ったことにして捨てる (2xx。Broker は打ち直さない)
-//   - Temporal に届かなければ 5xx。Broker が打ち直し、尽きたら Dead Letter (KafkaSink) へ送る
+//   - Temporal に届かなければ 5xx。Broker が打ち直し、尽きたら Dead Letter (Trigger の無い Broker dead-letter) へ送る
 //   - 重複 (at-least-once) は Workflow が CloudEvent の id で捨てる
 //   - トレース: Workflow の memo の traceparent を親にし、受けた CloudEvent の traceparent をリンクにする。
 //     Signal は Temporal の interceptor が同じ文脈で運ぶ
