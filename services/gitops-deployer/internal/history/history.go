@@ -1,4 +1,4 @@
-// Package history は履歴の置き場 (Dapr の state store statestore、中身は Redis) と、store-activity の Activity。
+// Package history は履歴の置き場 (Dapr の state store history、中身は Redis。manifests/dapr.yaml) と、store-activity の Activity。
 //
 //	app|<名前>  … アプリ 1 つの今の状態と履歴 (新しい順、最大 20 件)
 //	apps        … アプリの名前の一覧 (一覧の API のページングに使う)

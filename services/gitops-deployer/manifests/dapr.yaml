@@ -12,3 +12,25 @@ spec:
       endpointAddress: otel-collector-opentelemetry-collector.observability.svc.cluster.local:4317
       isSecure: false
       protocol: grpc
+---
+# 履歴の state store。基盤の statestore (clusters/kind/gitops-deployer/dapr-components.yaml) と同じ Redis を、鍵の頭を Component の名前
+# (history||<鍵>) にして使う。既定の頭は app-id で、store-activity が書いた履歴を api が読めないため。アプリは Dapr の API だけを使う
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: history
+  namespace: gitops-deployer
+spec:
+  type: state.redis
+  version: v1
+  metadata:
+    - name: redisHost
+      value: redis.redis.svc.cluster.local:6379
+    - name: redisPassword
+      value: ""
+    - name: keyPrefix
+      value: name
+  # 読み書きするのは api と store-activity だけ
+  scopes:
+    - api
+    - store-activity

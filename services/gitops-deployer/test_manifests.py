@@ -133,7 +133,13 @@ class EventsTest(unittest.TestCase):
 class DaprTest(unittest.TestCase):
     def test_state_is_shared_between_api_and_store_activity(self):
         # 既定の keyPrefix (app-id) では、store-activity の書いた履歴を api が読めない
-        self.assertRegex(read(KIND / "gitops-deployer/dapr-components.yaml"), r"- name: keyPrefix\n      value: name\n")
+        store = config("DAPR_STATESTORE")
+        component = read(MANIFESTS / "dapr.yaml").split(f"kind: Component\nmetadata:\n  name: {store}\n")[1]
+        self.assertRegex(component, r"- name: keyPrefix\n      value: name\n")
+        self.assertIn("scopes:\n    - api\n    - store-activity", component)
+        redis = re.search(r"value: (redis\S+)", read(KIND / "gitops-deployer/dapr-components.yaml")).group(1)
+        self.assertIn(f"value: {redis}\n", component)
+        self.assertIn(f"name: {config('DAPR_PUBSUB')}\n", read(KIND / "gitops-deployer/dapr-components.yaml"))
 
     def test_dapr_sidecars_and_app_ids(self):
         for name, f in [("bff", "bff.yaml"), ("api", "api.yaml"), ("store-activity", "workers.yaml")]:

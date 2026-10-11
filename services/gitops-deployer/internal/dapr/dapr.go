@@ -1,5 +1,5 @@
 // Package dapr は Dapr のサイドカー (localhost:3500) の HTTP API の薄いクライアント。アプリは Redis・Kafka の
-// クライアントを持たず、state store (statestore、Redis)・pub/sub (pubsub、Kafka)・service invocation だけを使う (合意書)。
+// クライアントを持たず、state store (history、Redis)・pub/sub (pubsub、Kafka)・service invocation だけを使う (合意書)。
 // 呼び出しは otelhttp で traceparent を付ける。Dapr はそれを受け継ぎ、pub/sub の CloudEvent の traceparent に入れる。
 package dapr
 
@@ -38,11 +38,18 @@ func FromEnv() *Client {
 	}
 	return &Client{
 		Base:   "http://127.0.0.1:" + port,
-		Store:  "statestore",
-		PubSub: "pubsub",
+		Store:  envOr("DAPR_STATESTORE", "statestore"),
+		PubSub: envOr("DAPR_PUBSUB", "pubsub"),
 		HTTP:   &http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)},
 		Retry:  retry.Default,
 	}
+}
+
+func envOr(k, def string) string {
+	if v := os.Getenv(k); v != "" {
+		return v
+	}
+	return def
 }
 
 type StatusError struct {

@@ -14,6 +14,9 @@ data:
   # bff の JWT の確認 (APISIX と同じ issuer の JWKS)。audience は Keycloak の client gitops-deployer
   OIDC_ISSUER: https://keycloak.taild2b611.ts.net/realms/home-k8s
   OIDC_AUDIENCE: gitops-deployer
+  # Dapr の Component (dapr.yaml の history、基盤の pubsub)
+  DAPR_STATESTORE: history
+  DAPR_PUBSUB: pubsub
   REQUEST_TIMEOUT: 15s
   # Argo CD の Synced/Healthy (削除は Application の消滅) を待つ上限。PR の CI (just ci、数分) と同期を含む
   WAIT_TIMEOUT: 20m
