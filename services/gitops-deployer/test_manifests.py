@@ -53,6 +53,15 @@ class PodsTest(unittest.TestCase):
         for name in self.PODS:
             self.assertEqual(text.count(f"command: [/usr/local/bin/{name}]"), 1, name)
 
+    def test_each_pod_has_requests_and_a_memory_limit(self):
+        # kube-linter の unset-*-requirements は .kube-linter.yaml で外してあるので、ここで確かめる。
+        # 6 つの Pod の manifest (command の行から manifest の終わりまで) に requests の cpu・memory と limits の memory があること
+        text = "".join(read(f) + "\n---\n" for f in MANIFESTS.glob("*.yaml"))
+        for name in self.PODS:
+            with self.subTest(pod=name):
+                block = re.search(rf"command: \[/usr/local/bin/{name}\]\n(.*?)\n---", text, re.S).group(1)
+                self.assertRegex(block, r"resources:\n\s+requests:\n\s+cpu: \S+\n\s+memory: \S+\n\s+limits:\n\s+memory: \S+")
+
     def test_dockerfile_go_matches_go_mod(self):
         go = re.search(r"(?m)^go (\d+\.\d+)", read(HERE / "go.mod")).group(1)
         self.assertRegex(read(HERE / "Dockerfile"), rf"FROM golang:{re.escape(go)}\.\d+-alpine")
