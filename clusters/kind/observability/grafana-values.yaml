@@ -60,7 +60,7 @@ extraInitContainers:
       - name: storage
         mountPath: /var/lib/grafana
 
-# 閲覧用ユーザー viewer (Viewer ロール。share Pod が人の代わりに入る)。Grafana の横にサイドカーを置き、Pod の起動ごとに
+# 閲覧用ユーザー viewer (Viewer ロール。localhost:3000 で自分が閲覧用に使う。`just show grafana`)。Grafana の横にサイドカーを置き、Pod の起動ごとに
 # 一度だけ HTTP API で viewer を Secret の値にそろえる (居なければ作り、居ればパスワードを変える)。
 # Grafana のイメージは distroless で sh が無く、postStart の exec では作れないため別コンテナにする。
 # パスワードは `just up` が作る Secret grafana-viewer から読む。値はリポジトリに置かない。
@@ -133,7 +133,7 @@ grafana.ini:
     enabled: false
   # Keycloak (realm home-k8s) の OIDC でログインする (generic_oauth)。グループ admins は Admin、viewers は Viewer、どちらでもなければ
   # role_attribute_strict でログインを断る。ロールはログインのたびに groups から付け直す。
-  # ログインフォームと Basic 認証 (admin・viewer・backstage) は残す: admin は非常用、viewer と backstage は share Pod と Backstage のプロキシが使う。
+  # ログインフォームと Basic 認証 (admin・viewer・backstage) は残す: admin は非常用、viewer は localhost:3000 の閲覧用、backstage は Backstage のプロキシが使う。
   # client_secret は環境変数 GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET (下の envValueFrom。Secret grafana-oidc は `just up` の _oidc-secrets が作る)。
   # token_url と api_url は Pod から引く。CoreDNS の読み替えでブラウザと同じ URL・証明書で届く (docs/cluster/keycloak.md)
   auth.generic_oauth:

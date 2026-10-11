@@ -21,8 +21,7 @@ just up
   └─ Secret backstage/backstage-session                     (session の cookie の署名鍵。AUTH_SESSION_SECRET。無いときだけ乱数で作る)
 
 tailnet の端末 ── Ingress backstage ── Deployment backstage-tailnet (Caddy。/api/auth/guest を 403) ──┐
-ホスト ── localhost:7007 (NodePort 30707) ─────────────────────────────────────────────────────┼─▶ Service backstage:7007
-share Pod (Cloudflare Quick Tunnel、人ごとの Basic) ──────────────────────────────────────────┘
+ホスト ── localhost:7007 (NodePort 30707、127.0.0.1 だけ) ─────────────────────────────────────────┴─▶ Service backstage:7007
 
 Application backstage (backstage chart 2.10.2、clusters/kind/backstage/values.yaml)
   Pod backstage ── イメージは kind load したもの (pullPolicy: Never)
@@ -51,8 +50,7 @@ Application backstage (backstage chart 2.10.2、clusters/kind/backstage/values.y
 | 文書の設定 | `mkdocs.yml` (repo の直下) | `docs/` を HTML にする MkDocs の設定 |
 
 DB はインメモリの SQLite で、Pod を作り直すとカタログは消えるが、起動のたびに GitHub から読み直す。
-ログインは入口で分ける (下の「ログインと権限」)。tailnet からは Keycloak の OIDC だけ、ホストの 127.0.0.1 と
-常駐の `share` Pod 経由 (人ごとの資格情報と、通す経路の絞り込みを前に置く。下の「別の PC から見る」) はゲストで、読むだけ。
+ログインは入口で分ける (下の「ログインと権限」)。tailnet からは Keycloak の OIDC だけ、ホストの 127.0.0.1 (localhost:7007) はゲストで、読むだけ。
 
 ## ログインと権限
 
@@ -62,12 +60,13 @@ DB はインメモリの SQLite で、Pod を作り直すとカタログは消�
 |---|---|---|
 | tailnet `https://backstage.taild2b611.ts.net` | Keycloak (realm `home-k8s`、client `backstage`) の OIDC だけ。ゲストの経路は入口の proxy が 403 で拒む | Keycloak のグループで決まる。admins は何でもでき、viewers は読むだけ。どちらでもない人はサインインできない |
 | ホスト `http://localhost:7007` (127.0.0.1 の NodePort) | ゲストだけ (`user:development/guest`) | 読むだけ |
-| `share` Pod (Cloudflare Quick Tunnel、人ごとの Basic) | ゲスト (Basic の後) | 読むだけ。share の caddy もカタログの登録の POST を止めている |
 
-ゲストを外さず、127.0.0.1 と share に残したのは次の理由による。
+ゲストを外さず、127.0.0.1 (localhost:7007) の開発用に残したのは次の理由による。
 
-- **share が使っている**。share Pod は Backstage にゲストでサインインさせる (share の caddy は `/api/auth/*` の POST を通す、[share.md](share.md))。
-  share は合意の範囲の外 (触らない) で、ゲストを外すと共有先の Backstage が開けなくなる
+- 以前はもう 1 つ、`share` Pod (Cloudflare Quick Tunnel) がゲストでサインインさせていたので残していた。`just share` は廃止した
+  (2026-10-11、[share.md](share.md))。いまゲストで入れる入口は 127.0.0.1 の localhost:7007 だけになった:
+  NodePort 30707 は kind の extraPortMappings で `listenAddress: "127.0.0.1"` にだけ開き (`clusters/kind/kind-config.yaml`)、
+  tailnet の入口は下の proxy が `/api/auth/guest` を拒む。クラスタの中の Pod からは Service `backstage` に届くが、それは人の入口ではない
 - **OIDC の callback は tailnet の URL にしか戻らない**。Keycloak の client `backstage` の redirect URI は `https://backstage.taild2b611.ts.net/api/auth/*`
   で、localhost:7007 で開いた画面からは OIDC でサインインできない。ホストで開く手段として、読むだけのゲストを残す
 - どの入口のゲストも permission のポリシーで読むだけなので、ゲストで書き込みはできない
@@ -111,7 +110,7 @@ Keycloak のグループを変えたら、カタログは変えなくてよい (
 
 - **localhost:7007 では TechDocs の CSS と画像が出ない**。TechDocs の静的なファイルは cookie (`backstage-auth`) で認証し、Backstage はその cookie の
   `Domain` を `backend.baseUrl` のホスト名 (`backstage.taild2b611.ts.net`) にするので、localhost ではブラウザが捨てる。文書の本文は出る。
-  tailnet の URL と share (caddy が `Domain` を外す) では出る
+  tailnet の URL では出る
 - **Backstage の中のリンクは localhost のまま** (ArgoCD・Grafana・Headlamp のリンク、`argocd.baseUrl`・`grafana.hosts[].domain`)。tailnet の端末からは
   開けない ([tailscale.md](tailscale.md))。Temporal のタブは tailnet の URL にした ([temporal.md](temporal.md))
 
@@ -230,46 +229,11 @@ viewer と `backstage` は別のユーザーなので、viewer のパスワー�
 - `@yarnpkg/core` は 4.9.1 に固定している (`backstage/package.json` の `resolutions`)。4.9.2 は依存の
   `got` に自分の repo の中のパッチを指していて、外から入れると yarn install が失敗する
 
-## 別の PC から見る (just share)
+## 別の PC から見る
 
-```sh
-just share add alice   # 名前・パスワードと、Grafana・headroom・Backstage の 3 つの URL を表示する (既定 8h で失効)
-just share get alice   # 3 つの URL を引き直す (パスワードは出ない)
-```
-
-Backstage は常駐の `share` Pod (`clusters/kind/share/`、構成は [share.md](share.md)) の caddy `:8083` と、
-Cloudflare Quick Tunnel (`*.trycloudflare.com`) を前に置いて公開している。入るには `just share add` が発行した
-名前・パスワード (Grafana・headroom と共通の 1 つ) を、Backstage の URL で打つ。使い終わったら `just share delete <名前>`。
-URL は `share` Pod を作り直すと変わる。
-
-Backstage は誰でもゲストで入れるので、パスワードは認証サービスで掛ける。ただし Backstage の画面は
-API を呼ぶときに `Authorization: Bearer` (Backstage のトークン) を付けるため、すべての要求に Basic 認証を
-掛けると画面が動かない。そこで最初のページの読み込みで Basic を通ったブラウザに、認証サービスが署名した cookie
-(`share_session`) を渡し、以後はその cookie を持つ要求だけを通す。cookie でも、名前が Secret にあり期限内かを
-毎回確かめるので、`delete`・期限切れはすぐ効く。
-
-TechDocs の文書の CSS や画像は、Backstage が発行する cookie (`backstage-auth`) で認証する。Backstage は
-この cookie に `backend.baseUrl` のホスト名 (`Domain=backstage.taild2b611.ts.net`。以前は `localhost`) を付けるので、そのままでは trycloudflare の
-ホストで捨てられ、文書の画面が読み込み中のまま止まる。caddy はこの `Domain` を外して返す。
-
-7007 をそのまま出すと、Backstage が Grafana の資格情報で読むプロキシ (`/api/proxy/grafana/api`) や、
-カタログに任意の URL を読ませる API まで外から使える。caddy (`clusters/kind/share/Caddyfile`) は、
-画面と TechDocs を読むのに要る経路だけを通し、残りは 404 にする。
-
-| 経路 | メソッド | 外から | 理由 |
-|---|---|---|---|
-| 画面 (`/`、`/catalog/*`、`/docs/*`、`/search` など) と `/static/*` | GET | 開ける | 画面を出す |
-| `/api/catalog/*` | GET | 開ける | エンティティの読み取り |
-| `/api/catalog/entities/by-refs` | POST | 開ける | 画面がエンティティをまとめて読む (読み取り) |
-| `/api/techdocs/*` | GET | 開ける | 文書の読み取りと build (sync) |
-| `/api/search/query` | GET | 開ける | 文書の画面の検索欄 |
-| `/api/auth/*` | GET・POST | 開ける | ゲストのログイン |
-| `/api/proxy/*` (`/api/proxy/grafana/api` など) | すべて | 404 | Grafana の API を Backstage の資格情報で読める |
-| `/api/catalog/locations` などカタログへの書き込み | POST・DELETE など | 404 | カタログに任意の URL を足す・消す |
-| そのほかの POST・PUT・PATCH・DELETE | すべて | 404 | 読むだけの共有で要らない |
-
-Grafana のダッシュボードの一覧 (Overview のカード) は `/api/proxy` を通すので、共有先では読めずエラーになる。
-共有先でも Grafana のダッシュボードは、同じ資格情報で Grafana の URL から見られる。
+tailnet の端末から `https://backstage.taild2b611.ts.net` を開き、Keycloak でサインインする (上の「ログインと権限」)。
+tailnet に居ない人・Keycloak のユーザーでない人に見せる経路だった `just share` は廃止した ([share.md](share.md))。
+ゲストの入れ方は [guest-access.md](guest-access.md) で比べる。
 
 ## 本番のクラスタに反映する手順 (この PR のマージ後)
 

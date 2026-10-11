@@ -225,7 +225,7 @@ client `temporal-<環境>` の client role をグループに付け、`permissio
 - **Grafana は `role_attribute_path` で groups からロールを決め、ログインのたびに付け直す**。どちらのグループにも入っていない人は `role_attribute_strict: true` でログインを断る
   (既定の `auto_assign_org_role: Viewer` に落とさない)。Grafana の Team Sync は Enterprise なので使わない
 - **非常用のパスワードは残す**。ArgoCD の `admin` (`just show argocd`) と Grafana の `admin` (`just show grafana-admin`) は、Keycloak が落ちていても `localhost` から入れる。
-  Grafana の `viewer`・`backstage` (share Pod と Backstage のプロキシの Basic 認証) も今までどおり。ログインフォームと Basic 認証は消していない
+  Grafana の `viewer` (localhost:3000 の閲覧用)・`backstage` (Backstage のプロキシの Basic 認証) も今までどおり。ログインフォームと Basic 認証は消していない
 - **SSO のコールバックは tailnet の URL**。ArgoCD の `url` と Grafana の `root_url` を tailnet の URL にした (Keycloak の client の redirect URI と同じ)。
   `localhost:8080`・`localhost:3000` などで SSO のボタンを押すと、Keycloak の後に tailnet の URL へ戻る。localhost で使うなら admin のパスワードで入る
 - **client の secret は Git に置かない**。`just up` の `_oidc-secrets` ([just/oidc-secrets.sh](../../just/oidc-secrets.sh)) が、`_keycloak-secrets` の作ったホストのファイル `~/.local/share/home-k8s/keycloak/clients/<clientId>` から作る
@@ -250,7 +250,7 @@ client `temporal-<環境>` の client role をグループに付け、`permissio
 
 | OIDC を持たない UI | 届き方 | oauth2-proxy を置かない理由 |
 |---|---|---|
-| headroom のダッシュボード | ホストのプロセス (`127.0.0.1:8787`)。外からは share (人ごとの Basic、[share.md](share.md)) だけ | tailnet に出していない。`/v1/messages` などのプロキシ本体と同じポートにあり、出すなら share の中継と同じ絞り込みが要る。share をどうするか (残すか廃止するか) は別の話題で、share は合意の範囲の外 |
+| headroom のダッシュボード | ホストのプロセス (`127.0.0.1:8787`)。外からの経路は無い (以前の share の中継は廃止した、[share.md](share.md)) | tailnet に出していない。`/v1/messages` などのプロキシ本体と同じポートにあり、出すなら以前の share の中継と同じく GET の許可リストでの絞り込みが要る。ゲストの入れ方は [guest-access.md](guest-access.md) |
 | Prometheus・OTel Collector など | クラスタの中か、ホストの 127.0.0.1 (kind-config) だけ | 画面として人に出していない (Grafana から読む) |
 
 client `oauth2-proxy` は realm に定義したまま (redirect URI は仮の `https://oauth2-proxy.taild2b611.ts.net/oauth2/callback`)。headroom などを tailnet に出すときに

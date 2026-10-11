@@ -9,18 +9,88 @@ Backstage (express) は経路の大文字小文字を区別せず、provider の
 
 `caddy` が無い環境では飛ばす (`just ci` は devShells.ci に caddy を入れて必ず走らせる)。
 """
+import http.client
+import os
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 sys.dont_write_bytecode = True  # __pycache__ をリポジトリに作らない
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent / "share"))
-from test_share_caddy import caddy_env, free_port, request, start_upstream, wait_listening  # noqa: E402
+_reserved = []  # free_port が予約したポートのソケット。プロセスが終わるまで持つ
+
+
+def free_port():
+    """空きポートを予約して番号を返す。開いて閉じるだけだと、閉じてから caddy が bind するまでの間に、
+    並行する試験 (別の just ci も) が同じ番号を引く (#60)。予約のソケットは bind だけして listen せず、持ち続ける:
+    ほかの bind は EADDRINUSE、bind(0) は選ばない。SO_REUSEADDR の待ち受け (caddy・http.server) は上に bind できる。"""
+    s = socket.socket()
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.bind(("127.0.0.1", 0))
+    _reserved.append(s)
+    return s.getsockname()[1]
+
+
+def request(port, method, path, headers=None):
+    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+    try:
+        conn.request(method, path, headers=headers or {})
+        resp = conn.getresponse()
+        resp.read()
+        return resp.status, resp
+    finally:
+        conn.close()
+
+
+class Upstream(BaseHTTPRequestHandler):
+    """200 を返し、受けた要求 (メソッド・パス・ヘッダ) を記録する。"""
+
+    def _record(self):
+        self.server.seen.append((self.command, self.path, dict(self.headers)))
+        self.send_response(200)
+        self.send_header("Content-Length", "2")
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(b"ok")
+
+    do_GET = do_HEAD = do_POST = do_PUT = do_PATCH = do_DELETE = do_OPTIONS = _record
+
+    def log_message(self, *args):
+        pass
+
+
+def start_upstream():
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Upstream)
+    server.seen = []
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
+
+
+def wait_listening(proc, port, what):
+    deadline = time.time() + 20
+    while time.time() < deadline:
+        if proc.poll() is not None:
+            raise RuntimeError(f"{what} が終了した: " + (proc.stderr.read().decode() if proc.stderr else Path(proc.log_path).read_text()))
+        try:
+            socket.create_connection(("127.0.0.1", port), timeout=0.2).close()
+            return
+        except OSError:
+            time.sleep(0.1)
+    proc.kill()
+    raise RuntimeError(f"{what} が待ち受けない")
+
+
+
+def caddy_env(tmp, **extra):
+    return {**os.environ, "XDG_CONFIG_HOME": str(tmp / "config"), "XDG_DATA_HOME": str(tmp / "data"), **extra}
 
 CADDYFILE = (HERE / "tailnet-proxy" / "Caddyfile").read_text(encoding="utf-8")
 

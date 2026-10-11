@@ -18,7 +18,6 @@ just up
      (Git の外のファイルから。just/grafana-secrets.sh)
      Secret dev・prod/grafana-admin・grafana-backstage と backstage/backstage-grafana-env (環境ごとの Grafana。just/grafana-env-secrets.sh、backstage-grafana.md)
      Secret backstage-argocd (ArgoCD の読み取り専用アカウント backstage の API トークン。just/argocd-secrets.sh、backstage-argocd.md)
-     headroom の中継 (ホストの docker コンテナ、just/share-relay.sh) と、share の Secret (just/share-secrets.sh)
   3. kubectl apply -f clusters/kind/argocd/root.yaml
   4. 全 Application が Synced/Healthy になるまで待つ
   5. Headlamp にログインするトークン (just/headlamp-token.sh)
@@ -33,7 +32,6 @@ Application root (clusters/kind/argocd/apps を同期する app-of-apps)
   ├── grafana         chart + grafana-values.yaml + dashboards/kustomization.yaml (ダッシュボードの ConfigMap)
   ├── headlamp        chart + clusters/kind/headlamp/ (values と読み取り専用の RBAC)
   ├── backstage       chart + clusters/kind/backstage/values.yaml (イメージは 0 で入れたもの)
-  ├── share           clusters/kind/share/ (Deployment `share`。他の人に見せる公開の本体。share.md)
   └── sample-api      ApplicationSet。services/sample-api/ を Application sample-api-dev・sample-api-prod として
                       namespace dev・prod に同期する (環境ごとの展開。environments.md)
   └── env-prometheus・env-loki・env-tempo・env-otel-collector・env-grafana
@@ -47,7 +45,6 @@ Application root (clusters/kind/argocd/apps を同期する app-of-apps)
 | tempo / prometheus / loki / otel-collector / grafana | [claude-code-traces.md](../observability/claude-code-traces.md) の表 | 同左 | observability |
 | headlamp | `headlamp` (<https://kubernetes-sigs.github.io/headlamp>) | 0.45.0 | headlamp |
 | backstage | `backstage` (<https://backstage.github.io/charts>) | 2.10.2 | backstage |
-| share | なし (マニフェストのみ。caddy・認証・cloudflared ×3 の 1 Pod) | - | share |
 | storage | なし (マニフェストのみ) | - | なし (cluster-scoped) |
 | sample-api-dev / sample-api-prod (ApplicationSet `sample-api`) | なし (マニフェストのみ。`services/sample-api`) | - | dev / prod |
 
@@ -83,7 +80,6 @@ Node・PersistentVolume・StorageClass・CRD・ClusterRole を読むだけの `h
 | `observability/grafana-admin`・`grafana-viewer`・`grafana-backstage` | `just up` | `~/.local/share/home-k8s/observability/grafana-*-password` (無ければ作る) |
 | `dev・prod/grafana-admin`・`grafana-backstage`、`backstage/backstage-grafana-env` | `just up` | `~/.local/share/home-k8s/observability/env-grafana/<環境>-{admin,backstage}-password` (無ければ作る)。`backstage-grafana-env` は環境ごとの Basic 認証の値 ([backstage-grafana.md](backstage-grafana.md)) |
 | `backstage/backstage-grafana` | `just up` | 上の `grafana-backstage-password` から、Backstage のプロキシが使う Basic 認証の値を作る ([backstage.md](backstage.md)) |
-| `share/share-credentials`・`share-session-key`・`share-grafana`・`share-host` | `just up`・`just share add` | 資格情報はハッシュだけ (`just share` が足す。空で作り、あれば触らない)。`share-grafana` は `grafana-viewer-password` の写し。`share-host` は headroom の中継の宛先とトークン ([share.md](share.md)) |
 | `headlamp/headlamp-token` | `just up` | kube-controller-manager が ServiceAccount `headlamp` のトークンを入れる。取り出して `~/.local/share/home-k8s/headlamp/token` に書く |
 | `argocd/argocd-initial-admin-secret` | ArgoCD (初回の起動時) | ArgoCD が乱数で作る |
 | `argocd/argocd-oidc-keycloak`、`observability・dev・prod/grafana-oidc`、`headlamp/headlamp-oidc` など | `just up` (`_oidc-secrets`) | Keycloak の client の secret。`~/.local/share/home-k8s/keycloak/clients/<clientId>` (`_keycloak-secrets` が作る) から ([keycloak.md](keycloak.md) の「各 UI の OIDC」) |

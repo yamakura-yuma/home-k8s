@@ -32,21 +32,19 @@ just up                   # kind のクラスタを作り (control-plane x1 + wo
                           # (OTel Collector/Tempo/Prometheus/Loki/Grafana)・Headlamp・Backstage を立ち上げて同期を待つ
 kubectl --context kind-study-kind get nodes -o wide   # ノード状態を確認
 just show                 # Grafana・ArgoCD・Headlamp・Backstage の接続先と資格情報を全部表示 (下の表)
-just share add alice     # 見せたい人に資格情報を発行 (既定 8h で失効)。名前・パスワードと、3 つの公開 URL を表示。ほかに delete / list / get / rotate / prune / test-smoke
 just orca-exporter install  # Orca のオーケストレーションを観測スタックに送る exporter を systemd で常駐させる (ホストで動く例外)
 just down                 # クラスタを削除
 just devcontainer down    # 開発用コンテナを削除
 ```
 
-公開レシピは次の 7 つだけ (`just --list`)。kind の作成や ArgoCD の導入などの内部用は `_` 付きで隠してあり、
+公開レシピは次の 6 つだけ (`just --list`)。kind の作成や ArgoCD の導入などの内部用は `_` 付きで隠してあり、
 `up` が呼ぶ。サブコマンド形のものは、引数を間違えると使い方を出して止まる。
 
 | レシピ | 中身 |
 |---|---|
 | `just up` | kind のクラスタを作り、Backstage のイメージを build して kind load し、ArgoCD を入れ、Secret を作り、同期を待つ。打ち直しても同じ状態に戻る |
 | `just down` | kind のクラスタを削除する |
-| `just show [grafana\|grafana-admin\|argocd\|headlamp\|backstage]` | 接続先と資格情報を表示する。省略で全部。`grafana` は localhost:3000 の viewer、`grafana-admin` は自分用 (どちらも他の人には渡さない。渡す資格情報は `just share add`) |
-| `just share add <名前> [--ttl <期間>] [--permanent]`・`delete <名前>`・`list`・`get <名前>`・`rotate <名前>`・`prune`・`test-smoke` | 他の人に見せる人ごとの資格情報を配る・取り消す。公開の本体 (Cloudflare Quick Tunnel と caddy) はクラスタの `share` Pod で、`just up` と一緒に立つ。1 つの資格情報で Grafana・headroom のダッシュボード・Backstage の 3 つの URL に入れる。期限の既定は 8h・上限 24h、`--permanent` の特権 viewer は全体で 1 つ。`get` はパスワードを出さない。`test-smoke` は稼働中の share Pod に port-forward で当てて認証と失効を確かめる。構成は `docs/cluster/share.md` |
+| `just show [grafana\|grafana-admin\|argocd\|headlamp\|backstage]` | 接続先と資格情報を表示する。省略で全部。`grafana` は localhost:3000 の viewer、`grafana-admin` は自分用 (どちらも他の人には渡さない。`just share` は廃止した。他の人の入れ方は `docs/cluster/guest-access.md`) |
 | `just orca-exporter <install\|uninstall\|status>` | Orca の exporter を systemd のユーザーユニットとして入れる・消す・状態を見る |
 | `just devcontainer <up\|shell\|down>` | 開発用コンテナを起動する・シェルで入る・削除する |
 | `just ci` | PR のゲートと同じ静的チェック (yamllint、`helm template`、kubeconform、kube-linter)、単体試験、backstage の backend の jest・`yarn tsc`。クラスタは触らない。ツールは nix (`devShells.ci`) から入り、開発用コンテナを通さず直に走る。Actions も同じコマンド。設定は `.yamllint.yaml`・`.kube-linter.yaml` |
@@ -76,7 +74,7 @@ kind自体は試験で問われないためクラスタの起動/削除は just 
 ダッシュボードの変更は `main` に入れれば反映される。ArgoCD の入れ方・構成・本番のクラスタへの
 反映手順は `docs/cluster/argocd.md`。データの永続化の設計 (StorageClass・PV・PVC) は `docs/cluster/persistence.md`。
 Backstage (localhost:7007) は home-k8s のエンティティのページに Grafana のダッシュボードの一覧を出し、
-home-k8s・knowledge-base・dotfiles の文書を TechDocs で読ませる (`just share add` で渡した資格情報で外からも読める)。
+home-k8s・knowledge-base・dotfiles の文書を TechDocs で読ませる (tailnet の URL で Keycloak にログインした人が読める)。
 アプリは `backstage/` にあり、イメージは `just up` が手元で build する。構成と本番への反映手順は `docs/cluster/backstage.md`。
 UI は Tailscale の tailnet の `https://<名前>.<tailnet>.ts.net` にも出る (`docs/cluster/tailscale.md`)。IdP の Keycloak (namespace `auth`、realm `home-k8s`) と
 その DB の PostgreSQL は `docs/cluster/keycloak.md`。

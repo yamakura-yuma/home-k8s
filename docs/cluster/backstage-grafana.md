@@ -53,7 +53,7 @@ namespace dev (prod も同じ)
 | プロキシ | `backstage/app-config.yaml` の `proxy.endpoints./grafana-dev/api`・`/grafana-prod/api` | target `http://grafana.<環境>.svc.cluster.local`、`Authorization: Basic ${GRAFANA_<環境>_BASIC_AUTH}`、`allowedMethods: [GET]` |
 | 資格情報を Backstage に渡す | `clusters/kind/backstage/values.yaml` の `extraEnvVarsSecrets` | Secret `backstage-grafana-env` (キー `GRAFANA_DEV_BASIC_AUTH`・`GRAFANA_PROD_BASIC_AUTH`) を環境変数にする |
 | Secret を作る | `just/grafana-env-secrets.sh`、`just/observability.just` の `_grafana-env-secrets`、`justfile` の `up` | 下の「資格情報」 |
-| 試験 | `GrafanaView.test.tsx`、`grafanaConfig.test.ts`、`just/test_share_secrets.py` の `GrafanaEnvSecrets` | 環境の切り替えと host の選択、`app-config.yaml` の host・プロキシ・注釈の突き合わせ、Secret を作るスクリプト |
+| 試験 | `GrafanaView.test.tsx`、`grafanaConfig.test.ts`、`just/test_secrets.py` の `GrafanaEnvSecrets` | 環境の切り替えと host の選択、`app-config.yaml` の host・プロキシ・注釈の突き合わせ、Secret を作るスクリプト |
 | 画面のポート | `clusters/kind/kind-config.yaml` | dev 3001 (NodePort 30301)・prod 3002 (30302)。Temporal の PR (#86) が足した (この PR は変えていない)。`extraPortMappings` はクラスタ作成時だけ効くので、`just down && just up` で作り直したクラスタで開ける |
 
 `grafana.hosts` を書くと `grafana.domain` は無視される。既存の `grafana.domain`・`unifiedAlerting` は `hosts` の `default` に移した。

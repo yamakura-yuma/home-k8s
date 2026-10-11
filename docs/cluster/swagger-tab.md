@@ -38,7 +38,7 @@ Component sample-api ──providesApis──▶ API sample-api (spec.type: open
 - プロキシは GET だけ通す (`app-config.yaml` の `proxy.endpoints./sample-api-*.allowedMethods`)。
   そのため Try it out を実行できるメソッドも GET だけにしてある。POST などを足すときは、
   `allowedMethods` と `SwaggerView.tsx` の `SUBMIT_METHODS` を一緒に直す
-- 共有 (`just share`) の caddy は `/api/proxy/*` を通さないので、共有先では Try it out は動かない (定義は読める)
+- 以前の共有 (`just share`) の caddy は `/api/proxy/*` を通さず、共有先では Try it out が動かなかった。`just share` は廃止した ([share.md](share.md))
 
 ## 使い方
 

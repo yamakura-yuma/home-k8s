@@ -1,5 +1,5 @@
 # tailnet の入口 (Ingress backstage → この proxy → Service backstage) で、ゲストのサインインの経路を拒む。
-# Backstage はゲスト (127.0.0.1 の localhost:7007 と share Pod のため) を残しているので、ここで止めないと tailnet の誰でも
+# Backstage はゲスト (127.0.0.1 の localhost:7007 の開発用) を残しているので、ここで止めないと tailnet の誰でも
 # ゲストとしてサインインできてしまう。止めるのは /api/auth/guest の下だけで、ほかは中身を変えずに渡す (docs/cluster/backstage.md)。
 # Backstage (express) の経路は大文字小文字を区別せず、provider の名前は %エンコードを解いて読む。caddy の path の matcher は
 # 大文字小文字を区別せず、%エンコードを解き、スラッシュの重なりとドットセグメントを畳んだ path に当たるので、表記揺れ

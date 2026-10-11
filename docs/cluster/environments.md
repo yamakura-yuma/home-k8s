@@ -123,7 +123,7 @@ Azure のリソースを出す **Azure** (`entity-content:azureSites/azure`、�
 - カタログには、repo の直下の `catalog-info.yaml` の Location `home-k8s-services` が読ませる。
   サービスを足したら、その `targets` にサービスの `catalog-info.yaml` を足す
 - ブラウザからは Backstage のプロキシ `/api/proxy/sample-api-dev`・`/api/proxy/sample-api-prod` (GET だけ) で読む。
-  共有 (`just share`) の caddy は `/api/proxy/*` を通さないので、共有先では読めない
+  (以前の共有 `just share` の caddy は `/api/proxy/*` を通さなかった。`just share` は廃止した)
 
 ## Grafana (環境ごとの観測スタック)
 

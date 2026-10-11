@@ -135,7 +135,7 @@ tailnet の別の端末 (Tailscale のアプリを入れてログインした端
 - **Backstage の中のリンクは localhost を指したまま**。Grafana と ArgoCD へのリンクは、ホストの外の端末からは開けない。
   Temporal のタブ (iframe) は単位 4 で tailnet の URL にした。Backstage の `app.baseUrl` と `backend.baseUrl` は単位 4 で tailnet の URL にした
   (OIDC の callback のため)。フロントエンドは baseUrl を開いたオリジンに置き換える (`@backstage/frontend-defaults` の overrideBaseUrlConfigs) ので、localhost でも画面は動く
-- **share (`just share`) は触っていない**。Tailscale に招待できない相手に見せる経路として残る ([share.md](share.md))
+- share (`just share`) はこの単位では触らず、あとで廃止した (2026-10-11、[share.md](share.md))。Tailscale に招待できない相手の入れ方は [guest-access.md](guest-access.md) で比べる
 - Funnel (インターネットへの公開) は使わない
 - 証明書は Let's Encrypt の上限 (tailnet あたり週 50 のホスト名) に数える。クラスタを作り直しても同じ名前なら新しい名前は増えない
   (同じ名前の重複は週 5 まで [公式])。作り直しを 1 週間に何度も繰り返すと証明書が取れなくなりうる

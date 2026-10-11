@@ -15,7 +15,7 @@ backend.add(import('@backstage/plugin-app-backend'));
 backend.add(import('@backstage/plugin-proxy-backend'));
 
 // ログインは tailnet (https://backstage.<tailnet>.ts.net) では Keycloak の OIDC (keycloakAuth.ts)。
-// ゲストは 127.0.0.1 と、人ごとの資格情報つきの share Pod のためだけに残す。tailnet の入口 (Ingress の前の proxy) が
+// ゲストは 127.0.0.1 (localhost:7007) の開発用だけに残す。tailnet の入口 (Ingress の前の proxy) が
 // ゲストの経路 /api/auth/guest を拒むので、tailnet からはゲストでサインインできない (docs/cluster/backstage.md)
 backend.add(import('@backstage/plugin-auth-backend'));
 backend.add(authModuleKeycloakOidc);

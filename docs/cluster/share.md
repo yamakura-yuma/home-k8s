@@ -1,6 +1,19 @@
-# 公開 (just share) — 構成と使い方
+# 公開 (just share) — 構成と使い方 【廃止】
 
-状態: 実装済み (#38〜#42、旧 `just share <対象>` の廃止は #44)。稼働中のクラスタ (study-kind) での確認と `just share test-smoke` は #43。
+> **廃止した (2026-10-11、単位 share-retire)。** `just share`、Deployment `share` (namespace `share`)、Application `share`、
+> ホストの headroom の中継 (コンテナ `home-k8s-share-relay`)、Secret `share-*` は、リポジトリからもクラスタからも消した。
+> 人の入口は Tailscale と Keycloak の OIDC にそろえた ([access-control.md](access-control.md)・[idp-options.md](idp-options.md))。
+> ゲスト (tailnet に居ない人・Keycloak のユーザーでない人) の入れ方は [guest-access.md](guest-access.md) で比べる。
+>
+> この文書と図 (`share-*.html`) は消さずに残す。forward_auth で要求ごとに期限を判定する形、headroom を GET の許可リストだけで中継する形、
+> 人に渡さない内部の viewer の鍵、の 3 つは、ゲストの入口を作るときにそのまま比べる材料になるため。下の本文は廃止の時点の記述のままで、
+> 現在の状態を表さない。コードは消したので、ファイルは廃止の直前のコミット
+> ([9a1c714](https://github.com/yamakura-yuma/home-k8s/tree/9a1c714)) で読む。
+>
+> 廃止のあとも残したもの: Grafana の閲覧用ユーザー `viewer` と Secret `observability/grafana-viewer` (localhost:3000 で自分が閲覧用に使う。`just show grafana`)。
+> 消したもの: Secret `share/share-grafana` (viewer のパスワードの写し)。ホストの `~/.local/share/home-k8s/share/` (中継のトークンと Caddyfile) は人のデータなので消していない。
+
+状態: **廃止** (上の囲み)。実装は #38〜#42 (旧 `just share <対象>` の廃止は #44)、稼働中のクラスタ (study-kind) での確認と `just share test-smoke` は #43。
 各 Issue の diff の図 (変更前→変更後のアニメーション): [全体](share-design.html)・[認証サービス #39](share-auth.html)・[経路 #40](share-routes.html)・[Deployment #41](share-deploy.html)・[CLI #42](share-cli.html)・[旧 share の廃止 #44](share-retire.html)・[test-smoke #43](share-smoke.html)・[Secret が無くても起動 #64](share-secret-optional.html)・[viewer のパスワードの自動反映 #58](share-grafana-runtime.html)
 
 ## 構成

@@ -13,7 +13,7 @@ from pathlib import Path
 sys.dont_write_bytecode = True  # __pycache__ をリポジトリに作らない
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_share_secrets import FAKE_RANDOM, FakeEnv, decode  # noqa: E402
+from test_secrets import FAKE_RANDOM, FakeEnv, decode  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 REALM = (ROOT / "clusters/kind/auth/keycloak/realm-home-k8s.yaml").read_text()
@@ -170,7 +170,7 @@ class Grafana(unittest.TestCase):
             text = (ROOT / "clusters/kind" / files[0]).read_text()
             self.assertIn("  GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:\n    secretKeyRef:\n      name: grafana-oidc\n      key: client-secret\n", text)
             self.assertNotIn("client_secret:", text, "secret は Git に置かない")
-            # admin (非常用) と、share Pod・Backstage のプロキシの Basic 認証を残す
+            # admin (非常用)・viewer (localhost:3000 の閲覧用) と、Backstage のプロキシの Basic 認証を残す
             self.assertNotIn("disable_login_form", text)
             self.assertNotIn("auth.basic", text)
 

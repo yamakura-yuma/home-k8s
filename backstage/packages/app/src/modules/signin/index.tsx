@@ -1,7 +1,7 @@
 // サインインの画面と、Keycloak (realm home-k8s) の OIDC の API。
 //
 // tailnet の URL (*.ts.net) で開いたときは Keycloak だけを出す。ゲストの経路は tailnet の入口の proxy が拒むので、出しても入れない。
-// それ以外 (127.0.0.1 の localhost:7007 と share Pod の公開 URL) ではゲストだけを出す。OIDC の callback は tailnet の URL にしか
+// それ以外 (127.0.0.1 の localhost:7007) ではゲストだけを出す。OIDC の callback は tailnet の URL にしか
 // 戻らない (Keycloak の client backstage の redirect URI) ので、そこでは使えない。理由は docs/cluster/backstage.md の「ログインと権限」。
 import {
   ApiBlueprint,
