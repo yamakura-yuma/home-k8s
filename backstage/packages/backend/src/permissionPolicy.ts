@@ -1,7 +1,7 @@
-// permission framework のポリシー。admins は何でもでき、それ以外 (viewers・127.0.0.1 のゲスト) は読むだけ。
+// permission framework のポリシー。admins は何でもでき、それ以外 (viewers・guests・127.0.0.1 のゲスト) は読むだけ。
 //
 // グループは Backstage のトークンの ownership (ent。userInfo サービスが credentials から引く) で見る。Keycloak でサインインした人は keycloakAuth.ts が
-// group:default/admins・group:default/viewers を入れる。ゲスト (user:development/guest) はどちらも持たない。
+// group:default/admins・viewers・guests を入れる。127.0.0.1 のゲスト (user:development/guest) はどれも持たない。
 // admins 以外に許すのは、action が read の permission と、何も書かない検査 2 つ (下の READ_ONLY_CHECKS) だけ。
 // それ以外 (カタログの登録・削除・再読み込み、Azure の起動・停止など、action が create・update・delete のものと、
 // action の無いもの) は拒む。知らない permission も拒む側に倒す。

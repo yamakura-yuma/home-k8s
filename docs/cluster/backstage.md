@@ -9,8 +9,8 @@ Backstage は ArgoCD が GitHub の `main` から同期する ([argocd.md](argoc
 
 ```
 just up
-  ├─ docker build -t home-k8s-backstage:0.11.0 backstage   (repo の backstage/。ホストに node は要らない)
-  ├─ kind load docker-image home-k8s-backstage:0.11.0       (3 つのノードに入れる)
+  ├─ docker build -t home-k8s-backstage:0.12.0 backstage   (repo の backstage/。ホストに node は要らない)
+  ├─ kind load docker-image home-k8s-backstage:0.12.0       (3 つのノードに入れる)
   ├─ Secret observability/grafana-backstage                 (Grafana の閲覧用ユーザー backstage のパスワード)
   ├─ Secret backstage/backstage-grafana                     (同じ資格情報を Backstage のプロキシ用に)
   ├─ Secret dev・prod/grafana-admin・grafana-backstage      (環境ごとの Grafana の admin と閲覧用ユーザーのパスワード。backstage-grafana.md)
@@ -58,7 +58,7 @@ DB はインメモリの SQLite で、Pod を作り直すとカタログは消�
 
 | 入口 | サインイン | 権限 |
 |---|---|---|
-| tailnet `https://backstage.taild2b611.ts.net` | Keycloak (realm `home-k8s`、client `backstage`) の OIDC だけ。ゲストの経路は入口の proxy が 403 で拒む | Keycloak のグループで決まる。admins は何でもでき、viewers は読むだけ。どちらでもない人はサインインできない |
+| tailnet `https://backstage.taild2b611.ts.net` | Keycloak (realm `home-k8s`、client `backstage`) の OIDC だけ。ゲストの経路は入口の proxy が 403 で拒む | Keycloak のグループで決まる。admins は何でもでき、viewers と guests (他の人、[guest-access.md](guest-access.md)) は読むだけ。どれでもない人はサインインできない |
 | ホスト `http://localhost:7007` (127.0.0.1 の NodePort) | ゲストだけ (`user:development/guest`) | 読むだけ |
 
 ゲストを外さず、127.0.0.1 (localhost:7007) の開発用に残したのは次の理由による。
@@ -83,12 +83,13 @@ Keycloak だけ、それ以外ではゲストだけを出す (`packages/app/src/
 | 部品 | 中身 |
 |---|---|
 | provider `oidc` (`packages/backend/src/keycloakAuth.ts`) | `@backstage/plugin-auth-backend-module-oidc-provider` の `oidcAuthenticator` に、自前の sign-in resolver を付けて provider id `oidc` で登録する。設定は `app-config.yaml` の `auth.providers.oidc.production` (`metadataUrl` = issuer の discovery、`clientId: backstage`、`clientSecret: ${AUTH_OIDC_CLIENT_SECRET}`、`prompt: auto`)。`auth.environment: production` |
-| sign-in resolver | userinfo の `preferred_username` をユーザー名にし (`user:default/<名前>`)、`groups` のうち `admins`・`viewers` を `group:default/<グループ>` として Backstage のトークンの ownership (`ent`) に入れる。カタログは引かない (カタログに無い人もサインインできる)。どちらのグループにも入っていなければ「サインインできない」で断る (Grafana の `role_attribute_strict` と同じ扱い) |
+| sign-in resolver | userinfo の `preferred_username` をユーザー名にし (`user:default/<名前>`)、`groups` のうち `admins`・`viewers`・`guests` を `group:default/<グループ>` として Backstage のトークンの ownership (`ent`) に入れる。カタログは引かない (カタログに無い人もサインインできる)。どのグループにも入っていなければ「サインインできない」で断る (Grafana の `role_attribute_strict` と同じ扱い) |
+| Backstage のトークンの寿命 (`auth.backstageTokenExpiration`) | 10 分 (既定は 1 時間、下限が 10 分)。Keycloak でユーザーを消しても (ゲストの期限)、ブラウザが持つ Backstage のトークンは寿命まで使えるため、見られる時間を最大 10 分にする。寿命の前はフロントが Keycloak のセッションで取り直すので、使う側は変わらない ([guest-access.md](guest-access.md) の「期限が来た後の既存のログイン」) |
 | session (`auth.session.secret`) | OIDC の provider (openid-client の Strategy) がログインの途中の state・nonce を session に置くので要る。鍵は Secret `backstage-session` (`AUTH_SESSION_SECRET`、`_oidc-secrets` が無いときだけ乱数で作る)。session はインメモリの DB にあり、Pod を作り直すと消える (サインインし直すだけ) |
 | `baseUrl` | `app.baseUrl`・`backend.baseUrl` を tailnet の URL にした。OIDC の callback (`backend.baseUrl/api/auth/oidc/handler/frame`) と、ログインの窓がトークンを渡す先のオリジン (`app.baseUrl`) がこの値になるため。localhost:7007 で開いても、フロントエンドは baseUrl を開いたオリジンに置き換えるので画面は動く |
 | permission (`packages/backend/src/permissionPolicy.ts`) | `@backstage/plugin-permission-backend` と自前のポリシー。`permission.enabled: true`。ownership に `group:default/admins` があれば許す。それ以外は、`action` が `read` の permission と、何も書かない検査 2 つ (`catalog.entity.validate`・`catalog.location.analyze`) だけを許し、ほか (カタログの登録・削除・再読み込み、Azure の起動・停止、`action` の無い・知らない permission) は拒む。ownership はポリシーが userInfo サービスで credentials から引く (`PolicyQueryUser.info` は非推奨) |
 | サインインの画面 (`packages/app/src/modules/signin`) | API `auth.keycloak` (`OAuth2.create`、provider `oidc`) と、`SignInPageBlueprint` で既定 (ゲストだけ) を置き換えた画面 |
-| カタログのユーザーとグループ (`catalog-info.yaml`) | **静的な宣言**。User `yamakura-yuma` と Group `admins`・`viewers` を置く。メンバー (memberOf・members) は書かない |
+| カタログのユーザーとグループ (`catalog-info.yaml`) | **静的な宣言**。User `yamakura-yuma` と Group `admins`・`viewers`・`guests` を置く。メンバー (memberOf・members) は書かない |
 
 カタログのユーザーとグループを Keycloak から取り込まず (Keycloak のプラグイン `@backstage-community/plugin-catalog-backend-module-keycloak` を使わず)
 静的に置いたのは、権限がカタログではなくサインインのときの `groups` クレームで決まり、取り込みが権限に要らないため。取り込むには、client `backstage` に
@@ -217,7 +218,7 @@ viewer と `backstage` は別のユーザーなので、viewer のパスワー�
 ## イメージ
 
 レジストリ (GHCR など) には置かず、`just up` が手元で build して `kind load` する。chart の values は
-タグを `0.11.0` に固定し、`pullPolicy: Never` で pull しない。クラスタを作り直しても `just up` が入れ直す。
+タグを `0.12.0` に固定し、`pullPolicy: Never` で pull しない。クラスタを作り直しても `just up` が入れ直す。
 
 - `docker build` は層のキャッシュが効くので、`backstage/` を変えていなければすぐ終わる。初回は 5 分ほど
 - TechDocs の mkdocs は、実行用のイメージに Python の venv (`/opt/venv`) を作って pip で入れる (上流の

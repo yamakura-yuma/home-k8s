@@ -1,0 +1,20 @@
+# ゲスト (Keycloak のグループ guests) の期限切れを消す CronJob (clusters/kind/auth/guest-expiry)。発行は just guest add、設計は docs/cluster/guest-access.md。
+# Keycloak の Admin REST API を Service keycloak-service で呼ぶ。Keycloak (Application keycloak) が立つ前に流れても、Job が待って次の回に任せる
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: guest-expiry
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/yamakura-yuma/home-k8s
+    targetRevision: main
+    path: clusters/kind/auth/guest-expiry
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: auth
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

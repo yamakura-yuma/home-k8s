@@ -1,0 +1,75 @@
+# 期限 (属性 guest-expires-at、just guest add が「発行した日の次の 3:00 JST」を書く) を過ぎたゲストを消す。
+# 3:00 に 1 回ではなく 5 分ごとに流す。処理は「今の時刻で期限を過ぎた guests を消す」だけで何度流しても同じなので、
+# 3:00 に PC が止まっていても、クラスタが戻った後の最初の実行 (最大 5 分 + Keycloak の起動待ち) で消える。
+# startingDeadlineSeconds を周期より短くし、止まっていた間の取りこぼしを数えさせない (数えると 100 回を超えたときに警告になる。
+# 取りこぼした回は流し直さず、次の回を待つ。どの回も同じ処理なので失うものは無い)。
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: guest-expiry
+  labels:
+    app.kubernetes.io/name: guest-expiry
+spec:
+  schedule: "*/5 * * * *"
+  startingDeadlineSeconds: 240
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 280
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: guest-expiry
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: guest-expiry
+              image: python:3.13.8-alpine3.22
+              command: [python3, -B, -I, /script/guest_expiry.py]
+              env:
+                # クラスタの中の Service に HTTP で。tailnet (issuer の URL) を通さないので、Tailscale が落ちていても消せる
+                - name: KEYCLOAK_URL
+                  value: http://keycloak-service.auth.svc:8080
+                # Keycloak の起動を待つ上限。activeDeadlineSeconds より短く
+                - name: KEYCLOAK_WAIT_SECONDS
+                  value: "180"
+                # realm master の非常用の管理者 (just up の _keycloak-secrets が作る)。ユーザーを消す権限が要る
+                - name: KEYCLOAK_ADMIN_USERNAME
+                  valueFrom:
+                    secretKeyRef:
+                      name: keycloak-bootstrap-admin
+                      key: username
+                - name: KEYCLOAK_ADMIN_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: keycloak-bootstrap-admin
+                      key: password
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              volumeMounts:
+                - name: script
+                  mountPath: /script
+                  readOnly: true
+          volumes:
+            - name: script
+              configMap:
+                name: guest-expiry

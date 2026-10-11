@@ -1,6 +1,10 @@
 # ゲスト (他の人) の入れ方 — 比較と推奨
 
-状態: 調査と比較だけ (2026-10-11)。実装はしていない。人が方式を選んでから、下の「実装の段取り」の単位で進める。
+状態: 比較 (2026-10-11) のあと、人が G2 (ブラウザだけ) を選んだ (2026-10-12)。**g1 (グループ `guests`・各 UI の権限・期限・`just guest`) は実装済み**
+(下の「実装 (g1)」)。インターネットへの公開 (g2b、Funnel) はまだ付けていない。tailnet の中でだけ使える。
+
+人の決めたこと (2026-10-12): ゲストはブラウザだけの人 (G2)。期限は **発行した日の次の 3:00 JST** (毎日 3:00 にゲストを全員消す。8 時間の案から変更)。
+headroom は見せない。業務の利用には当たらない (Tailscale Personal の非商用の条件)。
 
 `just share` (Cloudflare Quick Tunnel + 人ごとの Basic、[share.md](share.md)) は廃止する (別の単位 `share-retire`)。
 この文書は、その後で他の人 (ゲスト) に home-k8s の UI (Grafana、Backstage、headroom のダッシュボードなど) を見せる方法を並べて比べ、
@@ -19,6 +23,120 @@
 - **[観測]**: この repo とその docs から読み取った現状。クラスタは今回触っていない
 - **[未確認]**: 一次資料で確かめられなかったもの、または推測
 
+## 実装 (g1)
+
+2026-10-12 (JST) に実装した。比較の節 (下の「結論」以降) は当時の検討で、期限の付け方 (Workflows) だけは実装で CronJob に替えた (下の「期限」)。
+
+### 構成
+
+| 部品 | 場所 | 中身 |
+|---|---|---|
+| グループ `guests` | [realm-home-k8s.yaml](../../clusters/kind/auth/keycloak/realm-home-k8s.yaml) (Git) と動いている Keycloak (kcadm.sh で足した) | client role は付けない (Temporal UI で何もできない) |
+| Grafana (観測スタック) | [grafana-values.yaml](../../clusters/kind/observability/grafana-values.yaml) の `role_attribute_path` | `guests` → Viewer。環境 (dev・prod) の Grafana は変えないので、`role_attribute_strict` でログインを断る |
+| Backstage | `keycloakAuth.ts` の `ROLE_GROUPS`、`catalog-info.yaml` の Group `guests` | `guests` を ownership に入れる。ポリシーは admins 以外を読むだけにするので変えない。トークンの寿命を 10 分にした ([backstage.md](backstage.md)) |
+| ArgoCD・Headlamp・kubectl | 変えない | `policy.csv` にも RoleBinding にも `guests` を書かない |
+| 発行・一覧・取り消し | `just guest` ([just/guest.just](../../just/guest.just)、本体 [just/guest.sh](../../just/guest.sh)) | 下の「使い方」 |
+| 期限切れを消す | CronJob `auth/guest-expiry` ([clusters/kind/auth/guest-expiry](../../clusters/kind/auth/guest-expiry)、Application `guest-expiry`) | 5 分ごとに、期限を過ぎた `guests` を消す |
+| 期限の属性 | ユーザーの属性 `guest-expires-at` (UTC の ISO 8601) | realm の user profile の `unmanagedAttributePolicy` を `ADMIN_EDIT` にした (管理者だけが読み書きでき、ゲスト本人は見えない)。`just guest add` が無ければ入れる |
+
+各 UI の権限は、テスト用ユーザー (`test-guest`) で確かめた結果が下の「確かめた結果」にある。
+
+### 使い方
+
+開発用コンテナ (`just devcontainer up` の後) かホストで打つ。
+
+```sh
+just guest add <名前>      # ユーザー guest-<名前> を作り、guests に入れる。一時パスワードを最後に 1 回だけ表示する
+just guest list            # guests の人と、有効か・期限 (日本時間)
+just guest delete <名前>   # 期限の前に取り消す。Keycloak のセッションを切ってユーザーを消す (guests の人だけ)
+```
+
+- 名前は英小文字・数字・`-` の 1〜32 文字 (先頭と末尾は英数字)。ユーザー名は `guest-<名前>` になり、人のユーザーと取り違えない
+- **一時パスワードは画面に 1 回だけ出す**。手元で乱数から作り、`kubectl exec` の標準入力で Keycloak の Pod に渡す。コマンドの引数・ファイル・ログには残さない。
+  画面から写してゲストに渡し、保存しない (失くしたら `just guest delete` して `add` し直す)
+- ゲストは最初のログインで、パスワードの変更と TOTP の設定を求められる (`UPDATE_PASSWORD`・`CONFIGURE_TOTP`)。
+  入口は Account Console (`https://keycloak.taild2b611.ts.net/realms/home-k8s/account`) か、Grafana・Backstage のログインのボタン
+- 見せるのは `https://grafana.taild2b611.ts.net` (Viewer) と `https://backstage.taild2b611.ts.net` (読むだけ)。いまは tailnet の中だけで、
+  ブラウザだけのゲストには g2b (Funnel) の後に届く
+- 人ごとの期限 (`--hours` など) は持たない。延ばしたいときは、翌日にもう一度 `add` する
+
+**ゲストにも TOTP を求める**。ゲストは毎日作り直すので、そのたびに認証アプリに 1 つ登録することになり、手間は増える。それでも残すのは、
+g2b で Keycloak のログイン画面がインターネットに出ると、パスワードだけの守りはブルートフォースとパスワードの使い回しに弱いため。
+ブラウザだけの人でも、スマホの認証アプリ (Google Authenticator など) か passkey は使える見込みが高い。
+g2b でブルートフォースの検知とパスワードのポリシーを入れた後も、TOTP は外さない。
+
+### 期限
+
+**期限は発行した日の次の 3:00 JST**。0:00〜3:00 JST に発行したときは、その日の 3:00。`just guest add` が属性 `guest-expires-at` に UTC で書く (例 `2026-10-12T18:00:00Z`)。
+
+CronJob `guest-expiry` が **5 分ごとに**「今の時刻で期限を過ぎた `guests` を消す」。3:00 の 1 回だけにしないのは、PC が止まっていて 3:00 を逃しても、
+クラスタが戻った後の最初の実行で消えるようにするため。どの回も同じ処理なので、何度流しても結果は同じ。
+
+- 消すときは、Keycloak のセッションを切ってからユーザーごと消す (`users/<id>/logout` → `DELETE users/<id>`)
+- 期限の属性が無い・読めない `guests` も消す (期限の無いゲストを残さない)
+- 名前が `guest-` で始まらない人 (Admin Console で手で `guests` に入れた人など) は消さず、`guests` から外すだけにする
+- `startingDeadlineSeconds: 240` (周期より短い)。クラスタが止まっていた間の取りこぼしは数えず流し直さない。数えると 100 回を超えたときに CronJob が動かなくなる仕様があるが、
+  この設定ではその数え方にならない。取りこぼした回は次の回が同じ処理をする
+- Keycloak は Service `keycloak-service` (HTTP) で呼ぶ。tailnet を通らないので、Tailscale が落ちていても消せる。管理者は realm master の `admin` (Secret `keycloak-bootstrap-admin`)
+- Keycloak がまだ起動していないときは、Job の中で最大 180 秒待つ。それでもつながらなければ失敗し、次の回に任せる
+
+Keycloak 26.8 の Workflows (`disable-user` を人ごとに `notBefore` で予約) も試し、動いた。採らなかった理由は次の 2 つ。
+予定を実行する間隔が既定で 12 時間ごとで (起動から 12 時間後が最初)、期限に間に合わせるには Keycloak の起動の設定を足す必要があること。
+予定は「何時間後」の形で、止まっていた間の扱いも Keycloak の中の作りに頼ることになり、「毎日 3:00」「止まっていても戻ったら消す」を試験で確かめにくいこと。
+
+#### クラスタが戻ってから消えるまでの隙間
+
+PC が 3:00 に止まっていて、期限の後にクラスタが戻ったとき、期限切れのゲストが入れるのは
+**Keycloak が起動してから、次の CronJob の実行で消えるまでの最大約 5 分**。
+Keycloak が起動する前はゲストもログインできないので、隙間は Keycloak の起動の後だけになる。
+`just up` の最後には流していない。PC の起動やスリープからの復帰は `just up` を通らず、クラスタはそのまま戻るため。
+
+#### 期限が来た後の既存のログイン
+
+ゲストが消えたとき、すでに開いている画面がいつ見られなくなるかを測った (2026-10-12 01:43〜01:57 JST、テスト用のゲスト。30 秒ごとに既存のセッションの cookie とトークンで API を呼んだ)。
+時刻は CronJob がゲストを消した時刻 (01:45:06) から。
+
+| 入口 | 見られなくなるまで | 理由 |
+|---|---|---|
+| Keycloak (SSO・Account Console) | すぐ (次の要求でログイン画面に戻る) | 消す前にセッションを切る |
+| Backstage | 最大 10 分 (測定では約 8.5 分。トークンの寿命が切れた 01:53:30 ごろから 401) | ブラウザが持つ Backstage のトークンは寿命まで使える。寿命を 10 分 (下限) にした。寿命の前の取り直しは消した時点で 401 になる |
+| Grafana (観測スタック) | 約 9 分 (01:53:23 は 200、01:53:53 は 401)。ログインから約 10 分の時点 | Grafana は自分のセッションを持ち、セッションの回転のときに期限切れの Keycloak のアクセストークン (realm の寿命 5 分) を取り直し、断られた時点で切れる。回転の間隔は Grafana の既定 (`token_rotation_interval_minutes` 10 分) と見ている [未確認: 設定の既定値は今回の文書で確かめていない。測定の 10 分と合う] |
+| ArgoCD (参考。ゲストは何も見えない) | 約 3〜4 分 (01:48:17 は 200、01:48:47 は 401)。ログインから約 5 分の時点 | ArgoCD のセッションは Keycloak のアクセストークンの寿命 (realm の `accessTokenLifespan` 300 秒) で切れる。ゲストは Application が 0 個で、元から何も見えない |
+
+ユーザーを消さずに無効にしただけのとき (Workflows の `disable-user` で試した) も、Keycloak の SSO はすぐ切れ、Grafana・Backstage・ArgoCD は上と同じくらいで 401 になった。
+**期限から各 UI で見られなくなるまでは、CronJob の間隔 (最大 5 分) と合わせて最大約 15 分**。
+すぐに止めたいときは `just guest delete <名前>` を打つ (CronJob の間隔の分が無くなり、最大約 10 分)。
+
+### 確かめた結果
+
+2026-10-12 (JST) に `kind-study-kind` で確かめた (クラスタは作り直していない)。ログインはブラウザを使わず、各 UI の SSO の入口から Keycloak のログインフォームに送って
+authorization code flow を流した (Python の標準ライブラリ)。テスト用ユーザーは OTP の必須アクションを外して作り、確かめた後に消した。
+
+| UI | test-guest (guests) | test-viewer (viewers、回帰) | test-admin (admins、回帰) |
+|---|---|---|---|
+| Grafana (観測スタック) | Viewer。ダッシュボードの検索 200、ユーザー一覧 403、ダッシュボードの保存 403 | Viewer (同じ) | Admin。保存 200 |
+| Grafana (dev・prod) | ログインを断る (`/api/user` 401。ログに `role_attribute_strict_violation`) | Viewer | Admin |
+| Backstage | サインインできる。エンティティの取得 200、カタログの再読み込み・登録 403。トークンの寿命 600 秒 | 同じ (読むだけ) | 再読み込み 200、登録 (dry run) 201 |
+| ArgoCD | ログインはできる (groups `guests`)。Application 0 個、同期 403 | 49 個、同期 403 | 49 個、同期 (dry run) 200 |
+| Temporal UI (dev・prod) | ログインはできる (`permissions` なし)。namespaces・workflows の一覧 403、開始 403 | 一覧 200、開始 403 | 開始 200 |
+| Headlamp | ログインはできる (`oidc:guests`)。Pod・Node・Secret の一覧 403 | Pod・Node 200、Secret 403 | 全部 200 |
+| kubectl (kubelogin と同じ client `kubernetes`) | `oidc:guests`。Pod・Node の一覧 403 | 200 | 200 |
+
+| 期限の確認 | 結果 |
+|---|---|
+| `just guest add` | `guest-<名前>`、グループ `guests`、必須アクション `UPDATE_PASSWORD`・`CONFIGURE_TOTP`、パスワードは一時 (temporary)、属性 `guest-expires-at` が次の 3:00 JST。`just guest list` が `2026-10-12 03:00 JST` と出す |
+| 期限を過去にしたゲスト | 次の CronJob の実行 (約 1.5 分後) で消えた。ログは `消した (期限切れ): guest-…`。同じ回で期限前のゲストは残った |
+| 3:00 を逃した場合 (CronJob を 13 分止め、2 回分を逃させた) | 止めている間に期限を過去にしたゲストが、再開した後の最初の実行 (再開から 1 分後) で消えた。取りこぼした回は流し直されなかった |
+| 手で guests に入れた人 (名前が `guest-` で始まらない) | 消えず、`guests` から外れただけ |
+
+人が戻ってから確かめること (人のユーザーは admins なので、ゲストの目線は `just guest add` で作った本物のゲストで見る):
+
+1. `just guest add try` → 出た一時パスワードで、tailnet の端末のブラウザの**プライベートウィンドウ**から `https://grafana.taild2b611.ts.net` を開き「Sign in with Keycloak」
+   → パスワードの変更 → 認証アプリで TOTP を登録 → Grafana に Viewer で入れる (ダッシュボードは見えるが、保存・Explore は無い)
+2. 同じウィンドウで `https://backstage.taild2b611.ts.net` → Keycloak でサインイン (もう一度は聞かれない) → カタログは見えるが、Unregister entity などは拒否される
+3. `https://argocd.taild2b611.ts.net` に入っても Application が出ない。`https://grafana-dev.taild2b611.ts.net` はログインを断る
+4. `just guest list` に `guest-try` と期限が出る → `just guest delete try` → 2 の画面を再読み込みし、10 分以内にサインインの画面に戻る
+
 ## 結論
 
 - **Tailscale を入れられるゲスト → 届き方は Tailscale の端末共有 (A1)、アカウントは Keycloak のグループ `guests` (C)**。
@@ -28,8 +146,8 @@
 - **Tailscale を入れられないゲスト → Tailscale Funnel で、ゲストに見せる UI と Keycloak だけをインターネットに出す (B1)。アカウントは C**。
   Funnel は無料で、URL は今の `*.ts.net` のまま変わらない。代わりに Keycloak のログイン画面がインターネットに出るので、
   Keycloak の前に経路を絞る proxy を置き (`/admin/` と realm `master` を出さない)、ブルートフォースの検知を入れる (下の「公開するときの Keycloak の守り」)
-- **期限は Keycloak の Workflows で付ける**。Keycloak のユーザーには期限の項目が無い [公式]。26.6 で正式になった Workflows に
-  「グループ `guests` に入ったら N 日後に `disable-user`」と書ける [公式]。CronJob で kcadm.sh を回す形は、Workflows が使えないときの控え
+- **期限は Keycloak の Workflows で付ける** (比較のときの案)。Keycloak のユーザーには期限の項目が無い [公式]。26.6 で正式になった Workflows に
+  「グループ `guests` に入ったら N 日後に `disable-user`」と書ける [公式]。**実装では、毎日 3:00 JST の期限にしたので、属性と 5 分ごとの CronJob にした** (上の「実装 (g1)」の「期限」)
 - **外部 IdP の仲介 (D: Google・GitHub) は今は入れない**。ゲストのパスワードと TOTP の登録を省けるが、
   知らない人のアカウントが自動で作られないよう first broker login の設定を変える手間と、相手が Google か GitHub のアカウントを持つ前提が増える。
   ゲストが増えて一時パスワードの受け渡しが負担になったら足す
@@ -156,7 +274,7 @@ share の中継 (`home-k8s-share-relay`。GET の許可リストだけを通す�
 
 oauth2-proxy の `--allowed-group` の値は、Keycloak の Group Membership mapper の `full.path` で変わる (true なら `/guests`) [公式]。この realm は `full.path: false` なので `guests` になる見込み [未確認]。
 
-### 各 UI の側の権限 (案)
+### 各 UI の側の権限 (案。g1 でこのとおりに実装した)
 
 グループ `guests` を realm に足し、各 UI に「読むだけ」として対応づける。`viewers` に入れない理由は、ゲストを自分の読み取り用の役割と分け、見せる UI を `guests` だけ絞れるようにするため。
 
@@ -190,22 +308,8 @@ Tailscale の共有の招待リンクは、使い回せるものなら 1,000 回
 
 ## 発行・取り消しの手順 (just レシピの形)
 
-実装は人が方式を選んでから。形だけを決めておく。`just share` と同じく、パスワードは引数にもコマンドラインにも出さない ([keycloak.md](keycloak.md) の「ユーザーを作る」の `kc` 関数と同じく、標準入力で渡す)。
-
-```sh
-just guest add <名前> [--days 7]   # realm home-k8s にユーザー guest-<名前> を作り、guests (と期限のグループ) に入れる。
-                                     # 必須アクションは UPDATE_PASSWORD と CONFIGURE_TOTP。一時パスワードは
-                                     # ~/.config/home-k8s/guests/<名前> (600) に書き、画面には出さない。
-                                     # 最後に「届き方ごとの次の手順」(A1: 共有する端末 3 台の名前、B1: URL) を表示する
-just guest list                      # guests の人と、有効か・期限 (Workflows の予定、または属性) を表示する
-just guest delete <名前>             # ユーザーを消し、Keycloak のセッションを切る。A1 なら共有の取り消しを促す
-just guest extend <名前> --days 7    # 期限を延ばす (Workflows なら、グループを外して入れ直すと予定が作り直される [未確認])
-```
-
-- 名前は `guest-` で始め、人のユーザー (`yamakura-yuma`) と取り違えないようにする
-- ゲストのユーザーは Git に置かない (人のユーザーと同じ。[keycloak.md](keycloak.md))
-- A1 の端末の共有は、Tailscale の管理画面の操作にする。API で共有の招待を作れるかは [未確認]
-- 試験は `just ci` に足す。偽の `kubectl` で、パスワードが引数に残らないこと、名前の検査、期限の上限を確かめる (`just/test_share_cli.py` と同じ形)
+実装した形は上の「実装 (g1)」の「使い方」。比較のときに考えた `--days` (人ごとの期限)・`extend`・一時パスワードのファイルは、
+人の決めた期限 (毎日 3:00 JST) と、パスワードを画面に 1 回だけ出す形に替えたので入れていない。
 
 ## 推奨
 
@@ -228,7 +332,7 @@ just guest extend <名前> --days 7    # 期限を延ばす (Workflows なら、
 
 | # | 話題 | やること | 完了の確かめ方 |
 |---|---|---|---|
-| g1 | `guests` と各 UI | realm に `guests` を足す (Git と kcadm.sh)。Grafana (観測スタック) の `role_attribute_path`、Backstage の `ROLE_GROUPS` に足す。期限の Workflows を入れる。`just guest add/list/delete` | 使い捨てのテスト用ユーザー (`test-guest`) で、Grafana が Viewer、Backstage が読むだけ、ArgoCD・Temporal・Headlamp・Grafana (dev・prod) で何も見えないこと。期限を短くした workflow で無効になること |
+| g1 (**実装済み**、2026-10-12。上の「実装 (g1)」) | `guests` と各 UI | realm に `guests` を足す (Git と kcadm.sh)。Grafana (観測スタック) の `role_attribute_path`、Backstage の `ROLE_GROUPS` に足す。期限 (毎日 3:00 JST) の CronJob を入れる。`just guest add/list/delete` | 使い捨てのテスト用ユーザー (`test-guest`) で、Grafana が Viewer、Backstage が読むだけ、ArgoCD・Temporal・Headlamp・Grafana (dev・prod) で何も見えないこと。期限を短くした workflow で無効になること |
 | g2a | A1 (G1 を選んだら) | Keycloak の proxy の端末を 1 台共有して、タグ付きの端末を共有できるか確かめる。できたら Grafana・Backstage も共有し、手順を書く。できなければ A2 の grants を入れる。結果で [access-control.md](access-control.md) の「タグ付きのマシンは共有できない」の記述も直す | 別のアカウントの tailnet の端末から、3 つの URL が開き `test-guest` で入れる |
 | g2b | B1 (G2 を選んだら) | Funnel が Ingress の経路を選べないこと (前の caddy が要るか) を最初に確かめる。Keycloak の前の caddy (経路の許可リストと `just ci` の試験)、ブルートフォースの設定の見直しとパスワードのポリシー、`nodeAttrs`、3 つの Ingress の Funnel の注釈 | tailnet の外 (スマホの回線など) から `/realms/home-k8s/` は開き、`/admin/`・`/realms/master/` は 404。ログインに TOTP が要る |
 | g3 | headroom (見せると決めたら) | ホストの中継と oauth2-proxy | `guests` 以外は 403、許可リストの外は 404 |

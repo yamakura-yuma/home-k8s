@@ -144,6 +144,11 @@ azureResources:
 # session は OIDC のログインの途中 (state・nonce) を持つ (openid-client が要る)。鍵は Secret backstage-session から
 auth:
   environment: production
+  # Backstage のトークン (ブラウザが持ち、API を呼ぶときに出す) の寿命。既定の 1 時間を下限の 10 分にする。
+  # Keycloak でユーザーを無効にしても (ゲストの期限、docs/cluster/guest-access.md)、発行済みのトークンは寿命まで使えるため。
+  # 期限の前は、フロントが寿命の前に Keycloak の refresh token で取り直すので、使う側は変わらない
+  backstageTokenExpiration:
+    minutes: 10
   session:
     secret: ${AUTH_SESSION_SECRET}
   providers:

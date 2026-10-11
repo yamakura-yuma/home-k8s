@@ -90,6 +90,9 @@ spec:
           temporal-dev: [temporal-system:read]
           temporal-prod: [temporal-system:read]
           gitops-deployer: [view]
+      # ゲスト (他の人)。Grafana (観測スタック) で Viewer、Backstage で読むだけ。ほかの UI と kubectl には何も対応づけない
+      # (Temporal・gitops-deployer の client role も付けない)。人は just guest add で入れ、発行した日の次の 3:00 JST に消える (docs/cluster/guest-access.md)
+      - name: guests
     roles:
       client:
         temporal-dev:

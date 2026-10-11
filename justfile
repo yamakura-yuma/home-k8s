@@ -17,14 +17,15 @@ import 'just/argocd.just'
 import 'just/backstage.just'
 import 'just/devcontainer.just'
 import 'just/gitops-deployer.just'
+import 'just/guest.just'
 import 'just/keycloak.just'
 import 'just/kind.just'
 import 'just/observability.just'
 import 'just/orca-exporter.just'
 import 'just/tailscale.just'
 
-# 公開レシピはこの 6 つだけ (just --list)。内部用は `_` 付きで隠してあり、just/ 以下に置く。
-# up・down・show・ci はここ、orca-exporter と devcontainer は just/ 以下。
+# 公開レシピはこの 7 つだけ (just --list)。内部用は `_` 付きで隠してあり、just/ 以下に置く。
+# up・down・show・ci はここ、orca-exporter・devcontainer・guest は just/ 以下。
 
 # 中身は just/ci.sh。ツールは nix (devShells.ci) から入るので、開発用コンテナを通さず shebang で直に走らせる。
 
@@ -48,7 +49,7 @@ down:
     kind delete cluster --name {{kind_cluster}}
 
 # grafana は localhost:3000 の viewer (閲覧用) で、grafana-admin は自分用。どちらも他の人には渡さない。
-# 他の人の入れ方は docs/cluster/guest-access.md (just share は廃止した。docs/cluster/share.md)。
+# 他の人 (ゲスト) は just guest add で Keycloak のアカウントを発行する (docs/cluster/guest-access.md。just share は廃止した、docs/cluster/share.md)。
 
 # 接続先と資格情報を表示する (what: grafana | grafana-admin | argocd | headlamp | backstage。省略で全部)
 show what="":

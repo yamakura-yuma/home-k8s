@@ -15,6 +15,8 @@
   label --local -f - <キー>=<値> -o yaml              標準入力の manifest (JSON) にラベルを足して出す (oidc-secrets.sh)
   get configmap coredns -o jsonpath={.data.Corefile}  FAKE_COREFILE の中身を末尾の改行を除いて出す (実物の jsonpath と同じ)
   patch configmap coredns --type merge --patch-file F  F の中身 (YAML) をそのまま FAKE_KUBECTL_STDIN に {"verb": "patch-configmap", "patch": <文字列>} で書く
+  exec -i keycloak-0 -- bash -c <スクリプト> <引数>...  スクリプトの /opt/keycloak/bin/kcadm.sh を FAKE_KCADM (偽の kcadm、fake_kcadm.py) に
+                                                       置き換えて手元の bash で動かす (just/guest.sh。標準入力・引数はそのまま渡る)
 """
 import base64
 import json
@@ -77,6 +79,11 @@ elif args[:1] == ["exec"] and "deploy/argocd-server" in args:
         print("error: account 'backstage' does not exist", file=sys.stderr)
         sys.exit(1)
     sys.exit(subprocess.run(["sh", "-c", args[args.index("-c") + 1]]).returncode)
+elif args[:1] == ["exec"] and "keycloak-0" in args:
+    i = args.index("-c")
+    script = args[i + 1].replace("/opt/keycloak/bin/kcadm.sh", os.environ["FAKE_KCADM"])
+    env = {**os.environ, "KC_BOOTSTRAP_ADMIN_USERNAME": "admin", "KC_BOOTSTRAP_ADMIN_PASSWORD": "FAKE-admin-password"}
+    sys.exit(subprocess.run(["bash", "-c", script, *args[i + 2:]], env=env).returncode)
 elif args[:2] == ["label", "--local"]:
     manifest = json.loads(sys.stdin.read())
     for arg in args:

@@ -1,10 +1,11 @@
 // Keycloak (realm home-k8s) の OIDC でのサインイン。provider の id は oidc (callback は /api/auth/oidc/handler/frame)。
 //
 // sign-in resolver はカタログを引かない。権限の正本は Keycloak のグループで、userinfo の groups クレーム
-// (admins・viewers) をそのまま Backstage のトークンの ownership (ent) に group:default/<グループ> として入れる。
-// permission のポリシー (permissionPolicy.ts) はこの ent を見る。カタログの Group admins・viewers は表示用の静的な宣言
-// (catalog-info.yaml) で、メンバーは持たない。どちらのグループにも入っていない人はサインインさせない (Grafana の
-// role_attribute_strict と同じ扱い)。理由は docs/cluster/backstage.md の「ログインと権限」。
+// (admins・viewers・guests) をそのまま Backstage のトークンの ownership (ent) に group:default/<グループ> として入れる。
+// permission のポリシー (permissionPolicy.ts) はこの ent を見る。admins 以外 (viewers・guests) は読むだけになる。
+// カタログの Group admins・viewers・guests は表示用の静的な宣言 (catalog-info.yaml) で、メンバーは持たない。
+// どのグループにも入っていない人はサインインさせない (Grafana の role_attribute_strict と同じ扱い)。
+// 理由は docs/cluster/backstage.md の「ログインと権限」。guests (ゲスト) は docs/cluster/guest-access.md。
 import { createBackendModule } from '@backstage/backend-plugin-api';
 import {
   DEFAULT_NAMESPACE,
@@ -23,7 +24,7 @@ import {
 } from '@backstage/plugin-auth-backend-module-oidc-provider';
 
 // 権限を分けるグループ。Keycloak の realm home-k8s のグループの名前と同じ
-export const ROLE_GROUPS = ['admins', 'viewers'] as const;
+export const ROLE_GROUPS = ['admins', 'viewers', 'guests'] as const;
 
 // カタログのエンティティの名前に使える形 (catalog-model の既定の検査と同じ)
 const ENTITY_NAME = /^([A-Za-z0-9][-_.A-Za-z0-9]*)?[A-Za-z0-9]$/;
@@ -42,7 +43,7 @@ export function keycloakIdentity(userinfo: Record<string, unknown>): {
   const roleGroups = ROLE_GROUPS.filter(g => groups.includes(g));
   if (roleGroups.length === 0) {
     throw new Error(
-      'Keycloak のグループ admins・viewers のどちらにも入っていないので、サインインできない',
+      'Keycloak のグループ admins・viewers・guests のどれにも入っていないので、サインインできない',
     );
   }
   const userEntityRef = stringifyEntityRef({
