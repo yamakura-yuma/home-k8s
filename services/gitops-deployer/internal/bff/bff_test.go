@@ -1,10 +1,12 @@
 package bff
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -156,5 +158,34 @@ func TestOpenAPIIsValidYAML(t *testing.T) {
 	var doc map[string]any
 	if err := yaml.Unmarshal(OpenAPI, &doc); err != nil || doc["openapi"] != "3.1.0" {
 		t.Fatalf("%v %v", err, doc["openapi"])
+	}
+}
+
+func TestAuditLogsRequestsWithThePrincipal(t *testing.T) {
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+	_, h := setup(t, operationReply)
+	call(h, "GET", "/api/v1/deployments", "view", "", nil)
+	call(h, "DELETE", "/api/v1/deployments/hello", "view,deploy", "", map[string]string{"Idempotency-Key": "k1"})
+	call(h, "POST", "/api/v1/deployments", "view", "{}", nil)
+	var got []map[string]any
+	for _, line := range bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n")) {
+		var m map[string]any
+		if json.Unmarshal(line, &m) == nil && m["audit"] == true {
+			got = append(got, m)
+		}
+	}
+	if len(got) != 2 {
+		t.Fatalf("依頼 (DELETE と、403 になった POST) だけが監査ログに残る。読み取りは残さない: %d 行 %s", len(got), buf.String())
+	}
+	d := got[0]
+	if d["principal"] != "alice" || d["action"] != "DELETE /api/v1/deployments/:name" || d["app"] != "hello" ||
+		d["idempotency_key"] != "k1" || d["status"] != float64(202) {
+		t.Errorf("誰が・何を・どのアプリに・結果: %v", d)
+	}
+	if got[1]["status"] != float64(403) {
+		t.Errorf("拒んだ依頼も結果ごと残る: %v", got[1])
 	}
 }

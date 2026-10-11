@@ -62,6 +62,18 @@ class PodsTest(unittest.TestCase):
                 block = re.search(rf"command: \[/usr/local/bin/{name}\]\n(.*?)\n---", text, re.S).group(1)
                 self.assertRegex(block, r"resources:\n\s+requests:\n\s+cpu: \S+\n\s+memory: \S+\n\s+limits:\n\s+memory: \S+")
 
+    def test_each_pod_has_probes(self):
+        # 6 つの Pod の readiness は /readyz (依存に繋がり、止まりかけていない)。Deployment の 5 つは startup・liveness に /healthz も持つ。
+        # event-receiver は Knative Service で、queue-proxy が readiness だけを使う
+        text = "".join(read(f) + "\n---\n" for f in MANIFESTS.glob("*.yaml"))
+        for name in self.PODS:
+            with self.subTest(pod=name):
+                block = re.search(rf"command: \[/usr/local/bin/{name}\]\n(.*?)\n---", text, re.S).group(1)
+                self.assertRegex(block, r"readinessProbe:\n\s+httpGet:\n\s+path: /readyz")
+                if name != "event-receiver":
+                    self.assertRegex(block, r"startupProbe:\n\s+httpGet:\n\s+path: /healthz")
+                    self.assertRegex(block, r"livenessProbe:\n\s+httpGet:\n\s+path: /healthz")
+
     def test_dockerfile_go_matches_go_mod(self):
         go = re.search(r"(?m)^go (\d+\.\d+)", read(HERE / "go.mod")).group(1)
         self.assertRegex(read(HERE / "Dockerfile"), rf"FROM golang:{re.escape(go)}\.\d+-alpine")
