@@ -1,4 +1,5 @@
-# 観測スタックの Grafana (https://grafana.<tailnet>.ts.net)
+# 観測スタックの Grafana (https://grafana.<tailnet>.ts.net)。Service grafana ではなく、インターネット (Funnel) からのローカルのログイン
+# (admin・viewer のパスワード) を塞ぐ proxy grafana-tailnet につなぐ (clusters/kind/observability/tailnet-proxy)
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -8,7 +9,7 @@ spec:
   ingressClassName: tailscale
   defaultBackend:
     service:
-      name: grafana
+      name: grafana-tailnet
       port:
         number: 80
   tls:

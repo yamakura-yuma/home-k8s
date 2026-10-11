@@ -1,0 +1,9 @@
+# Keycloak の入口の proxy (Caddyfile)。Application keycloak の 2 つ目の source が同期する
+# (clusters/kind/argocd/apps/keycloak.yaml)。Ingress keycloak (clusters/kind/tailscale/ingress/keycloak.yaml) がこの Service を指す。
+namespace: auth
+resources:
+  - proxy.yaml
+configMapGenerator:
+  - name: keycloak-front
+    files:
+      - Caddyfile
