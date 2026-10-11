@@ -24,6 +24,9 @@
 #                      偽の kubectl で確かめ、realm の client と Secret keycloak-clients のキーを突き合わせる
 #   7e. OIDC           just/oidc-secrets.sh (client のファイルから各 UI の Secret を作る・ArgoCD のラベル・値が引数に残らない) を偽の kubectl で確かめ、
 #                      ArgoCD・Grafana ×3・Temporal UI ×2・Backstage の values (issuer・clientId・コールバック・グループからロール) を realm の client と突き合わせる
+#   7f. ゲスト         just/guest.sh (just guest add・list・delete) を偽の kubectl と偽の kcadm.sh で確かめる (一時パスワードが引数・ファイルに残らず
+#                      1 回だけ表示される、名前の検査、期限は発行した日の次の 3:00 JST を属性に書く、guests 以外を消さない)。
+#                      期限を過ぎた guests を消す CronJob の処理 (clusters/kind/auth/guest-expiry) を偽の Keycloak の Admin API で確かめる
 #   8. backstage       yarn install --immutable (yarn.lock のとおりに入れ、ずれていたら落とす) のあと、backend・app の jest (yarn workspace backend/app test) と
 #                      型検査 (yarn tsc)。node_modules は backstage/ に入る (git の管理外・.dockerignore 済み)
 set -euo pipefail
@@ -170,6 +173,10 @@ echo "== Keycloak の Secret (ファイルを一度だけ作る、値が引数�
 python3 -B -m unittest discover -s just -p 'test_keycloak.py' -v
 echo "== ArgoCD・Grafana・Temporal UI・Backstage の OIDC (client の Secret を作るスクリプト、values と realm の client の突き合わせ) =="
 python3 -B -m unittest discover -s just -p 'test_oidc.py' -v
+echo "== ゲストのアカウント (just guest。一時パスワードが引数に残らない・名前の検査・期限の属性) =="
+python3 -B -m unittest discover -s just -p 'test_guest.py' -v
+echo "== ゲストの期限切れを消す CronJob (期限を過ぎた guests だけを消す・何度流しても同じ・guest- で始まらない人は外すだけ) =="
+python3 -B -m unittest discover -s clusters/kind/auth/guest-expiry -v
 
 # backstage の試験と型検査。node と yarn が無いと飛ばされるのではなく失敗にする
 command -v node >/dev/null && command -v yarn >/dev/null || { echo "node か yarn が無い (devShells.ci に入っているはず)" >&2; exit 1; }

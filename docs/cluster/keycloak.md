@@ -6,6 +6,7 @@ kind のクラスタの namespace `auth` に、IdP の Keycloak と、その DB 
 - issuer: **`https://keycloak.taild2b611.ts.net/realms/home-k8s`** (ブラウザからも Pod からも同じ URL)
 - Admin Console: `https://keycloak.taild2b611.ts.net/admin/` (realm `master`、ユーザー `admin`。パスワードは下の「Secret」)
 - ユーザーは `yamakura-yuma` (グループ `admins`、TOTP 必須、passkey も登録できる。下の「人のユーザーと MFA」。単位 2c)。各 UI と API server を OIDC につなぐのは単位 3〜6。ArgoCD と Grafana ×3 は単位 3、Temporal UI ×2 と Backstage は単位 4、Headlamp と kind の API server (kubectl) は単位 5 でつないだ (下の「各 UI の OIDC」と [kube-oidc.md](kube-oidc.md))
+- ゲスト (他の人) はグループ `guests` に `just guest add` で入れ、発行した日の次の 3:00 JST に消える ([guest-access.md](guest-access.md) の「実装」)
 
 ## 構成
 
@@ -29,6 +30,7 @@ tailnet の端末 ─HTTPS─▶ proxy (ts-keycloak-*、Ingress auth/keycloak) �
 | PV `keycloak-postgres`・`keycloak-postgres-dump` | [clusters/kind/storage](../../clusters/kind/storage) | `storage` |
 | `Keycloak` の CR、realm の `KeycloakRealmImport`、egress の Service | [clusters/kind/auth/keycloak](../../clusters/kind/auth/keycloak) | `keycloak` |
 | tailnet への Ingress | [clusters/kind/tailscale/ingress/keycloak.yaml](../../clusters/kind/tailscale/ingress/keycloak.yaml) | `tailscale-ingress` |
+| ゲストの期限切れを消す CronJob `guest-expiry` (5 分ごと) | [clusters/kind/auth/guest-expiry](../../clusters/kind/auth/guest-expiry) | `guest-expiry` |
 | Secret と CoreDNS の設定 | `just up` の `_keycloak-secrets`・`_coredns-tailnet` ([just/keycloak.just](../../just/keycloak.just)) | (ArgoCD の外) |
 
 - **operator は上流の manifest をそのまま使う**。Helm chart は公式に無い。kustomization で namespace を `keycloak` から `auth` に替え、
@@ -73,7 +75,8 @@ Pod からも `https://keycloak.taild2b611.ts.net` で、同じ証明書で届�
 
 | 項目 | 値 |
 |---|---|
-| グループ | `admins`、`viewers` (各 UI の RBAC にこの名前を書く) |
+| グループ | `admins`、`viewers`、`guests` (各 UI の RBAC にこの名前を書く。`guests` はゲストで、Grafana (観測スタック) の Viewer と Backstage の読むだけにだけ対応づける。[guest-access.md](guest-access.md)) |
+| user profile | `unmanagedAttributePolicy: ADMIN_EDIT` (宣言に無い属性を管理者だけが読み書きできる)。ゲストの期限の属性 `guest-expires-at` のため。realm の宣言には書いていない (user profile は realm の import の外の設定) ので、`just guest add` が無ければ入れる |
 | client scope `groups` | Group Membership mapper (`full.path: "false"`、claim `groups`、ID トークン・アクセストークン・userinfo)。realm の既定の client scope に足したので、全部の client に付く |
 | 既定の client scope | Keycloak の既定 (basic・profile・email・roles・web-origins・acr など) + groups。`clientScopes` を書くと既定のものが作られなくなるので、realm の属性 `CreateDefaultClientScopes: "true"` で作らせた |
 | 自分での登録・パスワードのリセット | 無効 (人は管理者が作る。SMTP は無い) |
@@ -210,15 +213,15 @@ kc "kcadm update realms/home-k8s -s otpPolicyType=totp -s otpPolicyAlgorithm=Hma
 グループと権限は各 UI の設定に書く (Keycloak の側ではグループに入れるだけ)。例外は Temporal で、サーバーがグループを読めないので、
 client `temporal-<環境>` の client role をグループに付け、`permissions` クレームにしている ([temporal.md](temporal.md) の「ログインと権限」)。
 
-| UI | URL (SSO) | client | 設定 | admins | viewers | どちらでもない |
-|---|---|---|---|---|---|---|
-| ArgoCD | `https://argocd.taild2b611.ts.net` | `argocd` (UI)・`argocd-cli` (`argocd login --sso`、public + PKCE) | [values.yaml](../../clusters/kind/argocd/values.yaml) の `configs.cm` の `url`・`oidc.config`、`configs.rbac` の `policy.csv` | `role:admin` | `role:readonly` | ログインはできるが何も見えない (`policy.default` は空) |
-| Grafana (観測スタック) | `https://grafana.taild2b611.ts.net` | `grafana` | [grafana-values.yaml](../../clusters/kind/observability/grafana-values.yaml) の `grafana.ini` の `server.root_url`・`auth.generic_oauth` | Admin | Viewer | ログインを断る (`role_attribute_strict`) |
-| Grafana (dev・prod) | `https://grafana-dev.…`・`https://grafana-prod.…` | `grafana-dev`・`grafana-prod` | [env-grafana/values.yaml](../../clusters/kind/env-grafana/values.yaml) (共通) と `values-<環境>.yaml` (`client_id`・`root_url`) | Admin | Viewer | 同上 |
-| Temporal UI (dev・prod) | `https://temporal-dev.…`・`https://temporal-prod.…` | `temporal-dev`・`temporal-prod` | [temporal/values-<環境>.yaml](../../clusters/kind/temporal/values-dev.yaml) の `web.additionalEnv` (`TEMPORAL_AUTH_*`)、[values.yaml](../../clusters/kind/temporal/values.yaml) の `server.config.authorization` | `temporal-system:admin` (すべて) | `temporal-system:read` (読むだけ) | ログインはできるが、どの API も 403 |
-| Backstage | `https://backstage.taild2b611.ts.net` | `backstage` | [app-config.yaml](../../backstage/app-config.yaml) の `auth.providers.oidc`、sign-in resolver とポリシー (`packages/backend/src/keycloakAuth.ts`・`permissionPolicy.ts`) | 何でもできる | 読むだけ (登録・削除・再読み込みは拒否) | サインインを断る |
-| Headlamp | `https://headlamp.taild2b611.ts.net` | `headlamp` | [headlamp/values.yaml](../../clusters/kind/headlamp/values.yaml) の `config.oidc`・`env`。権限は Kubernetes の RBAC ([kube-oidc.md](kube-oidc.md)) | `cluster-admin` | `view` + 読み取りの ClusterRole (Secret は読めない) | ログインはできるが、どの API も 403 |
-| kubectl (kind の API server) | — (kubelogin、`localhost:8000`) | `kubernetes` (public + PKCE) | [authentication-config.yaml](../../clusters/kind/kube-apiserver/authentication-config.yaml)、context `oidc@study-kind` (`just up` の `_kube-oidc-context`) | 同上 | 同上 | 同上 |
+| UI | URL (SSO) | client | 設定 | admins | viewers | guests (ゲスト) | どれでもない |
+|---|---|---|---|---|---|---|---|
+| ArgoCD | `https://argocd.taild2b611.ts.net` | `argocd` (UI)・`argocd-cli` (`argocd login --sso`、public + PKCE) | [values.yaml](../../clusters/kind/argocd/values.yaml) の `configs.cm` の `url`・`oidc.config`、`configs.rbac` の `policy.csv` | `role:admin` | `role:readonly` | ログインはできるが何も見えない (policy.csv に書かない) | ログインはできるが何も見えない (`policy.default` は空) |
+| Grafana (観測スタック) | `https://grafana.taild2b611.ts.net` | `grafana` | [grafana-values.yaml](../../clusters/kind/observability/grafana-values.yaml) の `grafana.ini` の `server.root_url`・`auth.generic_oauth` | Admin | Viewer | Viewer | ログインを断る (`role_attribute_strict`) |
+| Grafana (dev・prod) | `https://grafana-dev.…`・`https://grafana-prod.…` | `grafana-dev`・`grafana-prod` | [env-grafana/values.yaml](../../clusters/kind/env-grafana/values.yaml) (共通) と `values-<環境>.yaml` (`client_id`・`root_url`) | Admin | Viewer | ログインを断る | 同上 |
+| Temporal UI (dev・prod) | `https://temporal-dev.…`・`https://temporal-prod.…` | `temporal-dev`・`temporal-prod` | [temporal/values-<環境>.yaml](../../clusters/kind/temporal/values-dev.yaml) の `web.additionalEnv` (`TEMPORAL_AUTH_*`)、[values.yaml](../../clusters/kind/temporal/values.yaml) の `server.config.authorization` | `temporal-system:admin` (すべて) | `temporal-system:read` (読むだけ) | ログインはできるが、どの API も 403 (client role を付けない) | ログインはできるが、どの API も 403 |
+| Backstage | `https://backstage.taild2b611.ts.net` | `backstage` | [app-config.yaml](../../backstage/app-config.yaml) の `auth.providers.oidc`、sign-in resolver とポリシー (`packages/backend/src/keycloakAuth.ts`・`permissionPolicy.ts`) | 何でもできる | 読むだけ (登録・削除・再読み込みは拒否) | 読むだけ (viewers と同じ) | サインインを断る |
+| Headlamp | `https://headlamp.taild2b611.ts.net` | `headlamp` | [headlamp/values.yaml](../../clusters/kind/headlamp/values.yaml) の `config.oidc`・`env`。権限は Kubernetes の RBAC ([kube-oidc.md](kube-oidc.md)) | `cluster-admin` | `view` + 読み取りの ClusterRole (Secret は読めない) | ログインはできるが、どの API も 403 (RoleBinding を作らない) | ログインはできるが、どの API も 403 |
+| kubectl (kind の API server) | — (kubelogin、`localhost:8000`) | `kubernetes` (public + PKCE) | [authentication-config.yaml](../../clusters/kind/kube-apiserver/authentication-config.yaml)、context `oidc@study-kind` (`just up` の `_kube-oidc-context`) | 同上 | 同上 | 同上 | 同上 |
 
 - **ArgoCD は Keycloak を直に見る**。同梱の Dex は使わない (`dex.enabled: false` のまま)。groups は realm の既定の client scope `groups` で ID トークンに入り、ArgoCD は既定の `scopes: [groups]` で読む。
   ArgoCD のユーザー名はメールアドレスになる (`test-admin@example.invalid` など)。グループはログインのときにだけ読まれるので、グループを変えたらログインし直す
@@ -270,7 +273,11 @@ argocd login argocd.taild2b611.ts.net --sso --grpc-web
 
 ### 人を外したとき
 
-Keycloak でユーザーを消す・止める・グループから外すと、次のログインから効く。ArgoCD のセッション (既定 24 時間 [未確認]) と Grafana のセッションは、それぞれの期限まで残る [未確認]。
+Keycloak でユーザーを消す・止める・グループから外すと、次のログインから効く。既にログインしている各 UI のセッションがいつ使えなくなるかは、
+ゲストの期限 (ユーザーを消す・止める) で測った ([guest-access.md](guest-access.md) の「期限が来た後の既存のログイン」)。
+ユーザーを消してから、ArgoCD は約 3〜4 分、Grafana は約 9 分 (ログインから約 10 分。Keycloak のトークンの取り直しが断られた時点)、
+Backstage は最大 10 分 (Backstage のトークンの寿命) で見られなくなった。無効にしたとき (`enabled=false`) も同じくらいだった。
+グループから外しただけ (ユーザーは残る) のときは、トークンの取り直しが通るので、各 UI がグループを読み直すまで残る [未確認]。
 すぐに切るときは、ArgoCD は `argocd-secret` の `server.secretkey` を消して argocd-server を作り直す (全員のセッションが切れる)、
 Grafana は admin で Server admin → Users → 該当ユーザー → Sessions の Force logout (どちらも試していない [未確認])。
 

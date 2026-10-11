@@ -140,7 +140,8 @@ Grafana のダッシュボードを、困りごとから引くための手引き
 - 入れるのは tailnet の端末から Keycloak でログインした人で、グループ viewers なら Viewer ロール。ダッシュボードを
   見られるが、編集・保存と Explore はできない。admin のパスワードは `just show grafana-admin` で見る自分用で、渡さない。
 - 人ごとの期限付きの資格情報を配っていた `just share` は廃止した ([share.md](../cluster/share.md))。
-  ゲストの入れ方は [guest-access.md](../cluster/guest-access.md) で比べる。
+  他の人には `just guest add <名前>` でゲスト (グループ guests、この Grafana の Viewer) を発行する。発行した日の次の 3:00 JST に消える
+  ([guest-access.md](../cluster/guest-access.md) の「実装」)。
 
 ### 11. ワーカーの手戻りを減らす (追加指示・やり直しが多い)
 

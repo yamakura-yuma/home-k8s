@@ -191,7 +191,7 @@ kind 標準の StorageClass `standard` (local-path) は使わない (PVC を消�
 
 Grafana はログイン必須で、匿名アクセスは付けていない (閲覧のみの匿名も無い)。
 tailnet に出しているため。人は tailnet の URL (`https://grafana.taild2b611.ts.net`) から Keycloak の SSO で入る
-(グループ admins は Admin、viewers は Viewer。[keycloak.md](../cluster/keycloak.md) の「各 UI の OIDC」)。パスワードのユーザーは 3 つあり、admin は非常用に残す。
+(グループ admins は Admin、viewers と guests (ゲスト) は Viewer。[keycloak.md](../cluster/keycloak.md) の「各 UI の OIDC」)。パスワードのユーザーは 3 つあり、admin は非常用に残す。
 
 | ユーザー | ロール | 使う人 | パスワードのファイル | 表示するコマンド |
 | --- | --- | --- | --- | --- |
@@ -263,7 +263,8 @@ Pod の再起動やクラスタの作り直しのあとも残る。
 tailnet の端末から `https://grafana.taild2b611.ts.net` を開き、Keycloak でログインする (上の「Grafana の認証」)。
 グループ viewers の人は Viewer で、ダッシュボードを見られるが、保存・編集と Explore はできない。
 tailnet に居ない人に Quick Tunnel で見せていた `just share` は廃止した ([docs/cluster/share.md](../cluster/share.md))。
-ゲストの入れ方は [docs/cluster/guest-access.md](../cluster/guest-access.md) で比べる。
+他の人 (ゲスト) は `just guest add <名前>` で Keycloak のグループ guests に入れると、この Grafana にだけ Viewer で入れる
+(環境の Grafana はログインを断る)。発行した日の次の 3:00 JST に消える ([docs/cluster/guest-access.md](../cluster/guest-access.md) の「実装」)。
 
 ## ダッシュボード
 

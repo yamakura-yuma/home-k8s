@@ -1,6 +1,7 @@
 # 環境へのアクセス権の一元管理 — 比較と推奨
 
 状態: 調査。実装は下の「移行の段取り」の単位ごとに別の話題で行っている (単位 1・2・3・4・5 は実装済み、6 は Temporal UI と oauth2-proxy の判断と `just share` の廃止まで)。調べた日は 2026-10-10。
+ゲスト (他の人) は Keycloak のグループ `guests` で入れる (2026-10-12 実装。Grafana (観測スタック) の Viewer と Backstage の読むだけ、発行した日の次の 3:00 JST に消える。[guest-access.md](guest-access.md) の「実装 (g1)」)。
 
 > **IdP の推奨は差し替えた (2026-10-10)**: 下の Dex + GitHub に代えて、Keycloak (DB は PostgreSQL) を唯一の issuer にする。
 > 比較と移行の段取りは [idp-options.md](idp-options.md)。到達経路・各 UI の OIDC の設定・ワーカーと Azure の権限は、この文書のまま。
@@ -143,7 +144,7 @@ Azure は Entra ID のグループに Azure RBAC を割り当てる。ワーカ�
 | Azure (人) | Entra ID のセキュリティグループに Azure RBAC を割り当てる | 無料。Azure の ID は Entra ID から外せないので、Dex に寄せず Azure の側で持つ |
 | ワーカー (kind) | ServiceAccount `orca-worker`、dev は `edit`・prod は `view`。トークンは `kubectl create token --duration=8h` [未確認] | admin の kubeconfig を使わせない。worktree ごとの kubeconfig (Git の外) を、worktree の setup が作る |
 | ワーカー (Azure) | 専用のサービスプリンシパル (Reader、リソースグループに割り当てる) | workload identity federation はホストのプロセスには当てはまらない。スコープを絞り、シークレットに期限を付ける |
-| `just share` | **廃止した** (2026-10-11、[share.md](share.md))。人の入口を Tailscale と Keycloak にそろえた | Tailscale に招待できない相手・Keycloak のユーザーでない相手 (ゲスト) の入れ方は [guest-access.md](guest-access.md) で比べる |
+| `just share` | **廃止した** (2026-10-11、[share.md](share.md))。人の入口を Tailscale と Keycloak にそろえた | ゲストは Keycloak のグループ `guests` に `just guest add` で入れる (Grafana (観測スタック) と Backstage を読むだけ。発行した日の次の 3:00 JST に消える)。tailnet の外のブラウザから届かせる Funnel (g2b) はまだ。[guest-access.md](guest-access.md) |
 
 ### IdP は GitHub に決めた (2026-10-10)
 

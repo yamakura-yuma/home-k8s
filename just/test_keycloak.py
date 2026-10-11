@@ -126,10 +126,12 @@ class Realm(unittest.TestCase):
         self.assertIn("protocolMapper: oidc-group-membership-mapper", self.realm)
         self.assertIn('full.path: "false"', self.realm)
         self.assertIn("claim.name: groups", self.realm)
-        # グループは admins・viewers の 2 つだけで、入れ子 (subGroups) にしない。clientRoles は Temporal の permissions のため (単位 4)
+        # グループは admins・viewers・guests の 3 つだけで、入れ子 (subGroups) にしない。clientRoles は Temporal の permissions のため (単位 4)。
+        # guests (ゲスト) には client role を付けない (Temporal UI で何もできない。docs/cluster/guest-access.md)
         groups = re.search(r"\n    groups:\n((?:      .*\n)+)", self.realm).group(1)
-        self.assertEqual(re.findall(r"^      - name: (\S+)$", groups, re.M), ["admins", "viewers"])
+        self.assertEqual(re.findall(r"^      - name: (\S+)$", groups, re.M), ["admins", "viewers", "guests"])
         self.assertNotIn("subGroups", groups)
+        self.assertNotIn("clientRoles", groups.split("      - name: guests\n")[1])
         # 既定の client scope (profile・email など) も作らせる
         self.assertIn('CreateDefaultClientScopes: "true"', self.realm)
 

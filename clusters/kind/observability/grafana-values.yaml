@@ -131,8 +131,9 @@ grafana.ini:
     root_url: https://grafana.taild2b611.ts.net
   auth.anonymous:
     enabled: false
-  # Keycloak (realm home-k8s) の OIDC でログインする (generic_oauth)。グループ admins は Admin、viewers は Viewer、どちらでもなければ
-  # role_attribute_strict でログインを断る。ロールはログインのたびに groups から付け直す。
+  # Keycloak (realm home-k8s) の OIDC でログインする (generic_oauth)。グループ admins は Admin、viewers と guests (ゲスト) は Viewer、どれでもなければ
+  # role_attribute_strict でログインを断る。ロールはログインのたびに groups から付け直す。guests を足すのはこの観測スタックだけ
+  # (環境ごとの Grafana は guests のログインを断る。docs/cluster/guest-access.md)。
   # ログインフォームと Basic 認証 (admin・viewer・backstage) は残す: admin は非常用、viewer は localhost:3000 の閲覧用、backstage は Backstage のプロキシが使う。
   # client_secret は環境変数 GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET (下の envValueFrom。Secret grafana-oidc は `just up` の _oidc-secrets が作る)。
   # token_url と api_url は Pod から引く。CoreDNS の読み替えでブラウザと同じ URL・証明書で届く (docs/cluster/keycloak.md)
@@ -151,7 +152,7 @@ grafana.ini:
     name_attribute_path: name
     email_attribute_path: email
     groups_attribute_path: groups
-    role_attribute_path: "contains(groups[*], 'admins') && 'Admin' || contains(groups[*], 'viewers') && 'Viewer'"
+    role_attribute_path: "contains(groups[*], 'admins') && 'Admin' || contains(groups[*], 'viewers') && 'Viewer' || contains(groups[*], 'guests') && 'Viewer'"
     role_attribute_strict: true
   users:
     auto_assign_org_role: Viewer

@@ -160,8 +160,10 @@ class Grafana(unittest.TestCase):
         for files in self.INSTANCES:
             for key in ("auth_url", "token_url", "api_url"):
                 self.assertTrue(self.setting(files, key).startswith(ISSUER + "/protocol/openid-connect/"), (files, key))
+            # guests (ゲスト) は観測スタックの Grafana だけ Viewer。環境ごとの Grafana は guests のログインを断る (docs/cluster/guest-access.md)
+            guests = " || contains(groups[*], 'guests') && 'Viewer'" if files == ("observability/grafana-values.yaml",) else ""
             self.assertEqual(self.setting(files, "role_attribute_path"),
-                             "\"contains(groups[*], 'admins') && 'Admin' || contains(groups[*], 'viewers') && 'Viewer'\"")
+                             "\"contains(groups[*], 'admins') && 'Admin' || contains(groups[*], 'viewers') && 'Viewer'" + guests + "\"")
             # グループに入っていない人はログインできない (既定の auto_assign_org_role の Viewer にしない)
             self.assertEqual(self.setting(files, "role_attribute_strict"), "true", files)
 

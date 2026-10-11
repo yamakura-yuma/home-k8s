@@ -1,4 +1,4 @@
-"""just の公開レシピが 6 個だけで、引数が正しく展開されるかのテスト。
+"""just の公開レシピが 7 個だけで、引数が正しく展開されるかのテスト。
 
 標準ライブラリだけ: python3 -B -m unittest discover -s just -p test_recipes.py
 レシピは実行せず `just --dry-run` / `just --list` の出力だけを見る (クラスタにもコンテナにも触れない)。
@@ -15,7 +15,7 @@ from pathlib import Path
 sys.dont_write_bytecode = True  # __pycache__ をリポジトリに作らない
 
 ROOT = Path(__file__).resolve().parent.parent
-PUBLIC = ["ci", "devcontainer", "down", "orca-exporter", "show", "up"]
+PUBLIC = ["ci", "devcontainer", "down", "guest", "orca-exporter", "show", "up"]
 
 
 def just(*args):
@@ -126,15 +126,22 @@ class Recipes(unittest.TestCase):
             self.assertRegex(just("--dry-run", "orca-exporter", action).stderr, rf"orca-exporter\.sh\" {action}\n")
 
     def test_bad_arguments_stop_with_usage(self):
-        for args in [("show", "nope"), ("orca-exporter", "nope"), ("orca-exporter",), ("devcontainer", "nope")]:
+        for args in [("show", "nope"), ("orca-exporter", "nope"), ("orca-exporter",), ("devcontainer", "nope"), ("guest", "nope"), ("guest",)]:
             r = just("--dry-run", *args)
             self.assertNotEqual(r.returncode, 0, args)
             if len(args) > 1:
                 self.assertIn("usage: just " + args[0], r.stderr, args)
 
     def test_arguments_are_required_where_needed(self):
-        for args in [("orca-exporter",), ("devcontainer",)]:
+        for args in [("orca-exporter",), ("devcontainer",), ("guest",)]:
             self.assertNotEqual(just("--dry-run", *args).returncode, 0, args)
+
+    def test_guest_passes_its_arguments_as_they_are(self):
+        # 名前はシェルに展開させず、そのまま just/guest.sh に渡す (検査は guest.sh、just/test_guest.py)
+        for args in [("add", "alice"), ("list",), ("delete", "alice")]:
+            r = just("--dry-run", "guest", *args)
+            self.assertEqual(r.returncode, 0, args)
+            self.assertIn('bash just/guest.sh kind-study-kind "$@"', r.stderr, args)
 
     def test_devcontainer_accepts_each_action(self):
         for action in ["up", "shell", "down"]:

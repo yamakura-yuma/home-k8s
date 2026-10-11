@@ -43,6 +43,8 @@ function user(...ownershipEntityRefs: string[]): PolicyQueryUser {
 
 const admin = user('user:default/test-admin', 'group:default/admins');
 const viewer = user('user:default/test-viewer', 'group:default/viewers');
+// Keycloak のグループ guests (ゲスト、docs/cluster/guest-access.md)。127.0.0.1 のゲスト (guest) とは別
+const guestsGroup = user('user:default/guest-alice', 'group:default/guests');
 const guest = user('user:development/guest');
 
 const writes: Permission[] = [
@@ -72,18 +74,20 @@ describe('AdminsWritePolicy', () => {
   });
 
   it.each(writes.map(p => [p.name, p]))(
-    'viewers・ゲスト・ユーザーなしは %s を拒まれる',
+    'viewers・guests・ゲスト・ユーザーなしは %s を拒まれる',
     async (_, p) => {
       expect(await decide(p, viewer)).toBe(AuthorizeResult.DENY);
+      expect(await decide(p, guestsGroup)).toBe(AuthorizeResult.DENY);
       expect(await decide(p, guest)).toBe(AuthorizeResult.DENY);
       expect(await decide(p, undefined)).toBe(AuthorizeResult.DENY);
     },
   );
 
   it.each(reads.map(p => [p.name, p]))(
-    'viewers・ゲストも %s はできる (読むだけ)',
+    'viewers・guests・ゲストも %s はできる (読むだけ)',
     async (_, p) => {
       expect(await decide(p, viewer)).toBe(AuthorizeResult.ALLOW);
+      expect(await decide(p, guestsGroup)).toBe(AuthorizeResult.ALLOW);
       expect(await decide(p, guest)).toBe(AuthorizeResult.ALLOW);
     },
   );

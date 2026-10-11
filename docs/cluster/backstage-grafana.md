@@ -62,7 +62,7 @@ namespace dev (prod も同じ)
 ## 資格情報
 
 環境の Grafana には、パスワードのユーザーが 2 ついる。人はふだん tailnet の URL (`https://grafana-dev.taild2b611.ts.net`・`https://grafana-prod.taild2b611.ts.net`) から
-Keycloak の SSO で入る (client `grafana-dev`・`grafana-prod`、Secret `grafana-oidc`。グループ admins は Admin、viewers は Viewer。[keycloak.md](keycloak.md) の「各 UI の OIDC」)。
+Keycloak の SSO で入る (client `grafana-dev`・`grafana-prod`、Secret `grafana-oidc`。グループ admins は Admin、viewers は Viewer。ゲストのグループ guests はログインを断る。[keycloak.md](keycloak.md) の「各 UI の OIDC」)。
 `admin` は非常用に残し、`backstage` の Basic 認証は SSO と関係なく今までどおり通る。
 
 | ユーザー | ロール | パスワード | 使う者 |

@@ -12,9 +12,14 @@ describe('keycloakIdentity', () => {
       keycloakIdentity({ preferred_username: 'test-viewer', groups: ['viewers'] })
         .ownershipEntityRefs,
     ).toEqual(['user:default/test-viewer', 'group:default/viewers']);
+    // ゲスト (docs/cluster/guest-access.md)。ポリシーでは viewers と同じく読むだけ
+    expect(
+      keycloakIdentity({ preferred_username: 'guest-alice', groups: ['guests'] })
+        .ownershipEntityRefs,
+    ).toEqual(['user:default/guest-alice', 'group:default/guests']);
   });
 
-  it('admins・viewers 以外のグループは入れない', () => {
+  it('admins・viewers・guests 以外のグループは入れない', () => {
     expect(
       keycloakIdentity({
         preferred_username: 'yamakura-yuma',
@@ -24,11 +29,11 @@ describe('keycloakIdentity', () => {
   });
 
   it.each([[undefined], [[]], [['other']], ['admins']])(
-    'admins・viewers のどちらにも入っていなければサインインさせない (groups=%j)',
+    'admins・viewers・guests のどれにも入っていなければサインインさせない (groups=%j)',
     groups => {
       expect(() =>
         keycloakIdentity({ preferred_username: 'test-nogroup', groups }),
-      ).toThrow('admins・viewers のどちらにも入っていない');
+      ).toThrow('admins・viewers・guests のどれにも入っていない');
     },
   );
 

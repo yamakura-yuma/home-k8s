@@ -1,0 +1,11 @@
+# ゲスト (グループ guests) の期限切れを消す CronJob。本体は guest_expiry.py (ConfigMap にして Pod に入れる)。設計は docs/cluster/guest-access.md の「期限」
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: auth
+resources:
+  - cronjob.yaml
+configMapGenerator:
+  # 名前の後ろに中身のハッシュが付き、スクリプトを変えると CronJob の参照も替わる
+  - name: guest-expiry
+    files:
+      - guest_expiry.py
