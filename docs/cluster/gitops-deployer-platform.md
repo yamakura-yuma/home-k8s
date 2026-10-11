@@ -4,6 +4,9 @@ gitops-deployer (GitOps で k8s のリソースを自動でデプロイする小
 ここに書くのは基盤だけで、アプリ本体 (`services/gitops-deployer/`) と Backstage の画面は後続の PR が足す。
 どれも ArgoCD の Application で入り、`main` に入れれば `just up` 済みのクラスタに同期される (`argocd.md`)。
 
+前提: ホストの `fs.inotify.max_user_instances` が 512 以上 (`/etc/sysctl.d/99-kind.conf`)。既定の 128 では istio-cni と ztunnel が
+`too many open files` で起動しない (kind の 3 ノードと既存のアプリで上限が埋まっている)。
+
 ```text
                           ┌──────────────── istio-system ────────────────┐
                           │ istiod  istio-cni (DaemonSet)  ztunnel (DaemonSet) │  ambient: サイドカー無し。L4 の mTLS は各ノードの ztunnel
@@ -118,7 +121,14 @@ spec:
   testWorkflow:
     name: platform-smoke
 EOF
-kubectl --context kind-study-kind -n testkube get testworkflowexecutions   # 結果は .status.latestExecution.result.status (passed / failed)
+```
+
+結果は TestWorkflowExecution の status には書かれない (testkube 2.14.1)。api-server のログの `Saving execution` に出る
+`executionId` で API から読む (`.result.status` が passed / failed):
+
+```sh
+kubectl --context kind-study-kind -n testkube port-forward svc/testkube-api-server 8088 &
+curl -s http://localhost:8088/v1/test-workflow-executions/<executionId> | jq '{name, status: .result.status}'
 ```
 
 ## 資源
@@ -126,7 +136,28 @@ kubectl --context kind-study-kind -n testkube get testworkflowexecutions   # 結
 kind の 3 ノード (ホストのメモリ 31GB を共有) に載せるので、上流の既定の requests が大きいもの (istiod 500m・2Gi、ztunnel 200m・512Mi、
 Kafka の data plane、Dapr の scheduler の PVC 16Gi) を下げ、自分で書いた Pod と values で変えられるものには requests と limits を付けた。
 上流の manifest のままのもの (Knative の control plane など) は上流の requests・limits に従う。
+Dapr の scheduler は chart 1.18.7 が台数を 3 に固定していて values で変えられないので、3 台のまま (各 requests 50m・128Mi)。
+
+## kind に合わせて上流から変えたところ
+
+- Knative の HPA (activator・webhook・eventing-webhook) は外す。kind に metrics-server が無く、HPA が CPU を読めずに
+  Degraded のままになる。台数は Deployment の 1
+- ArgoCD の比較から外す欄 (どれも、書いた値でなく Kubernetes かコントローラが書き足す欄):
+  Knative の webhook の caBundle・rules・namespaceSelector、集約の ClusterRole の rules、Strimzi の CRD `kafkas` の空の
+  `properties: {}`、testkube の NATS の `volumeClaimTemplates` の apiVersion・kind・status
 
 ## 確かめた結果
 
-(検証用クラスタでの結果を足す)
+2026-10-11、本番 `kind-study-kind` に、この基盤の Application だけを作業ブランチに向けて入れて確かめた (既存の Application と
+`argocd/root` は main のまま)。確かめるための Pod などは確かめた後に消した。
+
+- 追加した 15 の Application がすべて Synced/Healthy。既存の Application もすべて Synced/Healthy のままで、既存の Pod の
+  再起動回数は入れる前と同じ (OOMKilled なし)
+- ambient: `gitops-deployer` の Pod 同士の通信を ztunnel が 15008 番 (HBONE) で運び、ログに双方の SPIFFE の ID が出た。
+  ambient の外の `gitops-deployer-apps` から Redis へは `policy rejection: allow policies exist, but none allowed` で切られた
+- Gateway: `gateway-istio` の `/verify` に付けた HTTPRoute から `gitops-deployer` の Pod に届いた (200)
+- Knative: Kafka Broker (class Kafka) が Ready。ConfigMap を作ると ApiServerSource→Broker→Trigger→Knative Service に
+  `dev.knative.apiserver.resource.add` が届いた (拡張属性 `knativekafkaoffset` が付き、Kafka のトピックを通ったと分かる)
+- Dapr: サイドカー (daprd) から state store に書いて読め (Redis にキー `client||verify`)、pub/sub に publish した
+  CloudEvent を Kafka のトピックから読めた。`daprsystem` の mTLS は `enabled: false`
+- testkube: TestWorkflow `platform-smoke` が passed (`pong`)
