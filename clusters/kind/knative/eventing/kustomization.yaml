@@ -62,3 +62,11 @@ patches:
             memory: 256Mi
           limits:
             memory: 512Mi
+  # kind に metrics-server が無く、HPA は CPU を読めずに Degraded のまま。1 台で足りるので HPA を外す (台数は Deployment の 1)
+  - patch: |-
+      $patch: delete
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: eventing-webhook
+        namespace: knative-eventing

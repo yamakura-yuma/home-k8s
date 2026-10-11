@@ -36,3 +36,18 @@ patches:
             service: istio-ingress/knative-local-gateway-istio
             supported-features:
             - HTTPRouteRequestTimeout
+  # kind に metrics-server が無く、HPA は CPU を読めずに Degraded のまま。1 台で足りるので HPA を外す (台数は Deployment の 1)
+  - patch: |-
+      $patch: delete
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: activator
+        namespace: knative-serving
+  - patch: |-
+      $patch: delete
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: webhook
+        namespace: knative-serving

@@ -24,6 +24,18 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: testkube
+  # NATS の subchart は affinity・nodeSelector・securityContext を null で描き、API server が保存時に落とす (または {} にする)。
+  # 落ちた差で OutOfSync が消えないので、この StatefulSet の該当する欄だけ比べない
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      name: testkube-nats
+      jsonPointers:
+        - /spec/template/spec/affinity
+        - /spec/template/spec/nodeSelector
+        - /spec/template/spec/securityContext
+        - /spec/template/spec/containers/0/securityContext
+        - /spec/template/spec/containers/1/securityContext
   syncPolicy:
     automated:
       prune: true
@@ -32,3 +44,4 @@ spec:
       - CreateNamespace=true
       # CRD (TestWorkflow など) が大きく、client-side apply の注釈の上限を超える
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true

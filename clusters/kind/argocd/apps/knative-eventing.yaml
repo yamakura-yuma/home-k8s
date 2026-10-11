@@ -21,6 +21,8 @@ spec:
       jqPathExpressions:
         - .webhooks[]?.clientConfig.caBundle
         - .webhooks[]?.rules
+        # webhook が自分の namespaceSelector に除外の条件 (webhooks.knative.dev/exclude) を足す
+        - .webhooks[]?.namespaceSelector
     - group: admissionregistration.k8s.io
       kind: ValidatingWebhookConfiguration
       jqPathExpressions:
@@ -33,6 +35,11 @@ spec:
     - kind: Secret
       jqPathExpressions:
         - .data
+    # 集約 (aggregationRule) の ClusterRole の rules は、Kubernetes の集約のコントローラが埋める
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+      jqPathExpressions:
+        - select(.aggregationRule != null) | .rules
   syncPolicy:
     automated:
       prune: true
