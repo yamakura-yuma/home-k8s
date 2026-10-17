@@ -2,7 +2,7 @@
 
 状態: 調査。実装は下の「移行の段取り」の単位ごとに別の話題で行っている (単位 1・2・3・4・5 は実装済み、6 は Temporal UI と oauth2-proxy の判断と `just share` の廃止まで)。調べた日は 2026-10-10。
 ゲスト (他の人) は Keycloak のグループ `guests` で入れる (2026-10-12 実装。Grafana (観測スタック) の Viewer と Backstage の読むだけ、発行した日の次の 3:00 JST に消える。[guest-access.md](guest-access.md) の「実装 (g1)」)。
-ブラウザだけのゲストのため、Keycloak・Grafana (観測スタック)・Backstage の 3 つだけを Tailscale Funnel でインターネットに出した (2026-10-12。管理の経路とローカルのログインは前の proxy で塞いだ。[guest-access.md](guest-access.md) の「実装 (g2b)」)。
+ブラウザだけのゲストのため、Keycloak・Grafana (観測スタック)・Backstage の 3 つだけを Tailscale Funnel でインターネットに出した (2026-10-17。管理の経路とローカルのログインは前の proxy で塞いだ。[guest-access.md](guest-access.md) の「実装 (g2b)」)。
 
 > **IdP の推奨は差し替えた (2026-10-10)**: 下の Dex + GitHub に代えて、Keycloak (DB は PostgreSQL) を唯一の issuer にする。
 > 比較と移行の段取りは [idp-options.md](idp-options.md)。到達経路・各 UI の OIDC の設定・ワーカーと Azure の権限は、この文書のまま。
@@ -138,7 +138,7 @@ Azure は Entra ID のグループに Azure RBAC を割り当てる。ワーカ�
 |---|---|---|
 | IdP | **Dex** (namespace `auth`) + GitHub connector | 6 つの消費者すべてが標準の OIDC で読める。groups が `<org>:<team>` という読める文字列で出て、そのまま RBAC に書ける。ユーザーを保存しないので、DB とバックアップが要らない。上流は後から Microsoft connector (Entra ID) に足し替えられ、各 UI の設定は変わらない |
 | ユーザーとグループの正本 | **GitHub** (アクセス管理専用の org と team。2026-10-10 に決定) | 他の人も GitHub のアカウントなら持っている見込みが高い。個人のアカウントを専用の org (リポジトリなし、base permission はなし) に招待し、外すのも org の操作 1 つで済む (下の「IdP は GitHub に決めた」) |
-| 到達経路 | **Tailscale Personal** + Kubernetes operator の Ingress | 無料で URL が固定になり (`*.<tailnet>.ts.net`、HTTPS)、issuer を置ける。インターネットに出さない (2026-10-12 から、ゲストのため Keycloak・Grafana (観測スタック)・Backstage の 3 つだけを Funnel で出した。[tailscale.md](tailscale.md) の「Funnel」)。6 人と非商用という条件は、自宅のクラスタの規模なら収まる |
+| 到達経路 | **Tailscale Personal** + Kubernetes operator の Ingress | 無料で URL が固定になり (`*.<tailnet>.ts.net`、HTTPS)、issuer を置ける。インターネットに出さない (2026-10-17 から、ゲストのため Keycloak・Grafana (観測スタック)・Backstage の 3 つだけを Funnel で出した。[tailscale.md](tailscale.md) の「Funnel」)。6 人と非商用という条件は、自宅のクラスタの規模なら収まる |
 | Backstage | oidc provider + GitHub org のユーザーとチームをカタログに取り込む + permission framework | resolver が引く User と Group をカタログに揃える。ポリシーは「org のメンバーは読める、管理の team だけが書ける」から始める |
 | ArgoCD・Grafana・Temporal UI・Headlamp | 各自の OIDC 設定で Dex を見る | どれも無料版の機能で足りる (Grafana の Team Sync は使わない) |
 | Kubernetes API | AuthenticationConfiguration (公開の issuer.url とクラスタ内の discoveryURL) + kubelogin | 人の kubectl と Headlamp が同じ Group の RBAC に従う。kind の admin の kubeconfig は非常用として残す |

@@ -139,7 +139,7 @@ authorization code flow を流した (Python の標準ライブラリ)。テス�
 
 ## 実装 (g2b)
 
-2026-10-12 (JST) に実装した。Keycloak・Grafana (観測スタック)・Backstage の 3 つの Ingress だけに Funnel を付け、インターネットに出した。
+2026-10-17 (JST) に Funnel を付けた (入口の proxy と Keycloak の守りは 2026-10-12)。Keycloak・Grafana (観測スタック)・Backstage の 3 つの Ingress だけに Funnel を付け、インターネットに出した。
 issuer の URL (`https://keycloak.taild2b611.ts.net/realms/home-k8s`) は変えていない。
 
 ### 構成
@@ -171,6 +171,30 @@ tailnet の端末 ──────────────────┴▶ p
   ([clusters/kind/tailscale/test_funnel.py](../../clusters/kind/tailscale/test_funnel.py)) が `tailscale.com/funnel` の注釈は 3 つの Ingress だけにあり、どれも入口の proxy を指すことを確かめる。
   同じ試験が、caddy を起動して許可リストと表記揺れを確かめる
 - **人の画面操作**: tailnet のポリシーに `{"target": ["tag:k8s"], "attr": ["funnel"]}` の `nodeAttrs` を足した ([tailscale.md](tailscale.md) の「Funnel」)
+
+### 確かめた結果
+
+2026-10-17 (JST)、ホストから tailnet を通さずに確かめた。名前を公開の DNS (Cloudflare の DoH) で引き、Funnel の中継の公開 IP (`103.84.155.x`) につないだ
+(MagicDNS の `100.x` を使わない。`curl --doh-url https://cloudflare-dns.com/dns-query`)。
+
+| 要求 (インターネットから) | 結果 |
+|---|---|
+| Keycloak `/realms/home-k8s/`・well-known・Grafana の client の認可の画面 | 200 (issuer は `https://keycloak.taild2b611.ts.net/realms/home-k8s` のまま) |
+| Keycloak `/admin/`・`/admin/master/console/`・`/realms/master/`・`/admin/realms/home-k8s/users`・`/metrics`・`/health`・`/health/ready` | 404 |
+| 表記揺れ `/ADMIN/`・`/%61dmin/`・`//admin/`・`/realms/home-k8s/../master/`・`/realms/MASTER/`・`/realms/home-k8s%2F..%2Fmaster/` | 404 |
+| Grafana `/login`・`/api/health`、Backstage `/` | 200 |
+| Grafana のパスワードのログイン (`POST /login`)・Basic 認証 (`/api/user`)、Backstage のゲスト (`/api/auth/guest/refresh`) | 403・401・403 |
+| ArgoCD・Headlamp・Grafana (dev・prod)・Temporal UI ×2 | 公開の DNS で名前が引けない (NXDOMAIN)。中継の IP に SNI `argocd...` でつないでも TLS で切られる |
+| 使い捨てのゲスト (`just guest add`、TOTP は kcadm で外した) で Grafana | Sign in with Keycloak で入れて Viewer。検索 200、`/api/org/users` 403、ダッシュボードの保存 403 |
+| 同じゲストで Backstage | OIDC で入れて `user:default/guest-...`。カタログの読み取り 200、location の登録 (dryRun) 403 |
+
+tailnet からは今までどおり、Admin Console・`/realms/master/`・Grafana・Backstage・ArgoCD が 200 だった。外から `/admin/` が 404 で tailnet からは 200 なので、
+Funnel の要求に `Tailscale-Funnel-Request` が付いていることも実機で確かめられた。
+
+- **Funnel が効くまで数分かかる**: 注釈を入れた直後は、中継につないでも TLS の途中で切られた (`unexpected eof`)。数分で 3 つとも開いた
+- **ノードの再起動の直後の Backstage**: Keycloak がまだ 502 を返すうちに Backstage が起動すると、OIDC の discovery の失敗を抱えたままになり、
+  サインインが 500 になる (ログに `Unhandled rejection ... 502 Bad Gateway`)。`kubectl -n backstage rollout restart deploy/backstage` で直る (Funnel とは関係ない)
+- **ゲストの最初のログイン**: realm の user profile が email・名前を求めるので、パスワードの変更と TOTP に加えて、プロフィールの入力の画面が出る
 
 ### 止めるとき
 
@@ -230,7 +254,7 @@ G3 に仕組みを足さない理由は、どの候補もアカウント無し�
 | B3: Cloudflare Quick Tunnel (`--allowed-mail` を含む) | ブラウザだけ | 無料、アカウント不要 [公式] | **使えない**。作り直すたびに名前が変わる [公式] | ある (`--allowed-mail` でメールの PIN を前に置ける) | プロセスを止める | **外す** (上の「G3 の控え」) |
 
 ほかに、Funnel を使わずに Tailscale を入れていない端末から tailnet に届ける方法は、公式の文書に見つからなかった [未確認]。
-A1 と B1 は同じ Ingress の上で両立する。Funnel を付けた Ingress は、tailnet の端末からも今までどおり開ける [未確認]。
+A1 と B1 は同じ Ingress の上で両立する。Funnel を付けた Ingress は、tailnet の端末からも今までどおり開ける (2026-10-17 に確かめた。「実装 (g2b)」)。
 
 #### A1 で確かめること (タグ付きの端末を共有できるか)
 

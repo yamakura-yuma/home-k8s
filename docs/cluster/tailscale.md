@@ -8,7 +8,7 @@ kind の UI を、tailnet の端末から `https://<名前>.<tailnet>.ts.net` �
 - 入れたもの: Tailscale の Kubernetes operator (chart `tailscale-operator` 1.102.4、namespace `tailscale`。[apps/tailscale-operator.yaml](../../clusters/kind/argocd/apps/tailscale-operator.yaml))
   と、UI ごとの Ingress ([clusters/kind/tailscale/ingress](../../clusters/kind/tailscale/ingress)。Application `tailscale-ingress`)
 - localhost の URL (`localhost:8080` など) はそのまま残る。tailnet の URL は追加の経路
-- **Keycloak・Grafana (観測スタック)・Backstage の 3 つだけは Funnel でインターネットにも出している** (2026-10-12、ブラウザだけのゲストのため。下の「Funnel」と [guest-access.md](guest-access.md) の「実装 (g2b)」)
+- **Keycloak・Grafana (観測スタック)・Backstage の 3 つだけは Funnel でインターネットにも出している** (2026-10-17、ブラウザだけのゲストのため。下の「Funnel」と [guest-access.md](guest-access.md) の「実装 (g2b)」)
 
 ## URL
 
@@ -82,7 +82,7 @@ Service `keycloak-service:8080`)。`https://keycloak.<tailnet>.ts.net` で開け
   kind の API server も同じ CoreDNS の rewrite で届かせた ([kube-oidc.md](kube-oidc.md) の「API server から issuer に届かせる」)
 - proxy の端末は ephemeral ではない。`just down` (`kind delete cluster`) は端末を tailnet に残すので、作り直したクラスタの proxy が同じ名前を取れないことがある [未確認] ([keycloak.md](keycloak.md) の「鶏と卵」)
 
-## Funnel (インターネットへの公開、2026-10-12)
+## Funnel (インターネットへの公開、2026-10-17)
 
 ブラウザだけのゲスト ([guest-access.md](guest-access.md) の G2) のため、Ingress の注釈 `tailscale.com/funnel: "true"` で 3 つだけをインターネットに出した。
 
@@ -105,7 +105,7 @@ Service `keycloak-service:8080`)。`https://keycloak.<tailnet>.ts.net` で開け
 
 ### tailnet のポリシー (人の画面操作)
 
-管理画面の **Access controls** (<https://login.tailscale.com/admin/acls/file>) の JSON に、トップレベルの `nodeAttrs` を足して保存する (2026-10-12 に人が実施)。
+管理画面の **Access controls** (<https://login.tailscale.com/admin/acls/file>) の JSON に、トップレベルの `nodeAttrs` を足して保存する (2026-10-17 までに人が実施)。
 `autogroup:member` (既定の funnel の行の対象) はタグ付きの端末を含まないので、operator の proxy にはタグで付ける。
 
 ```json

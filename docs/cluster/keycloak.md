@@ -7,7 +7,7 @@ kind のクラスタの namespace `auth` に、IdP の Keycloak と、その DB 
 - Admin Console: `https://keycloak.taild2b611.ts.net/admin/` (realm `master`、ユーザー `admin`。パスワードは下の「Secret」)
 - ユーザーは `yamakura-yuma` (グループ `admins`、TOTP 必須、passkey も登録できる。下の「人のユーザーと MFA」。単位 2c)。各 UI と API server を OIDC につなぐのは単位 3〜6。ArgoCD と Grafana ×3 は単位 3、Temporal UI ×2 と Backstage は単位 4、Headlamp と kind の API server (kubectl) は単位 5 でつないだ (下の「各 UI の OIDC」と [kube-oidc.md](kube-oidc.md))
 - ゲスト (他の人) はグループ `guests` に `just guest add` で入れ、発行した日の次の 3:00 JST に消える ([guest-access.md](guest-access.md) の「実装」)
-- **インターネットにも出している** (Tailscale Funnel、2026-10-12。ゲストはブラウザだけで届く)。インターネットからは realm `home-k8s` と `/resources/` だけが届き、
+- **インターネットにも出している** (Tailscale Funnel、2026-10-17。ゲストはブラウザだけで届く)。インターネットからは realm `home-k8s` と `/resources/` だけが届き、
   Admin Console (`/admin/`)・realm `master`・client の登録の API などは前の proxy `keycloak-front` が 404 にする。tailnet からは今までどおり全部届く (下の「インターネットへの公開」)
 
 ## 構成
@@ -286,7 +286,7 @@ Backstage は最大 10 分 (Backstage のトークンの寿命) で見られな�
 すぐに切るときは、ArgoCD は `argocd-secret` の `server.secretkey` を消して argocd-server を作り直す (全員のセッションが切れる)、
 Grafana は admin で Server admin → Users → 該当ユーザー → Sessions の Force logout (どちらも試していない [未確認])。
 
-## インターネットへの公開 (Funnel、2026-10-12)
+## インターネットへの公開 (Funnel、2026-10-17)
 
 ブラウザだけのゲストがログインできるよう、Ingress `auth/keycloak` に Funnel (`tailscale.com/funnel: "true"`) を付けた ([guest-access.md](guest-access.md) の「実装 (g2b)」)。
 名前は `keycloak` のままなので、issuer (`https://keycloak.taild2b611.ts.net/realms/home-k8s`) と passkey の RP ID は変わらない。
