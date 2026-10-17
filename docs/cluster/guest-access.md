@@ -400,7 +400,7 @@ Tailscale の共有の招待リンクは、使い回せるものなら 1,000 回
 |---|---|---|---|
 | g1 (**実装済み**、2026-10-12。上の「実装 (g1)」) | `guests` と各 UI | realm に `guests` を足す (Git と kcadm.sh)。Grafana (観測スタック) の `role_attribute_path`、Backstage の `ROLE_GROUPS` に足す。期限 (毎日 3:00 JST) の CronJob を入れる。`just guest add/list/delete` | 使い捨てのテスト用ユーザー (`test-guest`) で、Grafana が Viewer、Backstage が読むだけ、ArgoCD・Temporal・Headlamp・Grafana (dev・prod) で何も見えないこと。期限を短くした workflow で無効になること |
 | g2a | A1 (G1 を選んだら) | Keycloak の proxy の端末を 1 台共有して、タグ付きの端末を共有できるか確かめる。できたら Grafana・Backstage も共有し、手順を書く。できなければ A2 の grants を入れる。結果で [access-control.md](access-control.md) の「タグ付きのマシンは共有できない」の記述も直す | 別のアカウントの tailnet の端末から、3 つの URL が開き `test-guest` で入れる |
-| g2b (**実装済み**、2026-10-12。上の「実装 (g2b)」) | B1 (G2 を選んだら) | Funnel が Ingress の経路を選べないこと (前の caddy が要るか) を最初に確かめる。Keycloak の前の caddy (経路の許可リストと `just ci` の試験)、ブルートフォースの設定の見直しとパスワードのポリシー、`nodeAttrs`、3 つの Ingress の Funnel の注釈 | tailnet の外 (スマホの回線など) から `/realms/home-k8s/` は開き、`/admin/`・`/realms/master/` は 404。ログインに TOTP が要る |
+| g2b (**実装済み**、2026-10-17。上の「実装 (g2b)」) | B1 (G2 を選んだら) | Funnel が Ingress の経路を選べないこと (前の caddy が要るか) を最初に確かめる。Keycloak の前の caddy (経路の許可リストと `just ci` の試験)、ブルートフォースの設定の見直しとパスワードのポリシー、`nodeAttrs`、3 つの Ingress の Funnel の注釈 | tailnet の外 (スマホの回線など) から `/realms/home-k8s/` は開き、`/admin/`・`/realms/master/` は 404。ログインに TOTP が要る |
 | g3 | headroom (見せると決めたら) | ホストの中継と oauth2-proxy | `guests` 以外は 403、許可リストの外は 404 |
 
 ## 出典

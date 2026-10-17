@@ -145,7 +145,7 @@ Azure は Entra ID のグループに Azure RBAC を割り当てる。ワーカ�
 | Azure (人) | Entra ID のセキュリティグループに Azure RBAC を割り当てる | 無料。Azure の ID は Entra ID から外せないので、Dex に寄せず Azure の側で持つ |
 | ワーカー (kind) | ServiceAccount `orca-worker`、dev は `edit`・prod は `view`。トークンは `kubectl create token --duration=8h` [未確認] | admin の kubeconfig を使わせない。worktree ごとの kubeconfig (Git の外) を、worktree の setup が作る |
 | ワーカー (Azure) | 専用のサービスプリンシパル (Reader、リソースグループに割り当てる) | workload identity federation はホストのプロセスには当てはまらない。スコープを絞り、シークレットに期限を付ける |
-| `just share` | **廃止した** (2026-10-11、[share.md](share.md))。人の入口を Tailscale と Keycloak にそろえた | ゲストは Keycloak のグループ `guests` に `just guest add` で入れる (Grafana (観測スタック) と Backstage を読むだけ。発行した日の次の 3:00 JST に消える)。tailnet の外のブラウザからは Funnel で、Keycloak・Grafana (観測スタック)・Backstage の 3 つにだけ届く (g2b、2026-10-12)。[guest-access.md](guest-access.md) |
+| `just share` | **廃止した** (2026-10-11、[share.md](share.md))。人の入口を Tailscale と Keycloak にそろえた | ゲストは Keycloak のグループ `guests` に `just guest add` で入れる (Grafana (観測スタック) と Backstage を読むだけ。発行した日の次の 3:00 JST に消える)。tailnet の外のブラウザからは Funnel で、Keycloak・Grafana (観測スタック)・Backstage の 3 つにだけ届く (g2b、2026-10-17)。[guest-access.md](guest-access.md) |
 
 ### IdP は GitHub に決めた (2026-10-10)
 
