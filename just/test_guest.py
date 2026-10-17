@@ -54,6 +54,14 @@ class Guest(FakeEnv):
         self.assertGreaterEqual(len(password), 20)
         self.assertEqual(r.stdout.count(password), 1)
         self.assertNotIn(password, r.stderr)
+        # ゲストに渡す情報: ログインのユーザー名 (引数の名前ではなく guest-<名前>)、入口の URL、ログインの順
+        self.assertIn("ユーザー名: guest-alice\n", r.stdout)
+        self.assertIn("一時パスワード:\n\n  " + password + "\n", r.stdout)
+        self.assertIn("https://grafana.taild2b611.ts.net", r.stdout)
+        self.assertIn("https://backstage.taild2b611.ts.net", r.stdout)
+        self.assertIn("tailnet の外からも開ける", r.stdout)
+        steps = ["このユーザー名と一時パスワード", "新しいパスワード", "TOTP を登録"]
+        self.assertEqual([r.stdout.index(s) for s in steps], sorted(r.stdout.index(s) for s in steps), r.stdout)
         create = next(a for a in self.kcadm() if a[:2] == ["create", "users"])
         self.assertIn("username=guest-alice", create)
         self.assertIn('groups=["/guests"]', create)

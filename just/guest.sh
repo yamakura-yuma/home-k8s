@@ -73,15 +73,29 @@ add)
         printf "{\"type\": \"password\", \"temporary\": true, \"value\": \"%s\"}" "$password" \
             | kcadm update "users/$id/reset-password" -r home-k8s -f -
     ' "$user" "$expires"
+    # 下の「ゲストに渡すもの」をそのまま写して渡せるようにする。ログインのユーザー名は guest-<名前> で、引数の名前とは違う
     cat <<EOF
 $user を作った (グループ guests)。$(TZ=JST-9 date -d "$expires" '+%Y-%m-%d %H:%M %Z') に消える (それから 5 分以内)。
-一時パスワード (この 1 回だけ表示する。ここから写してゲストに渡し、どこにも保存しない):
+一時パスワードはこの 1 回だけ表示する。ここから写してゲストに渡し、どこにも保存しない。
+
+---- ゲストに渡すもの ----
+ユーザー名: $user
+一時パスワード:
 
   $password
 
-ゲストの最初のログインで、パスワードの変更と TOTP (認証アプリ) の設定を求められる。
-  ログイン・パスワードと TOTP の変更: https://keycloak.taild2b611.ts.net/realms/home-k8s/account
-  見せる UI:                        https://grafana.taild2b611.ts.net (Viewer)、https://backstage.taild2b611.ts.net (読むだけ)
+開く URL (Tailscale の無いブラウザで、tailnet の外からも開ける):
+  Grafana:   https://grafana.taild2b611.ts.net (見るだけ)
+  Backstage: https://backstage.taild2b611.ts.net (見るだけ)
+ログインの順:
+  1. 上の URL で Keycloak のログインのボタンを押す (Grafana は Sign in with Keycloak)
+  2. Keycloak のログイン画面に、このユーザー名と一時パスワードを入れる
+  3. 新しいパスワードを決める (12 文字以上)
+  4. メールアドレスと名前を入れる
+  5. 認証アプリ (Google Authenticator など) で QR コードを読み、表示された 6 桁を入れて TOTP を登録する
+パスワードと TOTP の変更: https://keycloak.taild2b611.ts.net/realms/home-k8s/account
+--------------------------
+
 取り消すとき: just guest delete $1
 EOF
     ;;

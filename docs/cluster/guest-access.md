@@ -54,10 +54,12 @@ just guest delete <名前>   # 期限の前に取り消す。Keycloak のセッ�
 - 名前は英小文字・数字・`-` の 1〜32 文字 (先頭と末尾は英数字)。ユーザー名は `guest-<名前>` になり、人のユーザーと取り違えない
 - **一時パスワードは画面に 1 回だけ出す**。手元で乱数から作り、`kubectl exec` の標準入力で Keycloak の Pod に渡す。コマンドの引数・ファイル・ログには残さない。
   画面から写してゲストに渡し、保存しない (失くしたら `just guest delete` して `add` し直す)
-- ゲストは最初のログインで、パスワードの変更と TOTP の設定を求められる (`UPDATE_PASSWORD`・`CONFIGURE_TOTP`)。
+- ゲストは最初のログインで、パスワードの変更と TOTP の設定を求められる (`UPDATE_PASSWORD`・`CONFIGURE_TOTP`)。realm の user profile が
+  email と名前を必須にしているので、その間にプロフィールの入力の画面も出る。
   入口は Account Console (`https://keycloak.taild2b611.ts.net/realms/home-k8s/account`) か、Grafana・Backstage のログインのボタン
 - 見せるのは `https://grafana.taild2b611.ts.net` (Viewer) と `https://backstage.taild2b611.ts.net` (読むだけ)。tailnet の外のブラウザからも同じ URL で開ける
-  (Funnel。下の「実装 (g2b)」)。ゲストに渡すのは、この 2 つの URL・ユーザー名 `guest-<名前>`・一時パスワードの 3 つ
+  (Funnel。下の「実装 (g2b)」)。ゲストに渡すのは、この 2 つの URL・ユーザー名 `guest-<名前>`・一時パスワードの 3 つ。
+  `add` の出力の「ゲストに渡すもの」の枠に、この 3 つとログインの順が並ぶので、枠をそのまま写して渡す (ログインのユーザー名は引数の名前ではなく `guest-<名前>`)
 - 人ごとの期限 (`--hours` など) は持たない。延ばしたいときは、翌日にもう一度 `add` する
 
 **ゲストにも TOTP を求める**。ゲストは毎日作り直すので、そのたびに認証アプリに 1 つ登録することになり、手間は増える。それでも残すのは、
