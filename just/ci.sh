@@ -13,7 +13,9 @@
 #   5b. hostPort       3 までの出力で、同じ hostPort を 2 つ以上のワークロードが使わないこと、環境 (dev・prod) の Collector が hostPort を使わないこと
 #   6. unittest        環境ごとのサンプルの API (services/sample-api) の経路と OpenAPI の突き合わせ、Temporal (clusters/kind/temporal) の
 #                      URL・ポート・CSP・proxy の突き合わせ、Backstage の tailnet の入口の proxy (clusters/kind/backstage/tailnet-proxy。
-#                      caddy を起動して、ゲストのサインインの経路の表記揺れが届かないこと)、gitops-deployer の基盤 (clusters/kind/gitops-deployer/test_platform.py) の
+#                      caddy を起動して、ゲストのサインインの経路の表記揺れが届かないこと)、Funnel (clusters/kind/tailscale/test_funnel.py。
+#                      Funnel の注釈が Keycloak・Grafana (観測スタック)・Backstage の 3 つの Ingress だけにあること、Keycloak の入口の proxy が
+#                      インターネットからの /admin/・realm master などを表記を変えても拒み、Grafana の入口の proxy がローカルのログインを拒むこと)、gitops-deployer の基盤 (clusters/kind/gitops-deployer/test_platform.py) の
 #                      ambient に入れる namespace・Gateway と Knative の経路・Kafka と Redis の入口・Dapr の mTLS・APISIX の経路の突き合わせ。クラスタにもネットワークにも出ない
 #   6b. gitops-deployer  services/gitops-deployer の manifest の突き合わせ (test_manifests.py) と、Go の gofmt・go vet・単体試験 (go test)
 #   7. Secret          Secret を作るスクリプトすべて (注釈・引数に値が残らない作り方、#49・#56) と Grafana・ArgoCD の Secret を偽の kubectl で確かめる
@@ -152,6 +154,8 @@ echo "== temporal (環境ごとの UI の URL・ポート・CSP・proxy の突�
 python3 -B -m unittest discover -s clusters/kind/temporal -v
 echo "== backstage の tailnet の入口 (caddy + 偽の upstream。ゲストのサインインの経路を表記を変えても拒む) =="
 python3 -B -m unittest discover -s clusters/kind/backstage -v
+echo "== Funnel (注釈は Keycloak・Grafana・Backstage の 3 つの Ingress だけ。Keycloak・Grafana の入口の proxy がインターネットからの管理の経路とローカルのログインを表記を変えても拒む) =="
+python3 -B -m unittest discover -s clusters/kind/tailscale -v
 echo "== gitops-deployer の基盤 (ambient の namespace・Gateway と Knative・Kafka の入口・Dapr・APISIX の経路の突き合わせ) =="
 python3 -B -m unittest discover -s clusters/kind/gitops-deployer -p 'test_*.py' -v
 

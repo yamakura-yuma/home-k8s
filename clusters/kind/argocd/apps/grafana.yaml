@@ -21,6 +21,10 @@ spec:
       targetRevision: main
       ref: values
       path: clusters/kind/observability/dashboards
+    # tailnet の入口の proxy (インターネット (Funnel) からのローカルのログインを塞ぐ。clusters/kind/observability/tailnet-proxy)
+    - repoURL: https://github.com/yamakura-yuma/home-k8s
+      targetRevision: main
+      path: clusters/kind/observability/tailnet-proxy
   destination:
     server: https://kubernetes.default.svc
     namespace: observability

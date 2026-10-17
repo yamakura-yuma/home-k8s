@@ -1,0 +1,47 @@
+# 観測スタックの Grafana の tailnet の入口 (Ingress grafana → この proxy → Service grafana:80)。Ingress grafana には Funnel を付けてあり、
+# ログイン画面がインターネットに出る。インターネットからの要求 (Tailscale-Funnel-Request があるもの。見分け方は
+# clusters/kind/auth/keycloak-front/Caddyfile) では、Keycloak の OIDC (Sign in with Keycloak) だけでログインさせ、
+# ローカルのログイン (admin・viewer のパスワード) を塞ぐ (docs/cluster/guest-access.md の「実装 (g2b)」)。
+# - ログインフォームの送信 (POST /login) は 403。画面 (GET /login) は Keycloak のボタンを出すので通す
+# - Authorization ヘッダを消す (Basic 認証で API にパスワードで入れない。サービスアカウントのトークンも外からは使わない)
+# - パスワードのリセット (/api/user/password/*・/user/password/*) は 404
+# - 生の path の %エンコードしたスラッシュ・ドットなどは 404 (Keycloak の proxy と同じ)
+# tailnet からと、ホストの localhost:3000 (NodePort で Service grafana に直につなぐ。`just show grafana`) は今までどおり。
+{
+	admin off
+	auto_https off
+}
+
+:8080 {
+	@funnel header Tailscale-Funnel-Request *
+	@funnel_odd {
+		header Tailscale-Funnel-Request *
+		expression `{http.request.orig_uri}.matches("(?i)^[^?]*(%2f|%5c|%2e|%3b|%25|;|\\\\|//|/\\.\\.?(/|$))")`
+	}
+	@funnel_login_form {
+		header Tailscale-Funnel-Request *
+		path /login /login/
+		not method GET HEAD
+	}
+	@funnel_password_reset {
+		header Tailscale-Funnel-Request *
+		path /api/user/password/* /user/password/*
+	}
+	handle @funnel_odd {
+		respond "not found" 404
+	}
+	handle @funnel_login_form {
+		respond "password login is not available from the internet. Use Sign in with Keycloak" 403
+	}
+	handle @funnel_password_reset {
+		respond "not found" 404
+	}
+	handle @funnel {
+		reverse_proxy grafana:80 {
+			header_up -Authorization
+		}
+	}
+	handle {
+		reverse_proxy grafana:80
+	}
+}

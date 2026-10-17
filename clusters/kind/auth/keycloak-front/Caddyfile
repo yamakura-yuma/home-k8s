@@ -1,0 +1,50 @@
+# Keycloak の入口 (Ingress keycloak → この proxy → Service keycloak-service:8080)。Ingress keycloak には Funnel を付けてあり、
+# Funnel は Ingress の経路を選べず host:443 を丸ごとインターネットに出す (operator の serve の設定 AllowFunnel が host:port の単位)。
+# そこで、インターネットからの要求だけを経路の許可リストで絞る (docs/cluster/guest-access.md の「実装 (g2b)」)。
+#
+# 見分け方: Tailscale の proxy (tailscale serve) は、Funnel から来た要求に Tailscale-Funnel-Request: ?1 を付け、
+# どの要求でも外から来た同じ名前のヘッダを先に消す (tailscale v1.102.4 の ipn/ipnlocal/serve.go の addTailscaleIdentityHeaders)。
+# だから、このヘッダがあればインターネットから、無ければ tailnet (人の端末・Pod からの egress) からと決められる。
+# tailnet からは今までどおり全部を通す (Admin Console・Pod からの token・jwks)。
+#
+# インターネットから通すのは realm home-k8s (ログイン・token・Account Console) とログイン画面の静的ファイル (/resources/) だけ。
+# /admin/ (Admin Console と管理の REST API)・realm master・/ ・metrics・health と、realm home-k8s でも client の登録の API は 404。
+# caddy の path の matcher は大文字小文字を区別せず、%エンコードを解き、スラッシュの重なりとドットセグメントを畳んだ path に当たる。
+# 加えて、生の path に %エンコードしたスラッシュ・バックスラッシュ・ドット・`%` (二重のエンコード)、`;` (JAX-RS の matrix parameter)、`\`、スラッシュの重なり、
+# ドットセグメントがあれば、caddy と Keycloak で解き方がずれないよう、許可リストに当たっても 404 にする (clusters/kind/tailscale/test_funnel.py)。
+{
+	admin off
+	auto_https off
+	# Tailscale の proxy が付けた X-Forwarded-For・X-Forwarded-Proto・X-Forwarded-Host をそのまま Keycloak に渡す
+	# (Keycloak は proxy.headers: xforwarded。無いと caddy が X-Forwarded-Proto を http に書き換える)
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+:8080 {
+	@funnel_odd {
+		header Tailscale-Funnel-Request *
+		expression `{http.request.orig_uri}.matches("(?i)^[^?]*(%2f|%5c|%2e|%3b|%25|;|\\\\|//|/\\.\\.?(/|$))")`
+	}
+	@funnel_denied {
+		header Tailscale-Funnel-Request *
+		not path /realms/home-k8s /realms/home-k8s/* /resources/*
+	}
+	@funnel_registration {
+		header Tailscale-Funnel-Request *
+		path /realms/home-k8s/clients-registrations /realms/home-k8s/clients-registrations/*
+	}
+	handle @funnel_odd {
+		respond "not found" 404
+	}
+	handle @funnel_denied {
+		respond "not found" 404
+	}
+	handle @funnel_registration {
+		respond "not found" 404
+	}
+	handle {
+		reverse_proxy keycloak-service:8080
+	}
+}

@@ -5,6 +5,11 @@ kind: Ingress
 metadata:
   name: backstage
   namespace: backstage
+  # インターネットに出す (Tailscale Funnel。ゲストはブラウザだけで届く、docs/cluster/guest-access.md の「実装 (g2b)」)。
+  # Funnel は経路を選べず host:443 を丸ごと出すので、先の proxy がインターネットからの要求を絞る。
+  # Funnel を付けてよいのは Keycloak・Grafana (観測スタック)・Backstage の 3 つだけ (clusters/kind/tailscale/test_funnel.py が数える)
+  annotations:
+    tailscale.com/funnel: "true"
 spec:
   ingressClassName: tailscale
   defaultBackend:

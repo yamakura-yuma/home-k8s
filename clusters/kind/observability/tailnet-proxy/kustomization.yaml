@@ -1,0 +1,9 @@
+# 観測スタックの Grafana の tailnet の入口の proxy (Caddyfile)。Application grafana の 3 つ目の source が同期する
+# (clusters/kind/argocd/apps/grafana.yaml)。Ingress grafana (clusters/kind/tailscale/ingress/grafana.yaml) がこの Service を指す。
+namespace: observability
+resources:
+  - proxy.yaml
+configMapGenerator:
+  - name: grafana-tailnet
+    files:
+      - Caddyfile

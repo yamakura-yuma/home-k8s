@@ -1,18 +1,25 @@
 # Keycloak を https://keycloak.<tailnet>.ts.net に出す。issuer (https://keycloak.<tailnet>.ts.net/realms/home-k8s) がこの名前に結び付くので、
 # tls.hosts の名前は変えない (変えると各 UI の設定と passkey の登録がやり直しになる。docs/cluster/keycloak.md)。
-# Service keycloak-service は Keycloak Operator が CR keycloak から作る (HTTP 8080)。namespace auth は Application keycloak-operator が作る
+# Service keycloak-service (Keycloak Operator が CR keycloak から作る、HTTP 8080) ではなく、インターネット (Funnel) からの要求を
+# realm home-k8s に絞る proxy keycloak-front につなぐ (clusters/kind/auth/keycloak-front)。tailnet からは今までどおり全部 (Admin Console も) 届く。
+# namespace auth は Application keycloak-operator が作る
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: keycloak
   namespace: auth
+  # インターネットに出す (Tailscale Funnel。ゲストはブラウザだけで届く、docs/cluster/guest-access.md の「実装 (g2b)」)。
+  # Funnel は経路を選べず host:443 を丸ごと出すので、先の proxy がインターネットからの要求を絞る。
+  # Funnel を付けてよいのは Keycloak・Grafana (観測スタック)・Backstage の 3 つだけ (clusters/kind/tailscale/test_funnel.py が数える)
+  annotations:
+    tailscale.com/funnel: "true"
 spec:
   ingressClassName: tailscale
   defaultBackend:
     service:
-      name: keycloak-service
+      name: keycloak-front
       port:
-        number: 8080
+        number: 80
   tls:
     - hosts:
         - keycloak

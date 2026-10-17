@@ -44,7 +44,23 @@ spec:
     resetPasswordAllowed: false
     verifyEmail: false
     loginWithEmailAllowed: true
+    # ブルートフォースの検知 (g2b。Keycloak のログイン画面を Funnel でインターネットに出すので、既定の 30 回から絞った。docs/cluster/keycloak.md)。
+    # パスワードと OTP の失敗を 5 回で一時ロックし、ロックの時間は 5 回ごとに 60 秒ずつ延び、15 分で頭打ち。失敗の数は 12 時間で数え直す。
+    # 1 秒以内の連続の失敗は 60 秒ロックする。恒久ロックにしない: インターネットの誰でも人のユーザー名で失敗を重ねて締め出せてしまう。
+    # ロックの解除は tailnet の Admin Console (Users → 対象 → Brute force の Unlock)。
+    # realm の import は realm があると効かないので、動いている Keycloak には kcadm.sh で入れた (docs/cluster/keycloak.md)
     bruteForceProtected: true
+    permanentLockout: false
+    bruteForceStrategy: MULTIPLE
+    failureFactor: 5
+    waitIncrementSeconds: 60
+    maxFailureWaitSeconds: 900
+    maxDeltaTimeSeconds: 43200
+    quickLoginCheckMilliSeconds: 1000
+    minimumQuickLoginWaitSeconds: 60
+    # パスワードのポリシー (g2b)。12 文字以上 (ゲストの一時パスワードは 24 文字。just guest add)、ユーザー名・メールと同じものは不可、直近 3 つは使い回せない。
+    # 変えるときだけ効く (今のパスワードは次に変えるまでそのまま)
+    passwordPolicy: length(12) and maxLength(128) and notUsername and notEmail and passwordHistory(3)
     # MFA (単位 2c)。TOTP はどのユーザーにも必須 (CONFIGURE_TOTP の defaultAction)。ログインはパスワード + OTP (既定の browser の flow の Conditional 2FA)。
     # passkey は登録でき、ログイン画面で「passkey でログイン」に使える (PASSKEYS の feature。パスワードと OTP を飛ばす)。
     # 認証の flow (authenticationFlows) は書かない。書くと Keycloak の既定の flow が作られなくなる

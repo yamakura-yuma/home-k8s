@@ -1,14 +1,20 @@
-# 観測スタックの Grafana (https://grafana.<tailnet>.ts.net)
+# 観測スタックの Grafana (https://grafana.<tailnet>.ts.net)。Service grafana ではなく、インターネット (Funnel) からのローカルのログイン
+# (admin・viewer のパスワード) を塞ぐ proxy grafana-tailnet につなぐ (clusters/kind/observability/tailnet-proxy)
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: grafana
   namespace: observability
+  # インターネットに出す (Tailscale Funnel。ゲストはブラウザだけで届く、docs/cluster/guest-access.md の「実装 (g2b)」)。
+  # Funnel は経路を選べず host:443 を丸ごと出すので、先の proxy がインターネットからの要求を絞る。
+  # Funnel を付けてよいのは Keycloak・Grafana (観測スタック)・Backstage の 3 つだけ (clusters/kind/tailscale/test_funnel.py が数える)
+  annotations:
+    tailscale.com/funnel: "true"
 spec:
   ingressClassName: tailscale
   defaultBackend:
     service:
-      name: grafana
+      name: grafana-tailnet
       port:
         number: 80
   tls:

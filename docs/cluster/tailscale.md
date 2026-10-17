@@ -8,20 +8,21 @@ kind の UI を、tailnet の端末から `https://<名前>.<tailnet>.ts.net` �
 - 入れたもの: Tailscale の Kubernetes operator (chart `tailscale-operator` 1.102.4、namespace `tailscale`。[apps/tailscale-operator.yaml](../../clusters/kind/argocd/apps/tailscale-operator.yaml))
   と、UI ごとの Ingress ([clusters/kind/tailscale/ingress](../../clusters/kind/tailscale/ingress)。Application `tailscale-ingress`)
 - localhost の URL (`localhost:8080` など) はそのまま残る。tailnet の URL は追加の経路
+- **Keycloak・Grafana (観測スタック)・Backstage の 3 つだけは Funnel でインターネットにも出している** (2026-10-17、ブラウザだけのゲストのため。下の「Funnel」と [guest-access.md](guest-access.md) の「実装 (g2b)」)
 
 ## URL
 
 | UI | URL | Ingress (namespace/名前) | つなぐ Service |
 |---|---|---|---|
 | ArgoCD | `https://argocd.<tailnet>.ts.net` | argocd/argocd | argocd-server:80 |
-| Backstage | `https://backstage.<tailnet>.ts.net` | backstage/backstage | backstage-tailnet:80 (ゲストのサインインを拒む proxy の先が backstage:7007。単位 4) |
-| Grafana (観測スタック) | `https://grafana.<tailnet>.ts.net` | observability/grafana | grafana:80 |
+| Backstage (**Funnel**) | `https://backstage.<tailnet>.ts.net` | backstage/backstage | backstage-tailnet:80 (ゲストのサインインを拒む proxy の先が backstage:7007。単位 4) |
+| Grafana (観測スタック、**Funnel**) | `https://grafana.<tailnet>.ts.net` | observability/grafana | grafana-tailnet:80 (インターネットからのローカルのログインを塞ぐ proxy の先が grafana:80。g2b) |
 | Grafana (dev) | `https://grafana-dev.<tailnet>.ts.net` | dev/grafana-dev | grafana:80 |
 | Grafana (prod) | `https://grafana-prod.<tailnet>.ts.net` | prod/grafana-prod | grafana:80 |
 | Temporal UI (dev) | `https://temporal-dev.<tailnet>.ts.net` | dev/temporal-dev | temporal-ui-embed:80 (iframe 用の proxy の先が temporal-web:8080。単位 4) |
 | Temporal UI (prod) | `https://temporal-prod.<tailnet>.ts.net` | prod/temporal-prod | temporal-ui-embed:80 (同上) |
 | Headlamp | `https://headlamp.<tailnet>.ts.net` | headlamp/headlamp | headlamp:80 |
-| Keycloak | `https://keycloak.<tailnet>.ts.net` | auth/keycloak | keycloak-service:8080 |
+| Keycloak (**Funnel**) | `https://keycloak.<tailnet>.ts.net` | auth/keycloak | keycloak-front:80 (インターネットからの要求を realm home-k8s に絞る proxy の先が keycloak-service:8080。g2b) |
 
 ホスト名は Ingress の `tls.hosts` の 1 つ目で決まる (`<名前>.<tailnet>.ts.net`)。
 各ホストの最初のアクセスで Tailscale が Let's Encrypt から証明書を取るので、1 回目は数秒〜数十秒かかる。
@@ -54,8 +55,8 @@ tailnet の端末 ─ HTTPS (Tailscale の証明書) ─▶ proxy Pod (tag:k8s�
 | `tag:k8s-operator` | operator 自身 (端末名 `tailscale-operator`) | `autogroup:admin` (tailnet の管理者) |
 | `tag:k8s` | Ingress ごとの proxy (UI と Keycloak) と、egress の proxy (Pod → Keycloak) | `tag:k8s-operator` (operator が proxy に付ける) |
 
-ACL は新しい tailnet の既定 (全部許可) のまま残し、`tagOwners` だけを足した。
-自分 1 人の tailnet で、tailnet の外には出ていない (Funnel は使わない) ため。
+ACL は新しい tailnet の既定 (全部許可) のまま残し、`tagOwners` と、Funnel のための `nodeAttrs` (下の「Funnel」) だけを足した。
+tailnet の人は自分 1 人で、tailnet の外のゲストは Funnel で 3 つの UI にだけ届く (tailnet には入らない) ため。
 人を招待するときは、既定の全部許可を次の形に絞る (未実施。Keycloak の後の別話題):
 
 ```json
@@ -80,6 +81,38 @@ Service `keycloak-service:8080`)。`https://keycloak.<tailnet>.ts.net` で開け
 - Pod からは operator の **egress** (Service `auth/keycloak-tailnet`、注釈 `tailscale.com/tailnet-fqdn`) と CoreDNS の rewrite で同じ URL に届く ([keycloak.md](keycloak.md) の「Pod から issuer に届かせる」)。
   kind の API server も同じ CoreDNS の rewrite で届かせた ([kube-oidc.md](kube-oidc.md) の「API server から issuer に届かせる」)
 - proxy の端末は ephemeral ではない。`just down` (`kind delete cluster`) は端末を tailnet に残すので、作り直したクラスタの proxy が同じ名前を取れないことがある [未確認] ([keycloak.md](keycloak.md) の「鶏と卵」)
+
+## Funnel (インターネットへの公開、2026-10-17)
+
+ブラウザだけのゲスト ([guest-access.md](guest-access.md) の G2) のため、Ingress の注釈 `tailscale.com/funnel: "true"` で 3 つだけをインターネットに出した。
+
+| Ingress | Funnel | 先の proxy がインターネットからの要求にすること |
+|---|---|---|
+| `auth/keycloak` | 付ける | realm `home-k8s` と `/resources/` だけを通す。`/admin/`・realm `master` などは 404 ([keycloak.md](keycloak.md) の「インターネットへの公開」) |
+| `observability/grafana` | 付ける | パスワードのログイン (`POST /login`)・パスワードのリセットを拒み、`Authorization` を消す。OIDC (Sign in with Keycloak) だけ |
+| `backstage/backstage` | 付ける | ゲストのサインイン (`/api/auth/guest`) を拒む (tailnet からも同じ。単位 4 から) |
+| ArgoCD・Headlamp・Temporal UI ×2・Grafana (dev・prod) | **付けない** | tailnet の中だけ |
+
+- **Funnel は Ingress の経路を選べず、host:443 を丸ごと出す**。operator は `tailscale.com/funnel` の注釈を serve の設定の `AllowFunnel` (`host:port` の単位) に直す
+  (tailscale v1.102.4 の `cmd/k8s-operator/ingress.go`)。だから経路は Ingress ではなく、先の proxy で絞る
+- **インターネットからの要求の見分け方**: tailscale serve は Funnel から来た要求に `Tailscale-Funnel-Request: ?1` を付け、外から来た同じ名前のヘッダは先に消す
+  (`ipn/ipnlocal/serve.go`)。proxy (caddy) はこのヘッダがある要求だけを絞り、tailnet からの要求は今までどおり通す
+- **数の検査**: `nodeAttrs` で `tag:k8s` の proxy のどれもが Funnel を使える状態なので、どの Ingress に注釈を付けたかを `just ci`
+  ([clusters/kind/tailscale/test_funnel.py](../../clusters/kind/tailscale/test_funnel.py)) が数える。`clusters/` の下で `tailscale.com/funnel` を書いてよいのはこの 3 つの manifest だけ
+- URL は tailnet と同じ `https://<名前>.taild2b611.ts.net`。Funnel を付けると、公開の DNS でもこの名前が引けるようになる (tailnet の外では Tailscale の Funnel の中継の IP)
+- 帯域には公開されていない上限がある。ポートは 443 だけを使う
+- 止めるときは注釈を消す (Git の revert)。operator が serve の設定から `AllowFunnel` を外す
+
+### tailnet のポリシー (人の画面操作)
+
+管理画面の **Access controls** (<https://login.tailscale.com/admin/acls/file>) の JSON に、トップレベルの `nodeAttrs` を足して保存する (2026-10-17 までに人が実施)。
+`autogroup:member` (既定の funnel の行の対象) はタグ付きの端末を含まないので、operator の proxy にはタグで付ける。
+
+```json
+"nodeAttrs": [
+  {"target": ["tag:k8s"], "attr": ["funnel"]}
+],
+```
 
 ## 人の画面操作 (最初の 1 回)
 
@@ -136,7 +169,7 @@ tailnet の別の端末 (Tailscale のアプリを入れてログインした端
   Temporal のタブ (iframe) は単位 4 で tailnet の URL にした。Backstage の `app.baseUrl` と `backend.baseUrl` は単位 4 で tailnet の URL にした
   (OIDC の callback のため)。フロントエンドは baseUrl を開いたオリジンに置き換える (`@backstage/frontend-defaults` の overrideBaseUrlConfigs) ので、localhost でも画面は動く
 - share (`just share`) はこの単位では触らず、あとで廃止した (2026-10-11、[share.md](share.md))。Tailscale に招待できない相手の入れ方は [guest-access.md](guest-access.md) で比べる
-- Funnel (インターネットへの公開) は使わない
+- Funnel (インターネットへの公開) は Keycloak・Grafana (観測スタック)・Backstage の 3 つだけ (上の「Funnel」)。ほかの UI には付けない
 - 証明書は Let's Encrypt の上限 (tailnet あたり週 50 のホスト名) に数える。クラスタを作り直しても同じ名前なら新しい名前は増えない
   (同じ名前の重複は週 5 まで [公式])。作り直しを 1 週間に何度も繰り返すと証明書が取れなくなりうる
 - Tailscale Personal は非商用に限る ([access-control.md](access-control.md))
@@ -146,4 +179,8 @@ tailnet の別の端末 (Tailscale のアプリを入れてログインした端
 - Kubernetes operator (確認): <https://tailscale.com/kb/1236/kubernetes-operator>
 - operator の quickstart (tagOwners、Trust credentials の scope、Secret `operator-oauth`) (確認): <https://tailscale.com/docs/kubernetes-operator/quickstart>
 - Ingress (L7・証明書・上限、LoadBalancer は L3) (確認): <https://tailscale.com/kb/1439/kubernetes-operator-cluster-ingress>
+- Ingress を Funnel で出す (`tailscale.com/funnel` の注釈、`tag:k8s` への nodeAttrs) (確認): <https://tailscale.com/docs/kubernetes-operator/ingress/expose-workload-to-internet>
+- Funnel (ポート 443・8443・10000、nodeAttrs の `funnel`) (確認): <https://tailscale.com/kb/1223/funnel>
+- operator が Ingress を serve の設定に直すところ (`AllowFunnel` は host:port 単位) (確認): <https://github.com/tailscale/tailscale/blob/v1.102.4/cmd/k8s-operator/ingress.go>
+- serve が Funnel の要求に `Tailscale-Funnel-Request` を付け、外から来た同じヘッダを消すところ (確認): <https://github.com/tailscale/tailscale/blob/v1.102.4/ipn/ipnlocal/serve.go>
 - chart の values (`oauth` を空にすると Secret `operator-oauth` を読む) (確認): `helm show values tailscale/tailscale-operator --version 1.102.4`
